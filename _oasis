@@ -14,7 +14,7 @@ Description:
 
 Library crossbow
   Path: src
-  Modules: Earray, Symb
+  Modules: Earray, Symb, Term
   BuildDepends: batteries
 
 Document "api-crossbow"
