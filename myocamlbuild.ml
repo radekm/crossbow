@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: fb7d13b6dc4790379365dab302204964) *)
+(* DO NOT EDIT (digest: 3bedad28f408dc3d5ad3198d8c517717) *)
 module OASISGettext = struct
 (* # 21 "/home/abuild/rpmbuild/BUILD/oasis-0.3.0/src/oasis/OASISGettext.ml" *)
 
@@ -480,7 +480,7 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml = [("crossbow", ["src"])];
      lib_c = [];
      flags = [];
-     includes = [];
+     includes = [("test", ["src"])];
      }
   ;;
 

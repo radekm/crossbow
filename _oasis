@@ -23,3 +23,13 @@ Document "api-crossbow"
   BuildTools+: ocamldoc
   XOCamlbuildLibraries: crossbow
   XOCamlbuildPath: src
+
+Executable test
+  Path: test
+  MainIs: test.ml
+  BuildDepends: crossbow, oUnit
+  Install: false
+  Build$: flag(tests)
+
+Test main
+  Command: $test
