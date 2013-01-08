@@ -6,6 +6,7 @@ let suite =
   TestList
     [
       Test_earray.suite;
+      Test_elist.suite;
       Test_symb.suite;
       Test_term.suite;
     ]
