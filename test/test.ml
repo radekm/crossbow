@@ -7,6 +7,7 @@ let suite =
     [
       Test_earray.suite;
       Test_symb.suite;
+      Test_term.suite;
     ]
 
 let () = ignore (run_test_tt suite)
