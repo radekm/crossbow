@@ -7,6 +7,7 @@ let suite =
     [
       Test_earray.suite;
       Test_elist.suite;
+      Test_algo.suite;
       Test_symb.suite;
       Test_term.suite;
       Test_clause.suite;
