@@ -14,7 +14,7 @@ Description:
 
 Library crossbow
   Path: src
-  Modules: Earray, Elist, Algo, Symb, Term, Clause
+  Modules: Earray, Elist, Algo, Equiv, Symb, Term, Clause
   BuildDepends: batteries
 
 Document "api-crossbow"
