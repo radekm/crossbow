@@ -119,6 +119,172 @@ let test_normalize_vars () =
     (norm_clause, 5)
     (C.normalize_vars orig_clause)
 
+let test_flatten () =
+  let db = S.create_db () in
+  let f = S.add_symb db "f" 1 in
+  let c = S.add_symb db "c" 0 in
+  let d = S.add_symb db "d" 0 in
+  let f a = T.Func (f, [| a |]) in
+  let c = T.Func (c, [| |]) in
+  let d = T.Func (d, [| |]) in
+  let x = T.Var 0 in
+  let y = T.Var 1 in
+  let v1 = T.Var 2 in
+  let v2 = T.Var 3 in
+  (* x != f(c), y != f(d), f(c) = f(d) *)
+  let orig_clause = {
+    C.cl_id = 0;
+    C.cl_lits = [
+      T.mk_ineq x (f c);
+      T.mk_ineq y (f d);
+      T.mk_eq (f c) (f d);
+    ];
+  } in
+  (* v2 != d, v1 != c, x != f(v1), y != f(v2), x = y *)
+  let flat_clause = {
+    C.cl_id = 0;
+    C.cl_lits = [
+      T.mk_ineq v2 d;
+      T.mk_ineq v1 c;
+      T.mk_ineq x (f v1);
+      T.mk_ineq y (f v2);
+      T.mk_eq x y;
+    ];
+  } in
+  assert_equal (Some flat_clause) (C.flatten db orig_clause)
+
+let test_flatten_commutative_symb () =
+  let db = S.create_db () in
+  let f = S.add_symb db "f" 2 in
+  S.set_commutative db f true;
+  let p = S.add_symb db "p" 2 in
+  let c = S.add_symb db "c" 0 in
+  let d = S.add_symb db "d" 0 in
+  let f a b = T.Func (f, [| a; b |]) in
+  let p a b = T.Func (p, [| a; b |]) in
+  let c = T.Func (c, [| |]) in
+  let d = T.Func (d, [| |]) in
+  let x = T.Var 0 in
+  let y = T.Var 1 in
+  let z = T.Var 2 in
+  (* x != f(c, d), p(f(d, c), x), y != d, c != z *)
+  let orig_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_ineq x (f c d);
+      p (f d c) x;
+      T.mk_ineq y d;
+      T.mk_ineq c z;
+    ];
+  } in
+  (* x != f(y, z), p(x, x), y != d, z != c *)
+  let flat_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_ineq x (f y z);
+      p x x;
+      T.mk_ineq y d;
+      T.mk_ineq z c;
+    ];
+  } in
+  assert_equal (Some flat_clause) (C.flatten db orig_clause)
+
+let test_flatten_deep_nesting () =
+  let db = S.create_db () in
+  let f = S.add_symb db "f" 2 in
+  let g = S.add_symb db "g" 1 in
+  let p = S.add_symb db "p" 1 in
+  let c = S.add_symb db "c" 0 in
+  let d = S.add_symb db "d" 0 in
+  let f a b = T.Func (f, [| a; b |]) in
+  let g a = T.Func (g, [| a |]) in
+  let p a = T.Func (p, [| a |]) in
+  let c = T.Func (c, [| |]) in
+  let d = T.Func (d, [| |]) in
+  let x = T.Var 0 in
+  let v1 = T.Var 1 in
+  let v2 = T.Var 2 in
+  let v3 = T.Var 3 in
+  let v4 = T.Var 4 in
+  (* p(f(c, g(d))), g(c) = x *)
+  let orig_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      p (f c (g d));
+      T.mk_eq (g c) x;
+    ];
+  } in
+  (* v4 != d, v3 != g(v4), v2 != c, v1 != f(v2, v3), p(v1), x = g(v2) *)
+  let flat_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_ineq v4 d;
+      T.mk_ineq v3 (g v4);
+      T.mk_ineq v2 c;
+      T.mk_ineq v1 (f v2 v3);
+      p v1;
+      T.mk_eq x (g v2);
+    ];
+  } in
+  assert_equal (Some flat_clause) (C.flatten db orig_clause)
+
+let test_flatten_func_equalities () =
+  let db = S.create_db () in
+  let f = S.add_symb db "f" 1 in
+  let g = S.add_symb db "g" 1 in
+  let c = S.add_symb db "c" 0 in
+  let f a = T.Func (f, [| a |]) in
+  let g a = T.Func (g, [| a |]) in
+  let c = T.Func (c, [| |]) in
+  let x = T.Var 0 in
+  let y = T.Var 1 in
+  let z = T.Var 2 in
+  let v1 = T.Var 3 in
+  let v2 = T.Var 4 in
+  (* g(y) = f(x), f(y) = f(x), g(x) = g(z), g(z) = f(x), c = g(z) *)
+  let orig_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_eq (g y) (f x);
+      T.mk_eq (f y) (f x);
+      T.mk_eq (g x) (g z);
+      T.mk_eq (g z) (f x);
+      T.mk_eq c (g z);
+    ];
+  } in
+  (* v2 != f(x), v1 != g(z), v2 = g(y), v2 = f(y), v1 = g(x), v1 = v2, v1 = c *)
+  let flat_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_ineq v2 (f x);
+      T.mk_ineq v1 (g z);
+      T.mk_eq v2 (g y);
+      T.mk_eq v2 (f y);
+      T.mk_eq v1 (g x);
+      T.mk_eq v1 v2;
+      T.mk_eq v1 c;
+    ];
+  } in
+  assert_equal (Some flat_clause) (C.flatten db orig_clause)
+
+let test_flatten_tautology () =
+  let db = S.create_db () in
+  let p = S.add_symb db "p" 1 in
+  let c = S.add_symb db "c" 0 in
+  let p a = T.Func (p, [| a |]) in
+  let c = T.Func (c, [| |]) in
+  let x = T.Var 0 in
+  (* x != c, p(c), ~p(x) *)
+  let orig_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_ineq x c;
+      p c;
+      C.neg_lit (p x);
+    ];
+  } in
+  assert_equal None (C.flatten db orig_clause)
+
 let suite =
   "Clause suite" >:::
     [
@@ -128,4 +294,9 @@ let suite =
       "simplify" >:: test_simplify;
       "simplify tautology" >:: test_simplify_tautology;
       "normalize_vars" >:: test_normalize_vars;
+      "flatten" >:: test_flatten;
+      "flatten - commutative symbol" >:: test_flatten_commutative_symb;
+      "flatten - deep nesting" >:: test_flatten_deep_nesting;
+      "flatten - equalities of function terms" >:: test_flatten_func_equalities;
+      "flatten - tautology" >:: test_flatten_tautology;
     ]

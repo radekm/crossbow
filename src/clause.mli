@@ -36,3 +36,17 @@ val simplify : Symb.db -> t -> t option
    is the count of the distinct variables in the clause.
 *)
 val normalize_vars : t -> t * int
+
+(** Returns a logically equivalent clause which is flat
+   or [None] if the clause is a tautology.
+
+   A flat clause contains only shallow literals.
+   A literal is shallow iff it has one of the following forms:
+
+   - [?p(x1,..,xn)],
+   - [x ?= f(x1,..,xn)],
+   - [x ?= y].
+
+   Question mark means an optional negation.
+*)
+val flatten : Symb.db -> t -> t option
