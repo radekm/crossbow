@@ -7,8 +7,10 @@ module T = Term
 
 type lit = T.t
 
+type id = int
+
 type t = {
-  cl_id : int;
+  cl_id : id;
   cl_lits : lit list;
 }
 

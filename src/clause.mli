@@ -5,8 +5,10 @@
 (** A literal is an atomic formula or its negation. *)
 type lit = Term.t
 
+type id = int
+
 type t = {
-  cl_id : int;
+  cl_id : id;
   cl_lits : lit list;
 }
 
