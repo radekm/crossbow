@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: b68a60d65af2a355fdecfe4d1991ec1b)
+# DO NOT EDIT (digest: 2bb12449357e8f4a72f9526df3c65941)
 Earray
 Elist
 Algo
@@ -7,4 +7,5 @@ Equiv
 Symb
 Term
 Clause
+Prob
 # OASIS_STOP
