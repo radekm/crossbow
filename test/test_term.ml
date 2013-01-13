@@ -53,6 +53,24 @@ let test_contains2 () =
     ) in
   assert_bool "" (T.contains subterm term)
 
+let test_iter () =
+  let db = Symb.create_db () in
+  let f = Symb.add_symb db "f" 2 in
+  let g = Symb.add_symb db "g" 1 in
+  let x = T.Var 0 in
+  let y = T.Var 1 in
+  let z = T.Var 2 in
+  let t1 = T.Func (f, [| x; z |]) in
+  let t2 = T.Func (g, [| t1 |]) in
+  (* f(g(f(x, z)), y) *)
+  let term = T.Func (f, [| t2; y |]) in
+  let subterms = ref [term; t2; t1; x; z; y] in
+  let each_subterm t =
+    assert_equal (List.hd !subterms) t;
+    subterms := List.tl !subterms in
+  T.iter each_subterm term;
+  assert_equal [] !subterms
+
 let test_pickp1 () =
   let db = Symb.create_db () in
   let f = Symb.add_symb db "f" 1 in
@@ -137,6 +155,7 @@ let suite =
       "mk_ineq" >:: test_mk_ineq;
       "contains 1" >:: test_contains1;
       "contains 2" >:: test_contains2;
+      "iter" >:: test_iter;
       "pickp 1" >:: test_pickp1;
       "pickp 2" >:: test_pickp2;
       "normalize_comm" >:: test_normalize_comm;

@@ -18,6 +18,11 @@ val mk_ineq : t -> t -> t
 (** [contains sub t] tests whether the term [t] contains [sub] as a subterm. *)
 val contains : t -> t -> bool
 
+(** [iter f t] successively applies [f] to all subterms of [t].
+   [f] is always applied to a parent term before it is applied to its child terms.
+*)
+val iter : (t -> unit) -> t -> unit
+
 (** [pickp f t] successively applies [f] to all subterms of [t] until [f]
    succeeds. The result of [f] is returned if [f] succeeded, [None] otherwise.
 

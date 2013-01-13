@@ -19,6 +19,12 @@ let contains subterm term =
     | Func (_, args) -> BatArray.exists contains args in
   contains term
 
+let rec iter f term =
+  f term;
+  match term with
+    | Var _ -> ()
+    | Func (_, args) -> Array.iter (iter f) args
+
 let pickp f term =
   let rec pickp parent term =
     match f parent term, term with
