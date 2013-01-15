@@ -7,6 +7,11 @@
 *)
 val pick : ('a -> 'b option) -> 'a array -> 'b option
 
+(** [existsi p arr] checks if at least one element of
+   the array satisfies the predicate [p]. [p] takes an element and its index.
+*)
+val existsi : (int -> 'a -> bool) -> 'a array -> bool
+
 (** [iter_combinations f k arr] applies [f] to each [k]-combination
    of the elements of [arr]. The array in which the [k]-combinations
    are passed to [f] is the same for all calls to [f].

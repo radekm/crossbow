@@ -17,6 +17,16 @@ let test_pick2 () =
     (Some 7)
     (Earray.pick (fun x -> if x > 5 then Some (x+1) else None) [| 5; 6; 8 |])
 
+let test_existsi1 () =
+  assert_bool
+    ""
+    (not (Earray.existsi (fun i x -> x > 3 && i <> 4) [| -1; 2; 1; 3; 6; 3 |]))
+
+let test_existsi2 () =
+  assert_bool
+    ""
+    (Earray.existsi (fun i x -> x > 4 && i > 5) [| -3; 6; 3; 5; 8; 6; 7; 2 |])
+
 let test_iter_combinations1 () =
   let arr = [| 1; 1; 2; 3; 5 |] in
   let combs = [|
@@ -69,6 +79,8 @@ let suite =
       "pick from empty array" >:: test_pick_empty_array;
       "pick 1" >:: test_pick1;
       "pick 2" >:: test_pick2;
+      "existsi 1" >:: test_existsi1;
+      "existsi 2" >:: test_existsi2;
       "iter_combinations 1" >:: test_iter_combinations1;
       "iter_combinations 2" >:: test_iter_combinations2;
       "iter_combinations - min length" >:: test_iter_combinations_min_len;

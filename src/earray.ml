@@ -10,6 +10,12 @@ let pick f arr =
       None in
   loop 0
 
+let existsi f arr =
+  let rec loop i =
+    i < Array.length arr &&
+    (f i arr.(i) || loop (i+1)) in
+  loop 0
+
 let rindex_of f arr =
   let rec loop i =
     if i >= 0 then
