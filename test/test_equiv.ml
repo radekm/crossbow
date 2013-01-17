@@ -1,17 +1,10 @@
 (* Copyright (c) 2013 Radek Micek *)
 
 open OUnit
-open BatPervasives
 
 let assert_equivalence e exp_blocks =
-  let ids =
-    BatList.map
-      (BatList.map (Equiv.find e) |- BatList.unique)
-      exp_blocks in
-  (* Elements in an expected block have same id. *)
-  List.iter (fun xs -> assert_equal 1 (List.length xs)) ids;
-  (* Ids of elements in different expected blocks are different. *)
-  assert_equal (List.length ids) (BatList.unique ids |> List.length)
+  let ids = BatList.map (BatList.map (Equiv.find e)) exp_blocks in
+  Eunit.assert_partition ids
 
 let test_union_find () =
   let e = Equiv.create () in
