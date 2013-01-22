@@ -27,6 +27,25 @@ let test_existsi2 () =
     ""
     (Earray.existsi (fun i x -> x > 4 && i > 5) [| -3; 6; 3; 5; 8; 6; 7; 2 |])
 
+let test_rindex_of_empty_array () =
+  assert_equal
+    None
+    (Earray.rindex_of (fun _ _ -> true) [| |] 0 0)
+
+let test_rindex_of1 () =
+  assert_equal
+    (Some 2)
+    (Earray.rindex_of
+       (fun i x -> i <> 5 && x > 6)
+       [| 0; 7; 8; 4; 5; 9; 1; 4; 9; 8 |] 1 7)
+
+let test_rindex_of2 () =
+  assert_equal
+    None
+    (Earray.rindex_of
+       (fun i x -> i <> 4 && i <> 6 && x > 5)
+       [| 0; 7; 8; 4; 9; 1; 6; 5; 9; 8 |] 3 5)
+
 let test_iter_combinations1 () =
   let arr = [| 1; 1; 2; 3; 5 |] in
   let combs = [|
@@ -81,6 +100,9 @@ let suite =
       "pick 2" >:: test_pick2;
       "existsi 1" >:: test_existsi1;
       "existsi 2" >:: test_existsi2;
+      "rindex_of - empty array" >:: test_rindex_of_empty_array;
+      "rindex_of 1" >:: test_rindex_of1;
+      "rindex_of 2" >:: test_rindex_of2;
       "iter_combinations 1" >:: test_iter_combinations1;
       "iter_combinations 2" >:: test_iter_combinations2;
       "iter_combinations - min length" >:: test_iter_combinations_min_len;

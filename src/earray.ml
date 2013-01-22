@@ -16,16 +16,16 @@ let existsi f arr =
     (f i arr.(i) || loop (i+1)) in
   loop 0
 
-let rindex_of f arr =
+let rindex_of f arr start len =
   let rec loop i =
-    if i >= 0 then
+    if i >= start then
       if f i arr.(i) then
         Some i
       else
         loop (i-1)
     else
       None in
-  loop (Array.length arr - 1)
+  loop (start + len - 1)
 
 let iter_combinations f k arr =
   let n = Array.length arr in
@@ -43,7 +43,7 @@ let iter_combinations f k arr =
           (* Maximal value of i-th index. *)
           let max_val = n - (k-i) in
           x < max_val)
-        sel in
+        sel 0 (Array.length sel) in
     match idx with
       | Some i ->
           sel.(i) <- sel.(i) + 1;
