@@ -13,6 +13,7 @@ let suite =
       Test_term.suite;
       Test_clause.suite;
       Test_sorts.suite;
+      Test_assignment.suite;
     ]
 
 let () = ignore (run_test_tt suite)
