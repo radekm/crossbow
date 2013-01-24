@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 2d0fd4c0cc89a4d0b3c8da951ede778b)
+# DO NOT EDIT (digest: ea14bd0016ef4cdaa40e73c6f81426f4)
 Earray
 Elist
 Algo
@@ -10,4 +10,5 @@ Clause
 Prob
 Sorts
 Assignment
+Sinterp
 # OASIS_STOP

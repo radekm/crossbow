@@ -14,6 +14,7 @@ let suite =
       Test_clause.suite;
       Test_sorts.suite;
       Test_assignment.suite;
+      Test_sinterp.suite;
     ]
 
 let () = ignore (run_test_tt suite)

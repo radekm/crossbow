@@ -24,7 +24,8 @@ Library crossbow
     Clause,
     Prob,
     Sorts,
-    Assignment
+    Assignment,
+    Sinterp
   BuildDepends: batteries
 
 Document "api-crossbow"
