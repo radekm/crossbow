@@ -92,6 +92,67 @@ let test_iter_combinations_bad_len () =
     (Invalid_argument "k")
     (fun () -> Earray.iter_combinations (fun _ -> assert_bool "" false) 9 arr)
 
+let test_iter_permutations_empty_array () =
+  let arr = [| |] in
+  let i = ref 0 in
+  Earray.iter_permutations (fun p -> assert_equal [| |] p; incr i) arr;
+  assert_equal 1 !i
+
+let test_iter_permutations1 () =
+  let n = 4 in
+  let arr = Array.init n (fun i -> n-i) in
+  let perms = ref [] in
+  Earray.iter_permutations
+    (fun p -> perms := Array.copy p :: !perms)
+    arr;
+  let exp_perms = [
+    [| 1; 2; 3; 4 |];
+    [| 1; 2; 4; 3 |];
+    [| 1; 3; 2; 4 |];
+    [| 1; 3; 4; 2 |];
+    [| 1; 4; 2; 3 |];
+    [| 1; 4; 3; 2 |];
+    [| 2; 1; 3; 4 |];
+    [| 2; 1; 4; 3 |];
+    [| 2; 3; 1; 4 |];
+    [| 2; 3; 4; 1 |];
+    [| 2; 4; 1; 3 |];
+    [| 2; 4; 3; 1 |];
+    [| 3; 1; 2; 4 |];
+    [| 3; 1; 4; 2 |];
+    [| 3; 2; 1; 4 |];
+    [| 3; 2; 4; 1 |];
+    [| 3; 4; 1; 2 |];
+    [| 3; 4; 2; 1 |];
+    [| 4; 1; 2; 3 |];
+    [| 4; 1; 3; 2 |];
+    [| 4; 2; 1; 3 |];
+    [| 4; 2; 3; 1 |];
+    [| 4; 3; 1; 2 |];
+    [| 4; 3; 2; 1 |];
+  ] in
+  assert_equal exp_perms (List.rev !perms)
+
+let test_iter_permutations2 () =
+  let n = 7 in
+  let arr = Array.init n (fun i -> n-i) in
+  let perms = ref [] in
+  let assert_perm p =
+    assert_equal n (Array.length p);
+    Array.iter (fun x -> assert_bool "" (x >= 1 && x <= n)) p;
+    assert_equal n (List.length (BatList.unique (Array.to_list p))) in
+  Earray.iter_permutations
+    (fun p ->
+      assert_perm p;
+      perms := Array.copy p :: !perms)
+    arr;
+  (* All permutations. *)
+  assert_equal 5040 (List.length !perms);
+  (* No duplicates. *)
+  assert_equal 5040 (List.length (BatList.sort_unique compare !perms));
+  (* Pemutations are in lexicographic order. *)
+  assert_equal (List.rev !perms) (BatList.sort !perms)
+
 let suite =
   "Earray suite" >:::
     [
@@ -108,4 +169,7 @@ let suite =
       "iter_combinations - min length" >:: test_iter_combinations_min_len;
       "iter_combinations - max length" >:: test_iter_combinations_max_len;
       "iter_combinations - bad length" >:: test_iter_combinations_bad_len;
+      "iter_permutations 1" >:: test_iter_permutations1;
+      "iter_permutations 2" >:: test_iter_permutations2;
+      "iter_permutations - empty array" >:: test_iter_permutations_empty_array;
     ]

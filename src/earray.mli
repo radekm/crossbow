@@ -23,3 +23,10 @@ val rindex_of : (int -> 'a -> bool) -> 'a array -> int -> int -> int option
    are passed to [f] is the same for all calls to [f].
 *)
 val iter_combinations : ('a array -> unit) -> int -> 'a array -> unit
+
+(** [iter_permutations f arr] applies [f] to each permutation of [arr].
+   The permutations are generated in the lexicographic order. The array
+   in which the permutations are passed to [f] is the same
+   for all calls to [f]. The elements of [arr] must be distinct.
+*)
+val iter_permutations : ('a array -> unit) -> 'a array -> unit

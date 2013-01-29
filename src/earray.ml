@@ -60,3 +60,32 @@ let iter_combinations f k arr =
   while next_comb () do
     f comb
   done
+
+let iter_permutations f arr =
+  let perm = Array.copy arr in
+  let n = Array.length perm in
+  Array.sort compare perm;
+
+  (* Generate the lexicographically next permutation. *)
+  let next_perm () =
+    let idx = rindex_of (fun i x -> x < perm.(i+1)) perm 0 (n - 1) in
+    match idx with
+      | Some i ->
+          let x = perm.(i) in
+          let j =  BatOption.get (rindex_of (fun _ y -> y > x) perm 0 n) in
+          (* Swap the i-th element with the j-th element. *)
+          perm.(i) <- perm.(j);
+          perm.(j) <- x;
+          (* Reverse the subarray [perm.(i+1), .., perm.(n-1)]. *)
+          for k = 0 to ((n-i-1) / 2) - 1 do
+            let tmp = perm.(i + 1 + k) in
+            perm.(i + 1 + k) <- perm.(n - 1 - k);
+            perm.(n - 1 - k) <- tmp
+          done;
+          true
+      | None -> false in
+
+  f perm;
+  while next_perm () do
+    f perm
+  done
