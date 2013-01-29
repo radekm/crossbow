@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ea14bd0016ef4cdaa40e73c6f81426f4)
+# DO NOT EDIT (digest: b156810ed2b00a92f7bfd74f5513947c)
 Earray
 Elist
 Algo
@@ -8,6 +8,7 @@ Symb
 Term
 Clause
 Prob
+Tptp_prob
 Sorts
 Assignment
 Sinterp

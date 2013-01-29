@@ -23,10 +23,11 @@ Library crossbow
     Term,
     Clause,
     Prob,
+    Tptp_prob,
     Sorts,
     Assignment,
     Sinterp
-  BuildDepends: batteries
+  BuildDepends: batteries, tptp, zarith
 
 Document "api-crossbow"
   Title: API reference for Crossbow

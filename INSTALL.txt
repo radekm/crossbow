@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 6f00f4dcb818e4691291d7b4bafa434a) *)
+(* DO NOT EDIT (digest: 76b808dea1b4cb956833b19d41f546ea) *)
 This is the INSTALL file for the Crossbow distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
@@ -12,6 +12,8 @@ In order to compile this package, you will need:
 * ocaml for all, test main, doc api-crossbow
 * findlib
 * batteries for library crossbow
+* tptp for library crossbow
+* zarith for library crossbow
 * oUnit for executable test
 
 Installing
