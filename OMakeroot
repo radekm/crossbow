@@ -1,0 +1,8 @@
+# Copyright (c) 2013 Radek Micek
+
+open build/C
+open build/OCaml
+
+DefineCommandVars()
+
+.SUBDIRS: .

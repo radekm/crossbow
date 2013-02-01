@@ -1,6 +1,18 @@
-_build
-setup.data
-setup.log
-*.docdir
-test.byte
-test.native
+
+src/doc
+
+test/test_runner
+test/test_runner.opt
+
+# OCaml
+*.cmi
+*.cmo
+*.cma
+*.cmx
+*.cmxa
+
+# OMake
+.omakedb
+.omakedb.lock
+OMakefile.omc
+OMakeroot.omc

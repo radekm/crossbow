@@ -1,0 +1,40 @@
+# Copyright (c) 2013 Radek Micek
+
+OCAMLPACKS[] =
+    batteries
+    tptp
+    zarith
+
+FILES[] =
+    earray
+    elist
+    algo
+    equiv
+    symb
+    term
+    clause
+    prob
+    tptp_prob
+    sorts
+    assignment
+    sinterp
+
+OCamlLibrary(libcrossbow, $(FILES))
+
+section
+    SOURCES = $(filter-exists $(addsuffixes .ml .mli, $(FILES)))
+    CMI_FILES = $(addsuffix .cmi, $(removesuffix $(SOURCES)))
+
+    doc: doc/index.html
+
+    doc/index.html: $(SOURCES) $(CMI_FILES) /.PHONY/OCamlGeneratedFilesTarget
+        mkdir -p doc
+        ocamlfind ocamldoc \
+            -d doc -html -stars -sort \
+            $(PREFIXED_OCAMLINCLUDES) \
+            $(mapprefix -package, $(OCAMLPACKS)) \
+            $(SOURCES)
+
+clean:
+    $(CLEAN)
+    rm -rf doc

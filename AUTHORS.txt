@@ -1,5 +1,0 @@
-(* OASIS_START *)
-(* DO NOT EDIT (digest: 2c58de522c6bd626239a0206aa473906) *)
-Authors of Crossbow
-Radek Micek
-(* OASIS_STOP *)

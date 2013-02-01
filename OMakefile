@@ -1,0 +1,13 @@
+# Copyright (c) 2013 Radek Micek
+
+USE_OCAMLFIND = true
+
+CLEAN = rm -f *.cmi *.cmo *.cma *.cmx *.cmxa *.run *.opt \
+    *$(EXT_OBJ) *$(EXT_LIB)
+
+.PHONY: doc test clean
+
+.SUBDIRS: src test
+
+test:
+    test/test_runner$(EXE)

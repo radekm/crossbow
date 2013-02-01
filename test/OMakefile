@@ -1,0 +1,35 @@
+# Copyright (c) 2013 Radek Micek
+
+OCAMLPACKS[] =
+    batteries
+    tptp
+    zarith
+    oUnit
+
+OCAMLINCLUDES += ../src
+
+OCAML_LIBS[] +=
+    ../src/libcrossbow
+
+FILES[] =
+    eunit
+    test_earray
+    test_elist
+    test_algo
+    test_equiv
+    test_symb
+    test_term
+    test_clause
+    test_tptp_prob
+    test_sorts
+    test_assignment
+    test_sinterp
+    test
+
+OCamlProgram(test_runner, $(FILES))
+
+test: test_runner$(EXE)
+
+clean:
+    $(CLEAN)
+    rm -f test_runner$(EXE)
