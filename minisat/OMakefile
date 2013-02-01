@@ -1,0 +1,16 @@
+# Copyright (c) 2013 Radek Micek
+
+INCLUDES += . $(OCAMLLIB)
+
+CXXFLAGS += -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -DNDEBUG -O3 -Wall
+
+FILES[] =
+    Solver
+    System
+    MinisatStubs
+
+
+StaticCXXLibrary(libminisat, $(FILES))
+
+clean:
+    $(CLEAN)

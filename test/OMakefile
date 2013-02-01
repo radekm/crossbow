@@ -1,5 +1,7 @@
 # Copyright (c) 2013 Radek Micek
 
+OCAML_LINK_FLAGS += -cc g++
+
 OCAMLPACKS[] =
     batteries
     tptp
@@ -24,6 +26,7 @@ FILES[] =
     test_sorts
     test_assignment
     test_sinterp
+    test_minisat
     test
 
 OCamlProgram(test_runner, $(FILES))
