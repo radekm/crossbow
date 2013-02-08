@@ -49,6 +49,36 @@ let assert_assigs_comm_me start len adeq_sizes max_size assigs =
 let test_c_zero_max_size () =
   assert_equal 0 (Assignment.count 0 2 [| 2; 0 |] 0)
 
+let test_ecr_me_max_size_one () =
+  let i = ref 0 in
+  let start = 1 in
+  let len = 3 in
+  let adeq_sizes  = [| 2; 1; 4; 0 |] in
+  let max_size = 1 in
+  let cnt = Assignment.count_me start len adeq_sizes max_size in
+  Assignment.each_me [| 5; 4; 3; 1 |] start len adeq_sizes max_size
+    (fun a ->
+      assert_equal [| 5; 0; 0; 0 |] a;
+      assert_equal (0, 1) (Assignment.rank_me a start len adeq_sizes);
+      incr i);
+  assert_equal 1 cnt;
+  assert_equal 1 !i
+
+let test_ecr_comm_me_max_size_one () =
+  let i = ref 0 in
+  let start = 0 in
+  let len = 4 in
+  let adeq_sizes  = [| 2; 2; 4; 0 |] in
+  let max_size = 1 in
+  let cnt = Assignment.count_comm_me start len adeq_sizes max_size in
+  Assignment.each_comm_me [| 5; 4; 3; 1 |] start len adeq_sizes max_size
+    (fun a ->
+      assert_equal [| 0; 0; 0; 0 |] a;
+      assert_equal (0, 0) (Assignment.rank_comm_me a start len adeq_sizes);
+      incr i);
+  assert_equal 1 cnt;
+  assert_equal 1 !i
+
 let test_ec_zero_len () =
   let assigs = ref [] in
   let i = ref 0 in
@@ -185,6 +215,9 @@ let suite =
   "Assignment suite" >:::
     [
       "count - zero max_size" >:: test_c_zero_max_size;
+      "each_me, count_me, rank_me - max_size = 1" >:: test_ecr_me_max_size_one;
+      "each_comm_me, count_comm_me, rank_comm_me - max_size = 1" >::
+        test_ecr_comm_me_max_size_one;
       "each, count - zero len" >:: test_ec_zero_len;
       "each_me, count_me - zero len" >:: test_ec_me_zero_len;
       "rank_me" >:: test_r_me;

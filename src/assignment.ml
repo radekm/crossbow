@@ -25,13 +25,20 @@ let next_assignment a start len adeq_sizes max_size =
         true
 
 let each a start len adeq_sizes max_size f =
-  assert (max_size >= 1);
+  assert (max_size >= 0);
 
-  init_assignment a start len;
-  f a;
-  while next_assignment a start len adeq_sizes max_size do
-    f a
-  done
+  (* There is no assignment when max_size = 0 unless len = 0.
+     It is necessary to generate one empty assignment when
+     max_size = 0 and len = 0 otherwise the functions each_me and each_comm_me
+     would not generate anything when called with max_size = 1.
+  *)
+  if max_size > 0 || len = 0 then begin
+    init_assignment a start len;
+    f a;
+    while next_assignment a start len adeq_sizes max_size do
+      f a
+    done
+  end
 
 let each_me a start len adeq_sizes max_size f =
   assert (max_size >= 1);
