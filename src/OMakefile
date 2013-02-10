@@ -21,6 +21,7 @@ FILES[] =
     assignment
     sinterp
     minisat
+    symred
 
 libcrossbow.cmxa libcrossbow$(EXT_LIB): ../minisat/libminisat$(EXT_LIB)
 

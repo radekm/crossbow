@@ -27,6 +27,7 @@ FILES[] =
     test_assignment
     test_sinterp
     test_minisat
+    test_symred
     test
 
 OCamlProgram(test_runner, $(FILES))
