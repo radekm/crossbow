@@ -11,6 +11,10 @@ test/test_runner.opt
 *.cmx
 *.cmxa
 
+# OCaml, C, C++
+*.o
+*.a
+
 # OMake
 .omakedb
 .omakedb.lock
