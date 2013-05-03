@@ -18,6 +18,8 @@ let suite =
       Test_sinterp.suite;
       Test_minisat.suite;
       Test_symred.suite;
+      Test_sat_inst.suite;
+      Test_minisat_inst.suite;
     ]
 
 let () = ignore (run_test_tt suite)

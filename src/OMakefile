@@ -22,6 +22,8 @@ FILES[] =
     sinterp
     minisat
     symred
+    sat_inst
+    minisat_inst
 
 libcrossbow.cmxa libcrossbow$(EXT_LIB): ../minisat/libminisat$(EXT_LIB)
 
