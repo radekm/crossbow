@@ -56,18 +56,18 @@ val each_comm_me : t -> int -> int -> int array -> int -> (t -> unit) -> unit
 
 (** {6 Counting} *)
 
-(** [count start len adeq_size max_size] counts the number of the assignments
+(** [count start len adeq_sizes max_size] counts the number of the assignments
    [[|a.(start); ..; a.(start+len-1)|]] wrt [max_size] and [adeq_sizes].
 *)
 val count : int -> int -> int array -> int -> int
 
-(** [count_me start len adeq_size max_size] counts the number
+(** [count_me start len adeq_sizes max_size] counts the number
    of the assignments [[|a.(start); ..; a.(start+len-1)|]] wrt [max_size]
    and [adeq_sizes] which have at least one occurence of [max_el = max_size-1].
 *)
 val count_me : int -> int -> int array -> int -> int
 
-(** [count_comm_me start len adeq_size max_size] counts the number
+(** [count_comm_me start len adeq_sizes max_size] counts the number
    of the assignments [[|a.(start); ..; a.(start+len-1)|]] wrt [max_size]
    and [adeq_sizes] which are not equivalent up to commutativity and
    which have at least one occurence of [max_el = max_size-1].
