@@ -87,6 +87,19 @@ let test_set_commutative_rejects_nonbinary_symbs () =
     (Failure "non-binary symbol")
     (fun () -> Symb.set_commutative db s true)
 
+let test_set_auxiliary () =
+  let db = Symb.create_db () in
+  let s = Symb.add_anon_symb db 2 in
+  assert_bool "" (not (Symb.auxiliary db s));
+  Symb.set_auxiliary db s true;
+  assert_bool "" (Symb.auxiliary db s)
+
+let test_set_auxiliary_rejects_predefined_symbs () =
+  let db = Symb.create_db () in
+  assert_raises
+    (Failure "predefined symbol")
+    (fun () -> Symb.set_auxiliary db Symb.sym_not true)
+
 let suite =
   "Symb suite" >:::
     [
@@ -106,4 +119,7 @@ let suite =
         test_set_commutative_rejects_predefined_symbs;
       "set_commutative rejects non-binary symbols" >::
         test_set_commutative_rejects_nonbinary_symbs;
+      "set_auxiliary" >:: test_set_auxiliary;
+      "set_auxiliary rejects predefined symbols" >::
+        test_set_auxiliary_rejects_predefined_symbs;
     ]

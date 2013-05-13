@@ -27,6 +27,7 @@ val max_arity : int
 val create_db : unit -> db
 
 (** Adds the symbol into the database.
+   The symbol is not commutative and not auxiliary.
 
    Raises [Failure] if the symbol already exists in the database.
    Raises [Invalid_argument] if the name is empty or the arity is out of the range.
@@ -44,6 +45,7 @@ val find : db -> name -> arity -> id
 
 (** Adds a new anonymous symbol into the database.
    Anonymous symbols are ignored by {!mem} and {!find}.
+   The symbol is not commutative and not auxiliary.
 
    Raises [Invalid_argument] if the arity is out of the range.
 *)
@@ -72,6 +74,15 @@ val commutative : db -> id -> bool
    Raises [Failure] if the symbol is predefined or non-binary.
 *)
 val set_commutative : db -> id -> bool -> unit
+
+(** Returns whether the symbol is auxiliary. *)
+val auxiliary : db -> id -> bool
+
+(** Sets whether the symbol is auxiliary.
+
+   Raises [Failure] if the symbol is predefined.
+*)
+val set_auxiliary : db -> id -> bool -> unit
 
 (** Returns whether the symbol is anonymous. *)
 val anon : db -> id -> bool

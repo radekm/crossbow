@@ -11,6 +11,7 @@ type symbol = {
   s_name : name;
   s_arity : arity;
   s_commutative : bool;
+  s_auxiliary : bool;
 }
 
 type db = {
@@ -29,6 +30,7 @@ let create_db () =
     s_name = "=";
     s_arity = 2;
     s_commutative = true;
+    s_auxiliary = false;
   };
   Hashtbl.add by_name ("=", 2) 0;
 
@@ -37,6 +39,7 @@ let create_db () =
     s_name = "~";
     s_arity = 1;
     s_commutative = false;
+    s_auxiliary = false;
   };
   Hashtbl.add by_name ("~", 1) 1;
 
@@ -52,6 +55,7 @@ let add_symb db name arity =
     s_name = name;
     s_arity = arity;
     s_commutative = false;
+    s_auxiliary = false;
   };
   Hashtbl.add db.by_name (name, arity) id;
   id
@@ -68,6 +72,7 @@ let add_anon_symb db arity =
     s_name = "";
     s_arity = arity;
     s_commutative = false;
+    s_auxiliary = false;
   };
   id
 
@@ -100,5 +105,13 @@ let set_commutative db sym comm =
   if symb.s_arity <> 2 then
     failwith "non-binary symbol";
   BatDynArray.set db.by_id sym { symb with s_commutative = comm }
+
+let auxiliary db sym = (get db sym).s_auxiliary
+
+let set_auxiliary db sym aux =
+  if sym = sym_eq || sym = sym_not then
+    failwith "predefined symbol";
+  let symb = get db sym in
+  BatDynArray.set db.by_id sym { symb with s_auxiliary = aux }
 
 let anon db sym = name db sym = ""
