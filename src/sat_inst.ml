@@ -53,6 +53,8 @@ module type Inst_sig = sig
 
   val solve : t -> lbool
 
+  val construct_model : t -> Ms_model.t
+
   val get_solver : t -> solver
 
   val get_max_size : t -> int
@@ -103,6 +105,7 @@ struct
   type t = {
     symred : Symred.t;
     solver : Solv.t;
+    symbols : Symb.db;
 
     (* Propositional variables corresponding to nullary predicates. *)
     nullary_pred_pvars : (Symb.id, pvar) Hashtbl.t;
@@ -142,11 +145,14 @@ struct
        Constants have rank = 0 and max_el = -1.
     *)
     assig_by_symred : (Symb.id * int * int, unit) Hashtbl.t;
+
+    mutable can_construct_model : bool;
   }
 
   let create prob sorts =
     let symred = Symred.create prob sorts in
     let solver = Solv.create () in
+    let symbols = prob.Prob.symbols in
 
     (* Create propositional variables for nullary predicates. *)
     let nullary_pred_pvars = Hashtbl.create 20 in
@@ -288,6 +294,7 @@ struct
     {
       symred;
       solver;
+      symbols;
       nullary_pred_pvars;
       pvars;
       adeq_sizes;
@@ -299,6 +306,7 @@ struct
       totality_clauses_switch = None;
       max_size = 0;
       assig_by_symred = Hashtbl.create 50;
+      can_construct_model = false;
     }
 
   (* Add propositional variables for predicate and function symbols. *)
@@ -459,6 +467,7 @@ struct
 
   let incr_max_size inst =
     inst.max_size <- inst.max_size + 1;
+    inst.can_construct_model <- false;
 
     add_prop_vars inst;
 
@@ -557,7 +566,100 @@ struct
     match inst.totality_clauses_switch with
       | None -> failwith "solve: impossible"
       | Some switch ->
-          Solv.solve inst.solver [| Solv.to_lit Solv.Neg switch |]
+          let result =
+            Solv.solve inst.solver [| Solv.to_lit Solv.Neg switch |] in
+          inst.can_construct_model <- result = Solv.Ltrue;
+          result
+
+  let construct_model inst =
+    if not inst.can_construct_model then
+      failwith "construct_model: no model";
+
+    let get_val pvar =
+      match Solv.model_value inst.solver pvar with
+        | Solv.Ltrue -> 1
+        | Solv.Lfalse -> 0
+        | Solv.Lundef ->
+            failwith "construct_model: unassigned propositional variable" in
+
+    let model = {
+      Ms_model.max_size = inst.max_size;
+      Ms_model.symbs = Hashtbl.create 10;
+    } in
+
+    (* Nullary predicates. *)
+    Hashtbl.iter
+      (fun s pvar ->
+        if not (Symb.auxiliary inst.symbols s) then
+          Hashtbl.add model.Ms_model.symbs s
+            {
+              Ms_model.param_sizes = [| |];
+              Ms_model.values = [| get_val pvar |];
+            })
+      inst.nullary_pred_pvars;
+
+    (* Functions, constants, non-nullary predicates. *)
+    Hashtbl.iter
+      (fun s (adeq_sizes, commutative) ->
+        let arity = Symb.arity inst.symbols s in
+        if not (Symb.auxiliary inst.symbols s) || arity = 0 then begin
+          let dsize i =
+            if
+              adeq_sizes.(i) = 0 ||
+              adeq_sizes.(i) >= inst.max_size
+            then inst.max_size
+            else adeq_sizes.(i) in
+          let i = ref 0 in
+          let values =
+            Array.make
+              (Assignment.count 0 arity adeq_sizes inst.max_size)
+              ~-1 in
+          Hashtbl.add model.Ms_model.symbs s
+            {
+              Ms_model.param_sizes = Array.init arity dsize;
+              Ms_model.values;
+            };
+          let pvars = Hashtbl.find inst.pvars s in
+          let a = Array.copy adeq_sizes in
+          let rank =
+            if commutative
+            then Assignment.rank_comm_me
+            else Assignment.rank_me in
+          if arity = Array.length adeq_sizes then
+            (* Non-nullary predicate. *)
+            Assignment.each a 0 arity adeq_sizes inst.max_size
+              (fun a ->
+                let r, max_el_idx = rank a 0 arity adeq_sizes in
+                let pvar = r + BatDynArray.get pvars a.(max_el_idx) in
+                values.(!i) <- get_val pvar;
+                incr i)
+          else
+            (* Function or constant. *)
+            let res_max_el = dsize arity - 1 in
+            Assignment.each a 0 arity adeq_sizes inst.max_size
+              (fun a ->
+                let result = ref ~-1 in
+                (* Optimization: The loop can be interrupted
+                   when the result is found.
+                *)
+                for res = 0 to res_max_el do
+                  a.(arity) <- res;
+                  let r, max_el_idx = rank a 0 (arity+1) adeq_sizes in
+                  let pvar = r + BatDynArray.get pvars a.(max_el_idx) in
+                  if get_val pvar = 1 then
+                    if !result = ~-1 then
+                      result := res
+                    else
+                      failwith "construct_model: function with more values"
+                done;
+                if !result = ~- 1 then
+                  failwith "construct_model: function with no value";
+                values.(!i) <- !result;
+                incr i)
+        end)
+      inst.adeq_sizes;
+
+    model
 
   let get_solver inst = inst.solver
 

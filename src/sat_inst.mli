@@ -91,6 +91,15 @@ module type Inst_sig = sig
   *)
   val solve : t -> lbool
 
+  (** Constructs a multi-sorted model for all constants, non-auxiliary
+     functions and non-auxiliary predicates.
+
+     Can be used immediately after the successful call to {!solve}.
+     Raises [Failure] when used after the call to {!incr_max_size}
+     or after the unsuccessful call to {!solve}.
+  *)
+  val construct_model : t -> Ms_model.t
+
   (** Returns the solver instance. *)
   val get_solver : t -> solver
 
