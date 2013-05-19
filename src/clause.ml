@@ -149,3 +149,27 @@ let flatten symdb cl =
         let cl, n = normalize_vars cl in
         nvars := n;
         loop cl
+
+let unflatten symdb cl =
+  let var_func_ineq = function
+    | T.Func (s, [| T.Func (s2, [| (T.Var _) as x; (T.Func (_, _)) as f |]) |])
+    | T.Func (s, [| T.Func (s2, [| (T.Func (_, _)) as f; (T.Var _) as x |]) |])
+      when s = S.sym_not && s2 = S.sym_eq && not (Term.contains x f) ->
+        Some (x, f)
+    | _ -> None in
+
+  let rec loop cl =
+    (* Find and remove a literal [x != f(..)] where [f(..)] doesn't
+       contain [x] and replace [x] by [f(..)] in the remaining literals.
+    *)
+    match Elist.pick_and_remove var_func_ineq cl.cl_lits with
+      | None, _ -> Some cl
+      | Some (x, f), lits ->
+          let lits2 = BatList.map (Term.replace x f) lits in
+          match simplify symdb { cl with cl_lits = lits2 } with
+            | None -> None
+            | Some cl2 -> loop cl2 in
+
+  match simplify symdb cl with
+    | None -> None
+    | Some cl -> loop cl

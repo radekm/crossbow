@@ -285,6 +285,72 @@ let test_flatten_tautology () =
   } in
   assert_equal None (C.flatten db orig_clause)
 
+let test_unflatten () =
+  let db = S.create_db () in
+  let p = S.add_symb db "p" 1 in
+  let f = S.add_symb db "f" 1 in
+  let c = S.add_symb db "c" 0 in
+  let d = S.add_symb db "d" 0 in
+  let p a = T.Func (p, [| a |]) in
+  let f a = T.Func (f, [| a |]) in
+  let c = T.Func (c, [| |]) in
+  let d = T.Func (d, [| |]) in
+  let x = T.Var 0 in
+  let y = T.Var 1 in
+  let z = T.Var 2 in
+  (* f(y) = x, z != c, ~p(x), z != f(y), f(d) != y *)
+  let orig_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_eq (f y) x;
+      T.mk_ineq z c;
+      C.neg_lit (p x);
+      T.mk_ineq z (f y);
+      T.mk_ineq (f d) y;
+    ];
+  } in
+  let exp_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_eq x (f (f d));
+      C.neg_lit (p x);
+      T.mk_ineq (f (f d)) c;
+    ];
+  } in
+  assert_equal (Some exp_clause) (C.unflatten db orig_clause)
+
+let test_unflatten_term_contains_var () =
+  let db = S.create_db () in
+  let f = S.add_symb db "f" 2 in
+  let c = S.add_symb db "c" 0 in
+  let d = S.add_symb db "d" 0 in
+  let f a b = T.Func (f, [| a; b |]) in
+  let c = T.Func (c, [| |]) in
+  let d = T.Func (d, [| |]) in
+  let x = T.Var 0 in
+  let y = T.Var 1 in
+  let z = T.Var 2 in
+  (* f(c, y) != y, z != x, c = d, y = c, x != d *)
+  let orig_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_ineq (f c y) y;
+      T.mk_ineq z x;
+      T.mk_eq c d;
+      T.mk_eq y c;
+      T.mk_ineq x d;
+    ];
+  } in
+  let exp_clause = {
+    C.cl_id = 1;
+    C.cl_lits = [
+      T.mk_ineq y (f c y);
+      T.mk_eq c d;
+      T.mk_eq y c;
+    ];
+  } in
+  assert_equal (Some exp_clause) (C.unflatten db orig_clause)
+
 let suite =
   "Clause suite" >:::
     [
@@ -299,4 +365,6 @@ let suite =
       "flatten - deep nesting" >:: test_flatten_deep_nesting;
       "flatten - equalities of function terms" >:: test_flatten_func_equalities;
       "flatten - tautology" >:: test_flatten_tautology;
+      "unflatten" >:: test_unflatten;
+      "unflatten - term contains var" >:: test_unflatten_term_contains_var;
     ]

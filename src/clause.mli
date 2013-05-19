@@ -52,3 +52,10 @@ val normalize_vars : t -> t * int
    Question mark means an optional negation.
 *)
 val flatten : Symb.db -> t -> t option
+
+(** Returns a logically equivalent clause or [None] if the clause
+   is a tautology.
+
+   Tries to reduce the number of variables.
+*)
+val unflatten : Symb.db -> t -> t option
