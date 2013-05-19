@@ -54,6 +54,9 @@ val add_anon_symb : db -> arity -> id
 (** [iter f db] applies [f] to each symbol in the database [db]. *)
 val iter : (id -> unit) -> db -> unit
 
+(** Converts the identifier to integer. *)
+val id_to_int : id -> int
+
 (** {6 Properties of symbols}
 
    These functions raise [Not_found] if the symbol is not in the database.

@@ -81,6 +81,8 @@ let iter f db =
     f i
   done
 
+let id_to_int sym = sym
+
 let sym_eq = 0
 
 let sym_not = 1
