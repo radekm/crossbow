@@ -23,6 +23,7 @@ FILES[] =
     minisat
     symred
     ms_model
+    model
     sat_inst
     minisat_inst
 

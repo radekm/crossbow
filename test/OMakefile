@@ -28,6 +28,7 @@ FILES[] =
     test_sinterp
     test_minisat
     test_symred
+    test_model
     test_sat_inst
     test_minisat_inst
     test
