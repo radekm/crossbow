@@ -2,6 +2,13 @@
 
 (** Multi-sorted models. *)
 
+(** An interpretation of a symbol.
+
+   The array [values] contains a value for each argument vector (point).
+   In the case of a predicate symbol the value is [0] or [1].
+   The order of the values in the array [values] is given by
+   the lexical order of the argument vectors.
+*)
 type table = {
   param_sizes : int array;
   (** Domain sizes of parameters. *)
