@@ -34,3 +34,22 @@ val add_clause : t -> Tptp_ast.cnf_formula -> unit
    be given by a path relative to [base_dir].
 *)
 val of_file : string -> string -> t
+
+(** [model_to_tptp p m interp_name f] converts the given model [m]
+   to the TPTP format and calls [f] for each of its formulas.
+   [interp_name] is used as a name for all formulas.
+
+   Optional parameters [role_dom], [role_pred] and [role_func]
+   affect the roles of formulas (default arguments are
+   [Tptp_ast.R_fi_domain], [Tptp_ast.R_fi_predicates] and
+   [Tptp_ast.R_fi_functors]).
+*)
+val model_to_tptp :
+  ?role_dom:Tptp_ast.formula_role ->
+  ?role_pred:Tptp_ast.formula_role ->
+  ?role_func:Tptp_ast.formula_role ->
+  t ->
+  Model.t ->
+  Tptp_ast.formula_name ->
+  (Tptp_ast.tptp_input -> unit) ->
+  unit

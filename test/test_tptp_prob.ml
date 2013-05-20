@@ -264,10 +264,139 @@ let test_nested_include () =
    - unsupported role
 *)
 
+module M = Model
+
+let hashtbl_of_list xs = BatHashtbl.of_enum (BatList.enum xs)
+
+let test_model_to_tptp () =
+  let db = Symb.create_db () in
+  let p = Symb.add_anon_symb db 1 in
+  let q = Symb.add_anon_symb db 0 in
+  let c = Symb.add_anon_symb db 0 in
+  let d = Symb.add_anon_symb db 0 in
+  let f = Symb.add_anon_symb db 2 in
+
+  let model = {
+    M.max_size = 4;
+    M.symbs =
+      hashtbl_of_list [
+        p, { M.values = [| 0; 1; 0; 0 |] };
+        q, { M.values = [| 1 |] };
+        c, { M.values = [| 2 |] };
+        d, { M.values = [| 0 |] };
+        f,
+        { M.values = [| 2; 3; 2; 0; 1; 0; 0; 3; 1; 2; 0; 0; 3; 3; 2; 1 |] };
+      ];
+  } in
+
+  let prob =
+    let p' = TP.Atomic_word (Ast.Plain_word (Ast.to_plain_word "p"), 1) in
+    let q' = TP.Atomic_word (Ast.Plain_word (Ast.to_plain_word "q"), 0) in
+    let c' = TP.Number (Q.of_int 0) in
+    let d' = TP.String (Ast.to_tptp_string "bar") in
+    let f' = TP.Atomic_word (Ast.Plain_word (Ast.to_plain_word "f"), 2) in
+    let smap =
+      let pairs = [p', p; q', q; c', c; d', d; f', f] in
+      {
+        TP.of_tptp = hashtbl_of_list pairs;
+        TP.to_tptp =
+          hashtbl_of_list (BatList.map (fun (a, b) -> (b, a)) pairs);
+      } in
+    let preds =
+      hashtbl_of_list [p', true; q', true; c', false; d', false; f', false] in
+    {
+      TP.smap;
+      TP.preds;
+      TP.prob = Prob.create ();
+    } in
+
+  let interp_name = Ast.N_word (Ast.to_plain_word "interp") in
+
+  let exp_formulas =
+    let p' = Ast.Plain_word (Ast.to_plain_word "p") in
+    let q' = Ast.Plain_word (Ast.to_plain_word "q") in
+    let f' = Ast.Plain_word (Ast.to_plain_word "f") in
+    let d0, d1, d2, d3 =
+      Ast.String (Ast.to_tptp_string "bar"),
+      Ast.Number (Q.of_int 1),
+      Ast.Number (Q.of_int 0),
+      Ast.Number (Q.of_int 2) in
+    let eq t t' = Ast.Atom (Ast.Equals (t, t')) in
+    let f args res = eq (Ast.Func (f', args)) res in
+    let dom =
+      let x = Ast.to_var "X" in
+      let disjunction =
+        let x = Ast.Var x in
+        BatList.reduce
+          (fun a b -> Ast.Binop (Ast.Or, a, b))
+          [eq x d0; eq x d1; eq x d2; eq x d3] in
+      Ast.Formula (Ast.Quant (Ast.All, x, disjunction)) in
+    let func_f =
+      let conjunction =
+        BatList.reduce
+          (fun a b -> Ast.Binop (Ast.And, a, b))
+          [
+            f [d0; d0] d2; f [d0; d1] d3; f [d0; d2] d2; f [d0; d3] d0;
+            f [d1; d0] d1; f [d1; d1] d0; f [d1; d2] d0; f [d1; d3] d3;
+            f [d2; d0] d1; f [d2; d1] d2; f [d2; d2] d0; f [d2; d3] d0;
+            f [d3; d0] d3; f [d3; d1] d3; f [d3; d2] d2; f [d3; d3] d1;
+          ] in
+      Ast.Formula conjunction in
+    let pred_p =
+      let conjunction =
+        BatList.reduce
+          (fun a b -> Ast.Binop (Ast.And, a, b))
+          [
+            Ast.Not (Ast.Atom (Ast.Pred (p', [d0])));
+            Ast.Atom (Ast.Pred (p', [d1]));
+            Ast.Not (Ast.Atom (Ast.Pred (p', [d2])));
+            Ast.Not (Ast.Atom (Ast.Pred (p', [d3])));
+          ] in
+      Ast.Formula conjunction in
+    let pred_q = Ast.Formula (Ast.Atom (Ast.Pred (q', []))) in
+    [
+      Ast.Fof_anno
+        {
+          Ast.af_name = interp_name;
+          Ast.af_role = Ast.R_fi_domain;
+          Ast.af_formula = dom;
+          Ast.af_annos = None;
+        };
+      Ast.Fof_anno
+        {
+          Ast.af_name = interp_name;
+          Ast.af_role = Ast.R_fi_functors;
+          Ast.af_formula = func_f;
+          Ast.af_annos = None;
+        };
+      Ast.Fof_anno
+        {
+          Ast.af_name = interp_name;
+          Ast.af_role = Ast.R_fi_predicates;
+          Ast.af_formula = pred_p;
+          Ast.af_annos = None;
+        };
+      Ast.Fof_anno
+        {
+          Ast.af_name = interp_name;
+          Ast.af_role = Ast.R_fi_predicates;
+          Ast.af_formula = pred_q;
+          Ast.af_annos = None;
+        };
+    ] in
+
+  let formulas =
+    let fs = ref [] in
+    TP.model_to_tptp prob model interp_name (fun f -> fs := f :: !fs);
+    BatList.sort !fs in
+
+  assert_equal exp_formulas formulas
+
 let suite =
   "Tptp_prob suite" >:::
     [
       "of_file - basic" >:: test_basic;
       "of_file - include" >:: test_include;
       "of_file - nested include" >:: test_nested_include;
+      "model_to_tptp" >:: test_model_to_tptp;
     ]
