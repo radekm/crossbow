@@ -5,7 +5,7 @@ USE_OCAMLFIND = true
 CLEAN = rm -f *.cmi *.cmo *.cma *.cmx *.cmxa *.run *.opt \
     *$(EXT_OBJ) *$(EXT_LIB)
 
-.PHONY: doc test clean
+.PHONY: program doc test clean
 
 .SUBDIRS: minisat src test
 

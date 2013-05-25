@@ -6,6 +6,7 @@ OCAMLPACKS[] =
     batteries
     tptp
     zarith
+    cmdliner
 
 FILES[] =
     earray
@@ -45,6 +46,16 @@ section
             $(mapprefix -package, $(OCAMLPACKS)) \
             $(SOURCES)
 
+OCAML_LINK_FLAGS += -cc g++
+
+OCAML_LIBS[] =
+    libcrossbow
+
+OCamlProgram(crossbow, main)
+
+program: crossbow$(EXE)
+
 clean:
     $(CLEAN)
+    rm -rf crossbow$(EXE)
     rm -rf doc

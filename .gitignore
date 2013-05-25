@@ -1,4 +1,6 @@
 
+src/crossbow
+src/crossbow.opt
 src/doc
 
 test/test_runner
