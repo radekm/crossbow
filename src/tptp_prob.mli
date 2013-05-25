@@ -30,8 +30,10 @@ type t = {
 val add_clause : t -> Tptp_ast.cnf_formula -> unit
 
 (** [of_file base_dir file] reads a problem in the TPTP format from the given
-   file [file] and files which are included from [file]. Every file should
-   be given by a path relative to [base_dir].
+   file [file] and the files which are included from [file].
+   Relative include paths are resolved against [base_dir].
+
+   Note: [base_dir] does not affect the path to the file [file].
 *)
 val of_file : string -> string -> t
 

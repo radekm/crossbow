@@ -7,10 +7,10 @@ module TP = Tptp_prob
 module T = Term
 module C = Clause
 
-let base_dir = "test/data/tptp_prob"
+let base_dir = "test/data/tptp_prob/"
 
 let test_basic () =
-  let p = Tptp_prob.of_file base_dir "01_test_basic.p" in
+  let p = Tptp_prob.of_file base_dir (base_dir ^ "01_test_basic.p") in
 
   let q = Ast.Plain_word (Ast.to_plain_word "q") in
   let c = Ast.Plain_word (Ast.to_plain_word "c") in
@@ -122,7 +122,7 @@ let test_basic () =
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
 let test_include () =
-  let p = Tptp_prob.of_file base_dir "02_test_include.p" in
+  let p = Tptp_prob.of_file base_dir (base_dir ^ "02_test_include.p") in
 
   let q = Ast.Plain_word (Ast.to_plain_word "q") in
   let c = Ast.Plain_word (Ast.to_plain_word "c") in
@@ -210,7 +210,8 @@ let test_include () =
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
 let test_nested_include () =
-  let p = Tptp_prob.of_file base_dir "03_test_nested_include.p" in
+  let p =
+    Tptp_prob.of_file base_dir (base_dir ^ "03_test_nested_include.p") in
 
   let r = Ast.Plain_word (Ast.to_plain_word "r") in
   let s = Ast.Plain_word (Ast.to_plain_word "s") in

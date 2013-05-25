@@ -139,15 +139,14 @@ let rec iter_tptp_input
         iter_tptp_input proc_clause proc_include input
 
 let combine_paths (a : string) (b : string) : string =
-  if
-    a = "" ||
-    b = "" ||
-    BatString.ends_with a "/" ||
-    BatString.starts_with b "/"
-  then
-    a ^ b
-  else
-    a ^ "/" ^ b
+  let a = BatPathGen.OfString.of_string a in
+  let b = BatPathGen.OfString.of_string b in
+  let res =
+    if BatPathGen.OfString.is_absolute b
+    then b
+    else (BatPathGen.OfString.concat a b) in
+  BatPathGen.OfString.to_ustring
+    (BatPathGen.OfString.normalize_in_tree res)
 
 let of_file base_dir file =
 
@@ -158,14 +157,14 @@ let of_file base_dir file =
   } in
 
   let rec of_file file sel =
-    let path = combine_paths base_dir file in
-    BatFile.with_file_in path (fun i ->
+    BatFile.with_file_in file (fun i ->
       let lexbuf = BatLexing.from_input i in
       let proc_clause name cl =
         if sel = [] || List.exists (fun x -> x = name) sel then
           add_clause p cl in
       let proc_include (file : Ast.file_name) sel =
-        of_file (file :> string) sel in
+        let path = combine_paths base_dir (file :> string) in
+        of_file path sel in
       with_dispose
         ~dispose:Tptp.close_in
         (iter_tptp_input proc_clause proc_include)
