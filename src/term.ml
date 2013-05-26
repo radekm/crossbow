@@ -48,3 +48,20 @@ let rec replace a b term = match term with
   | _ when a = term -> b
   | Var _ -> term
   | Func (s, args) -> Func (s, Array.map (replace a b) args)
+
+module IntSet = BatSet.IntSet
+
+let vars term =
+  let xs = ref IntSet.empty in
+  iter
+    (function
+    | Var x -> xs := IntSet.add x !xs
+    | Func _ -> ())
+    term;
+  !xs
+
+let vars_of_many terms =
+  List.fold_left
+    (fun xs t -> IntSet.union xs (vars t))
+    IntSet.empty
+    terms

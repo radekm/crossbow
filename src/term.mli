@@ -38,3 +38,9 @@ val normalize_comm : Symb.db -> t -> t
 
 (** [replace a b t] replaces all occurences of the term [a] in [t] by [b]. *)
 val replace : t -> t -> t -> t
+
+(** Returns the set of the variables in the given term. *)
+val vars : t -> BatSet.IntSet.t
+
+(** Returns the set of the variables in the given terms. *)
+val vars_of_many : t list -> BatSet.IntSet.t
