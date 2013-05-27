@@ -17,6 +17,7 @@ FILES[] =
     term
     clause
     prob
+    splitting
     tptp_prob
     sorts
     assignment

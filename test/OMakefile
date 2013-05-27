@@ -22,6 +22,7 @@ FILES[] =
     test_symb
     test_term
     test_clause
+    test_splitting
     test_tptp_prob
     test_sorts
     test_assignment

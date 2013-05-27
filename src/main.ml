@@ -10,12 +10,21 @@ let find_model base_dir in_file =
   let p = tptp_prob.Tptp_prob.prob in
   let symb_db = p.Prob.symbols in
   (* Preprocessing. *)
-  let clauses' =
+  let flat_clauses =
     BatDynArray.filter_map
       (Clause.unflatten symb_db |- BatOption.bind (Clause.flatten symb_db))
       p.Prob.clauses in
+  let splitted_clauses =
+    let cs = BatDynArray.make (BatDynArray.length flat_clauses) in
+    BatDynArray.iter
+      (fun cl ->
+        List.iter
+          (BatDynArray.add cs)
+          (Splitting.split_clause Splitting.paradox_splitting p cl))
+      flat_clauses;
+    cs in
   BatDynArray.clear p.Prob.clauses;
-  BatDynArray.append clauses' p.Prob.clauses;
+  BatDynArray.append splitted_clauses p.Prob.clauses;
   Printf.fprintf stderr "Clauses: %d\n" (BatDynArray.length p.Prob.clauses);
   let sorts = Sorts.of_problem p in
   let inst = Minisat_inst.Inst.create p sorts in
