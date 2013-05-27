@@ -17,6 +17,21 @@ type t
 *)
 val paradox_splitting : t
 
+(** Removes the ground literals and repeatedly performs
+   proper binary splits as follows:
+
+   Finds the variable [x] which is connected to the least number
+   of variables. Let [lvars] be the set of all variables from the
+   literals with [x]. Literals which contain only variables from [lvars]
+   are placed to one clause and remaining literals are placed to
+   the other clause.
+
+   After the splitting is done the ground literals are added
+   to a clause which has the (lexicographically)
+   smallest (number of variables, number of literals).
+*)
+val paradox_mod_splitting : t
+
 (** Splits the given clause using the given strategy.
 
    This may introduce new auxiliary predicate symbols

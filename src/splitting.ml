@@ -77,6 +77,50 @@ let paradox_splitting =
     BatList.partition (T.vars |- IntSet.mem x) lits in
   binary_splitting (paradox_binary_split partition_lits)
 
+let paradox_mod_splitting new_pred lits =
+  let partition_lits x lits =
+    let l, r = BatList.partition (T.vars |- IntSet.mem x) lits in
+    let lvars = Term.vars_of_many l in
+    (* Literals in l' contain only variables from lvars.
+       Moving these literals from the right to the left can
+       decrease the number of variable on the right and in the intersection.
+    *)
+    let l', r' =
+      BatList.partition (fun lit -> IntSet.subset (T.vars lit) lvars) r in
+    l @ l', r' in
+  let ground, nonground =
+    BatList.partition (T.vars |- IntSet.is_empty) lits in
+  let clauses =
+    binary_splitting
+      (paradox_binary_split partition_lits)
+      new_pred
+      nonground in
+  (* Add ground literals to a clause which has the (lexicographically)
+     smallest (number of variables, number of literals).
+  *)
+  match clauses with
+    | [] -> failwith "paradox_mod_splitting: no clauses"
+    | c :: cs ->
+        let count_vars_lits c =
+          IntSet.cardinal (Term.vars_of_many c), List.length c in
+        let best_stats = ref (count_vars_lits c) in
+        let best_idx = ref 0 in
+        BatList.iteri
+          (fun i c ->
+            let stats = count_vars_lits c in
+            if stats < !best_stats then begin
+              best_stats := stats;
+              best_idx := i;
+            end)
+          cs;
+        (* Add ground literals. *)
+        BatList.mapi
+          (fun i c ->
+            if i = !best_idx
+            then c @ ground
+            else c)
+          clauses
+
 let split_clause splitting p cl =
   let new_pred arity =
     let s = Symb.add_anon_symb p.Prob.symbols arity in

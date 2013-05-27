@@ -37,6 +37,22 @@ let test_paradox_splitting_empty_cl () =
   ] in
   assert_equal ~printer:show_clauses exp_clauses clauses
 
+let test_paradox_mod_splitting_empty_cl () =
+  let prob = Prob.create () in
+  let cl = {
+    C.cl_id = Prob.fresh_id prob;
+    C.cl_lits = [];
+  } in
+  let clauses =
+    Splitting.split_clause Splitting.paradox_mod_splitting prob cl in
+  let exp_clauses = [
+    {
+      C.cl_id = 1;
+      C.cl_lits = [];
+    };
+  ] in
+  assert_equal ~printer:show_clauses exp_clauses clauses
+
 let make_cl () =
   let prob = Prob.create () in
   let db = prob.Prob.symbols in
@@ -60,9 +76,9 @@ let make_cl () =
   } in
   prob, db, cl, p, f, x
 
-let test_paradox_splitting () =
+let check_splitting_cl splitting =
   let prob, db, cl, p, f, x = make_cl () in
-  let clauses = Splitting.split_clause Splitting.paradox_splitting prob cl in
+  let clauses = splitting prob cl in
   let q1, q2, q3, q4, q5 =
     match get_auxiliary_symbs db with
       | [q1; q2; q3; q4; q5] -> q1, q2, q3, q4, q5
@@ -120,6 +136,14 @@ let test_paradox_splitting () =
     };
   ] in
   assert_equal ~printer:show_clauses exp_clauses clauses
+
+let test_paradox_splitting () =
+  check_splitting_cl
+    (Splitting.split_clause Splitting.paradox_splitting)
+
+let test_paradox_mod_splitting () =
+  check_splitting_cl
+    (Splitting.split_clause Splitting.paradox_mod_splitting)
 
 let make_cl2 () =
   let prob = Prob.create () in
@@ -179,11 +203,44 @@ let test_paradox_splitting2 () =
   ] in
   assert_equal ~printer:show_clauses exp_clauses clauses
 
+let test_paradox_mod_splitting2 () =
+  let prob, db, cl, p, q, r, x = make_cl2 () in
+  let clauses =
+    Splitting.split_clause Splitting.paradox_mod_splitting prob cl in
+  let q1 =
+    match get_auxiliary_symbs db with
+      | [q1] -> q1
+      | _ -> assert_failure "auxiliary symbols" in
+  let normalize cl = fst (C.normalize_vars cl) in
+  let exp_clauses = [
+    normalize {
+      C.cl_id = 1;
+      C.cl_lits = [
+        T.Func (q1, [| |]);
+        p (x 0) (x 1);
+        p (x 0) (x 2);
+        p (x 1) (x 2);
+        r;
+      ];
+    };
+    normalize {
+      C.cl_id = 2;
+      C.cl_lits = [
+        C.neg_lit (T.Func (q1, [| |]));
+        q (x 3) (x 4) (x 5) (x 6);
+      ];
+    };
+  ] in
+  assert_equal ~printer:show_clauses exp_clauses clauses
 
 let suite =
   "Splitting suite" >:::
     [
       "paradox_splitting - empty clause" >:: test_paradox_splitting_empty_cl;
+      "paradox_mod_splitting - empty clause" >::
+        test_paradox_mod_splitting_empty_cl;
       "paradox_splitting" >:: test_paradox_splitting;
+      "paradox_mod_splitting" >:: test_paradox_mod_splitting;
       "paradox_splitting 2" >:: test_paradox_splitting2;
+      "paradox_mod_splitting 2" >:: test_paradox_mod_splitting2;
     ]

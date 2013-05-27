@@ -20,7 +20,7 @@ let find_model base_dir in_file =
       (fun cl ->
         List.iter
           (BatDynArray.add cs)
-          (Splitting.split_clause Splitting.paradox_splitting p cl))
+          (Splitting.split_clause Splitting.paradox_mod_splitting p cl))
       flat_clauses;
     cs in
   BatDynArray.clear p.Prob.clauses;
