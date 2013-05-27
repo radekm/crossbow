@@ -8,6 +8,8 @@ type t =
   | Var of var
   | Func of S.id * t array
 
+let (|>) = BatPervasives.(|>)
+
 let mk_eq l r = Func (S.sym_eq, [| l; r; |])
 
 let mk_ineq l r = Func (S.sym_not, [| mk_eq l r |])
@@ -65,3 +67,13 @@ let vars_of_many terms =
     (fun xs t -> IntSet.union xs (vars t))
     IntSet.empty
     terms
+
+let rec show = function
+  | Var x -> Printf.sprintf "X%d" x
+  | Func (f, args) ->
+      let args_str =
+        args
+        |> Array.map show
+        |> Array.to_list
+        |> String.concat ", " in
+      Printf.sprintf "f%d(%s)" (Symb.id_to_int f) args_str

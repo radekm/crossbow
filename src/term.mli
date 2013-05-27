@@ -44,3 +44,6 @@ val vars : t -> BatSet.IntSet.t
 
 (** Returns the set of the variables in the given terms. *)
 val vars_of_many : t list -> BatSet.IntSet.t
+
+(** Converts term to string. *)
+val show : t -> string

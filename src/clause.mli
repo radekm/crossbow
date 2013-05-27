@@ -59,3 +59,6 @@ val flatten : Symb.db -> t -> t option
    Tries to reduce the number of variables.
 *)
 val unflatten : Symb.db -> t -> t option
+
+(** Converts clause to string. *)
+val show : t -> string

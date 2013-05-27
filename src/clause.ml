@@ -1,7 +1,5 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-open BatPervasives
-
 module S = Symb
 module T = Term
 
@@ -13,6 +11,9 @@ type t = {
   cl_id : id;
   cl_lits : lit list;
 }
+
+let (|>) = BatPervasives.(|>)
+let (|-) = BatPervasives.(|-)
 
 let neg_lit = function
   | T.Func (s, [| t |]) when s = S.sym_not -> t
@@ -173,3 +174,10 @@ let unflatten symdb cl =
   match simplify symdb cl with
     | None -> None
     | Some cl -> loop cl
+
+let show cl =
+  let lits_str =
+    cl.cl_lits
+    |> BatList.map T.show
+    |> String.concat "; " in
+  Printf.sprintf "Clause %d: [%s]" cl.cl_id lits_str
