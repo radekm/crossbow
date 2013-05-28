@@ -27,7 +27,7 @@ let find_model base_dir in_file =
   BatDynArray.append splitted_clauses p.Prob.clauses;
   Printf.fprintf stderr "Clauses: %d\n" (BatDynArray.length p.Prob.clauses);
   let sorts = Sorts.of_problem p in
-  let inst = Minisat_inst.Inst.create p sorts in
+  let inst = Cmsat_inst.Inst.create p sorts in
   (* Model search. *)
   let found = ref false in
   let dsize = ref 0 in
@@ -35,10 +35,10 @@ let find_model base_dir in_file =
     incr dsize;
     Printf.fprintf stderr "Instantiating - domain size %d\n" !dsize;
     flush stderr;
-    Minisat_inst.Inst.incr_max_size inst;
+    Cmsat_inst.Inst.incr_max_size inst;
     Printf.fprintf stderr "Solving\n";
     flush stderr;
-    match Minisat_inst.Inst.solve inst with
+    match Cmsat_inst.Inst.solve inst with
       | Sat_solver.Ltrue -> found := true
       | Sat_solver.Lfalse -> ()
       | Sat_solver.Lundef ->
@@ -46,7 +46,7 @@ let find_model base_dir in_file =
   done;
   Printf.fprintf stderr "Constructing multi-sorted model\n";
   flush stderr;
-  let ms_model = Minisat_inst.Inst.construct_model inst in
+  let ms_model = Cmsat_inst.Inst.construct_model inst in
   Printf.fprintf stderr "Constructing model with single sort\n";
   flush stderr;
   let model = Model.of_ms_model ms_model sorts in

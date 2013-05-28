@@ -7,7 +7,7 @@ CLEAN = rm -f *.cmi *.cmo *.cma *.cmx *.cmxa *.run *.opt \
 
 .PHONY: program doc test clean
 
-.SUBDIRS: minisat src test
+.SUBDIRS: minisat cmsat src test
 
 test:
     test/test_runner$(EXE)

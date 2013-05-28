@@ -29,11 +29,13 @@ FILES[] =
     test_sinterp
     ftest_anysat
     test_minisat
+    test_cmsat
     test_symred
     test_model
     test_sat_inst
     ftest_anysat_inst
     test_minisat_inst
+    test_cmsat_inst
     test
 
 OCamlProgram(test_runner, $(FILES))

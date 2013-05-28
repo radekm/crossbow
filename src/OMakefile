@@ -1,6 +1,8 @@
 # Copyright (c) 2013 Radek Micek
 
-OCAML_LIB_FLAGS += -ccopt -L../minisat -cclib -lminisat
+OCAML_LIB_FLAGS += \
+    -ccopt -L../minisat -cclib -lminisat \
+    -ccopt -L../cmsat -cclib -lcmsat
 
 OCAMLPACKS[] =
     batteries
@@ -24,13 +26,17 @@ FILES[] =
     sinterp
     sat_solver
     minisat
+    cmsat
     symred
     ms_model
     model
     sat_inst
     minisat_inst
+    cmsat_inst
 
-libcrossbow.cmxa libcrossbow$(EXT_LIB): ../minisat/libminisat$(EXT_LIB)
+libcrossbow.cmxa libcrossbow$(EXT_LIB): \
+    ../minisat/libminisat$(EXT_LIB) \
+    ../cmsat/libcmsat$(EXT_LIB)
 
 OCamlLibrary(libcrossbow, $(FILES))
 

@@ -1,0 +1,36 @@
+# Copyright (c) 2013 Radek Micek
+
+INCLUDES += . $(OCAMLLIB)
+
+CXXFLAGS += -std=c++0x -pedantic -DNDEBUG -O3 -Wall -Wextra -Wno-unused \
+    -Wsign-compare -Wtype-limits -Wuninitialized -Wno-deprecated
+
+FILES[] =
+    propengine
+    packedrow
+    varreplacer
+    clausecleaner
+    prober
+    simplifier
+    clauseallocator
+    sccfinder
+    solverconf
+    clausevivifier
+    calcdefpolars
+    solutionextender
+    completedetachreattacher
+    searcher
+    solver
+    gatefinder
+    sqlstats
+    implcache
+    stamp
+    compfinder
+    comphandler
+    GitSHA1
+    cmsatstubs
+
+StaticCXXLibrary(libcmsat, $(FILES))
+
+clean:
+    $(CLEAN)

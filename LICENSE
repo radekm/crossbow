@@ -1,4 +1,8 @@
-This software is distributed under the terms of the MIT License
+CryptoMiniSat in the directory cmsat/ is distributed under the terms
+of the GNU Lesser General Public License version 3.0
+(included in the file cmsat/LICENSE-LGPL).
+
+Remaining files are distributed under the terms of the MIT License
 (included below).
 
 ------------------------------------------------------------------------------
