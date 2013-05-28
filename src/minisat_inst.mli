@@ -7,5 +7,4 @@ module Minisat_ex : Sat_inst.Solver
 
 (** Instantiation for MiniSat. *)
 module Inst :
-  Sat_inst.Inst_sig with type lbool = Minisat_ex.lbool
-                    and type solver = Minisat_ex.t
+  Sat_inst.Inst_sig with type solver = Minisat_ex.t

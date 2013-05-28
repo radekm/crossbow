@@ -39,9 +39,9 @@ let find_model base_dir in_file =
     Printf.fprintf stderr "Solving\n";
     flush stderr;
     match Minisat_inst.Inst.solve inst with
-      | Minisat_inst.Minisat_ex.Ltrue -> found := true
-      | Minisat_inst.Minisat_ex.Lfalse -> ()
-      | Minisat_inst.Minisat_ex.Lundef ->
+      | Sat_solver.Ltrue -> found := true
+      | Sat_solver.Lfalse -> ()
+      | Sat_solver.Lundef ->
           failwith "unexpected result from SAT solver"
   done;
   Printf.fprintf stderr "Constructing multi-sorted model\n";

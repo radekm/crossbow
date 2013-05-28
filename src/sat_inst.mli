@@ -4,26 +4,7 @@
 
 (** SAT solver for instantiation. *)
 module type Solver = sig
-  type t
-
-  type lbool =
-    | Ltrue
-    | Lfalse
-    | Lundef
-
-  type var = int
-
-  type lit = private int
-
-  type sign =
-    | Pos
-    | Neg
-
-  (** Initializes a solver. *)
-  val create : unit -> t
-
-  (** Creates a fresh propositional variable. *)
-  val new_var : t -> var
+  include Sat_solver.S
 
   (** Creates a fresh propositional variable which is always false.
 
@@ -32,8 +13,6 @@ module type Solver = sig
   *)
   val new_false_var : t -> var
 
-  val add_clause : t -> lit array -> int -> bool
-
   val add_symmetry_clause : t -> lit array -> int -> bool
 
   val add_at_least_one_val_clause : t -> lit array -> int -> bool
@@ -41,20 +20,10 @@ module type Solver = sig
   val add_at_most_one_val_clause : t -> lit array -> bool
 
   val remove_clauses_with_lit : t -> lit -> unit
-
-  (** Starts the solver with the given assumptions. *)
-  val solve : t -> lit array -> lbool
-
-  val model_value : t -> var -> lbool
-
-  val to_lit : sign -> var -> lit
-
-  val to_var : lit -> var
 end
 
 (** Instantiation for SAT solvers. *)
 module type Inst_sig = sig
-  type lbool
   type solver
 
   type t
@@ -89,7 +58,7 @@ module type Inst_sig = sig
      Raises [Failure] when the maximum domain size is 0 or when it is
      lower than the number of the distinct constants.
   *)
-  val solve : t -> lbool
+  val solve : t -> Sat_solver.lbool
 
   (** Constructs a multi-sorted model for all constants, non-auxiliary
      functions and non-auxiliary predicates.
@@ -108,5 +77,4 @@ module type Inst_sig = sig
 end
 
 module Make (Solv : Solver) :
-  Inst_sig with type lbool = Solv.lbool
-           and type solver = Solv.t
+  Inst_sig with type solver = Solv.t

@@ -27,10 +27,12 @@ FILES[] =
     test_sorts
     test_assignment
     test_sinterp
+    ftest_anysat
     test_minisat
     test_symred
     test_model
     test_sat_inst
+    ftest_anysat_inst
     test_minisat_inst
     test
 

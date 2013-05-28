@@ -5,18 +5,9 @@
 (** Represents an instance of the MiniSat solver. *)
 type t
 
-type lbool =
-  | Ltrue
-  | Lfalse
-  | Lundef
-
 type var = int
 
 type lit = private int
-
-type sign =
-  | Pos
-  | Neg
 
 (** Creates a new solver. *)
 external create : unit -> t = "minisat_create"
@@ -32,14 +23,14 @@ external add_clause : t -> lit array -> int -> bool = "minisat_add_clause"
 (** Starts the solver with the assumptions.
    All variables are assigned if the model is found.
 *)
-external solve : t -> lit array -> lbool = "minisat_solve"
+external solve : t -> lit array -> Sat_solver.lbool = "minisat_solve"
 
-external model_value : t -> var -> lbool = "minisat_model_value"
+external model_value : t -> var -> Sat_solver.lbool = "minisat_model_value"
 
 external interrupt : t -> unit = "minisat_interrupt"
 
 external clear_interrupt : t -> unit = "minisat_clear_interrupt"
 
-val to_lit : sign -> var -> lit
+val to_lit : Sat_solver.sign -> var -> lit
 
 val to_var : lit -> var

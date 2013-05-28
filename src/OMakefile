@@ -22,6 +22,7 @@ FILES[] =
     sorts
     assignment
     sinterp
+    sat_solver
     minisat
     symred
     ms_model

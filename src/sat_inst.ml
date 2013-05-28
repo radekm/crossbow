@@ -1,28 +1,9 @@
 (* Copyright (c) 2013 Radek Micek *)
 
 module type Solver = sig
-  type t
-
-  type lbool =
-    | Ltrue
-    | Lfalse
-    | Lundef
-
-  type var = int
-
-  type lit = private int
-
-  type sign =
-    | Pos
-    | Neg
-
-  val create : unit -> t
-
-  val new_var : t -> var
+  include Sat_solver.S
 
   val new_false_var : t -> var
-
-  val add_clause : t -> lit array -> int -> bool
 
   val add_symmetry_clause : t -> lit array -> int -> bool
 
@@ -31,18 +12,9 @@ module type Solver = sig
   val add_at_most_one_val_clause : t -> lit array -> bool
 
   val remove_clauses_with_lit : t -> lit -> unit
-
-  val solve : t -> lit array -> lbool
-
-  val model_value : t -> var -> lbool
-
-  val to_lit : sign -> var -> lit
-
-  val to_var : lit -> var
 end
 
 module type Inst_sig = sig
-  type lbool
   type solver
 
   type t
@@ -51,7 +23,7 @@ module type Inst_sig = sig
 
   val incr_max_size : t -> unit
 
-  val solve : t -> lbool
+  val solve : t -> Sat_solver.lbool
 
   val construct_model : t -> Ms_model.t
 
@@ -61,17 +33,15 @@ module type Inst_sig = sig
 end
 
 module Make (Solv : Solver) :
-  Inst_sig with type lbool = Solv.lbool
-           and type solver = Solv.t =
+  Inst_sig with type solver = Solv.t =
 struct
   type pvar = Solv.var
   type plit = Solv.lit
 
-  type lbool = Solv.lbool
   type solver = Solv.t
 
   type lit = {
-    l_sign : Solv.sign;
+    l_sign : Sat_solver.sign;
 
     (* Propositional variables associated with the symbol. *)
     l_pvars : pvar BatDynArray.t;
@@ -192,7 +162,7 @@ struct
       let var_eqs = BatDynArray.create () in
       let lits = BatDynArray.create () in
       let each_lit lit =
-        let sign = ref Solv.Pos in
+        let sign = ref Sat_solver.Pos in
         let get_var = function
           | Term.Var x -> x
           | _ -> failwith "expected variable" in
@@ -201,7 +171,8 @@ struct
           | Term.Func (s, [| l; r |]) when s = Symb.sym_eq ->
               begin match l, r with
                 | Term.Var x, Term.Var y ->
-                    if !sign <> Solv.Pos then failwith "literal is not flat";
+                    if !sign <> Sat_solver.Pos then
+                      failwith "literal is not flat";
                     BatDynArray.add var_eqs (x, y)
                 | Term.Func (f, args), Term.Var res
                 | Term.Var res, Term.Func (f, args) ->
@@ -245,7 +216,7 @@ struct
         match lit with
           | Term.Var _ -> failwith "invalid literal"
           | Term.Func (s, [| atom |]) when s = Symb.sym_not ->
-              sign := Solv.Neg;
+              sign := Sat_solver.Neg;
               each_atom atom
           | atom -> each_atom atom in
       List.iter each_lit cl.Clause.cl_lits;
@@ -346,7 +317,7 @@ struct
           a.(arity) <- result;
           let r, max_el_idx = rank a 0 (arity+1) adeq_sizes in
           let pvar = r + BatDynArray.get pvars a.(max_el_idx) in
-          let plit = Solv.to_lit Solv.Pos pvar in
+          let plit = Solv.to_lit Sat_solver.Pos pvar in
           pclause.(result - lo) <- plit
         done;
         ignore (Solv.add_symmetry_clause inst.solver pclause (hi - lo + 1));
@@ -380,7 +351,7 @@ struct
         let mk_lit a =
           let r, max_el_idx = rank a 0 (arity+1) adeq_sizes in
           let pvar = r + BatDynArray.get pvars a.(max_el_idx) in
-          Solv.to_lit Solv.Neg pvar in
+          Solv.to_lit Sat_solver.Neg pvar in
 
         (* Points without maximal element. *)
         if res_max_el = inst.max_size - 1 then
@@ -475,7 +446,7 @@ struct
     begin match inst.totality_clauses_switch with
       | None -> ()
       | Some pvar ->
-          let plit = Solv.to_lit Solv.Pos pvar in
+          let plit = Solv.to_lit Sat_solver.Pos pvar in
           Solv.remove_clauses_with_lit inst.solver plit;
           inst.totality_clauses_switch <- None;
     end;
@@ -487,7 +458,7 @@ struct
       Array.make
         (* inst.max_size is for symmetry clauses. *)
         (max inst.max_clause_size inst.max_size)
-        (Solv.to_lit Solv.Pos 0) in
+        (Solv.to_lit Sat_solver.Pos 0) in
 
     symmetry_reduction inst pclause;
     add_at_most_one_val_clauses inst pclause;
@@ -502,7 +473,7 @@ struct
         Array.make
           (* + 1 is for the switch. *)
           (inst.max_size + 1)
-          (Solv.to_lit Solv.Pos 0) in
+          (Solv.to_lit Sat_solver.Pos 0) in
 
       Array.iter
         (fun f ->
@@ -533,10 +504,10 @@ struct
                 a.(arity) <- result;
                 let r, max_el_idx = rank a 0 (arity + 1) adeq_sizes in
                 let pvar = r + BatDynArray.get pvars a.(max_el_idx) in
-                let plit = Solv.to_lit Solv.Pos pvar in
+                let plit = Solv.to_lit Sat_solver.Pos pvar in
                 pclause.(result) <- plit
               done;
-              pclause.(res_max_el + 1) <- Solv.to_lit Solv.Pos switch;
+              pclause.(res_max_el + 1) <- Solv.to_lit Sat_solver.Pos switch;
               ignore (Solv.add_at_least_one_val_clause
                         inst.solver
                         pclause
@@ -567,8 +538,8 @@ struct
       | None -> failwith "solve: impossible"
       | Some switch ->
           let result =
-            Solv.solve inst.solver [| Solv.to_lit Solv.Neg switch |] in
-          inst.can_construct_model <- result = Solv.Ltrue;
+            Solv.solve inst.solver [| Solv.to_lit Sat_solver.Neg switch |] in
+          inst.can_construct_model <- result = Sat_solver.Ltrue;
           result
 
   let construct_model inst =
@@ -577,9 +548,9 @@ struct
 
     let get_val pvar =
       match Solv.model_value inst.solver pvar with
-        | Solv.Ltrue -> 1
-        | Solv.Lfalse -> 0
-        | Solv.Lundef ->
+        | Sat_solver.Ltrue -> 1
+        | Sat_solver.Lfalse -> 0
+        | Sat_solver.Lundef ->
             failwith "construct_model: unassigned propositional variable" in
 
     let model = {
