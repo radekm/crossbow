@@ -22,6 +22,7 @@ let find_model
     unflatten
     splitting
     solver
+    output_file
     base_dir
     in_file =
 
@@ -92,12 +93,18 @@ let find_model
   flush stderr;
   let model = Model.of_ms_model ms_model sorts in
   let b = Buffer.create 1024 in
-  Tptp_prob.model_to_tptp tptp_prob model
-    (Tptp_ast.N_word (Tptp_ast.to_plain_word "interp"))
-    (fun f ->
-      Tptp.write b f;
-      Buffer.output_buffer stdout b;
-      Buffer.clear b)
+  let with_output f =
+    match output_file with
+      | None -> f BatPervasives.stdout
+      | Some file -> BatFile.with_file_out file f in
+  with_output
+    (fun out ->
+      Tptp_prob.model_to_tptp tptp_prob model
+        (Tptp_ast.N_word (Tptp_ast.to_plain_word "interp"))
+        (fun f ->
+          Tptp.write b f;
+          BatBuffer.output_buffer out b;
+          Buffer.clear b))
 
 let in_file =
   let doc = "File with CNF clauses in TPTP format." in
@@ -106,6 +113,11 @@ let in_file =
 let base_dir =
   let doc = "Relative include paths are resolved against this directory." in
   Arg.(value & opt dir "." & info ["base-dir"] ~docv:"DIR" ~doc)
+
+let output_file =
+  let doc = "Write model to this file." in
+  Arg.(value & opt (some string) None &
+         info ["output-file"] ~docv:"FILE" ~doc)
 
 let solver =
   let doc = "$(docv) can be: cryptominisat, minisat." in
@@ -136,7 +148,8 @@ let unflatten =
          info ["unflatten"] ~docv:"UNFLATTEN" ~doc)
 
 let find_model_t =
-  Term.(pure find_model $ unflatten $ splitting $ solver $ base_dir $ in_file)
+  Term.(pure find_model $ unflatten $ splitting $ solver $
+          output_file $ base_dir $ in_file)
 
 let info =
   let doc = "finite model finder" in
