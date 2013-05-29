@@ -1,11 +1,15 @@
 # Copyright (c) 2013 Radek Micek
 
+OCAMLFLAGS = -thread
+
 OCAML_LINK_FLAGS += -cc g++
 
 OCAMLPACKS[] =
+    threads
     batteries
     tptp
     zarith
+    oclock
     oUnit
 
 OCAMLINCLUDES += ../src
@@ -19,6 +23,7 @@ FILES[] =
     test_elist
     test_algo
     test_equiv
+    test_timer
     test_symb
     test_term
     test_clause

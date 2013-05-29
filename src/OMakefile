@@ -1,13 +1,17 @@
 # Copyright (c) 2013 Radek Micek
 
+OCAMLFLAGS += -thread
+
 OCAML_LIB_FLAGS += \
     -ccopt -L../minisat -cclib -lminisat \
     -ccopt -L../cmsat -cclib -lcmsat
 
 OCAMLPACKS[] =
+    threads
     batteries
     tptp
     zarith
+    oclock
     cmdliner
 
 FILES[] =
@@ -15,6 +19,7 @@ FILES[] =
     elist
     algo
     equiv
+    timer
     symb
     term
     clause
@@ -49,7 +54,7 @@ section
     doc/index.html: $(SOURCES) $(CMI_FILES) /.PHONY/OCamlGeneratedFilesTarget
         mkdir -p doc
         ocamlfind ocamldoc \
-            -d doc -html -stars -sort \
+            -thread -d doc -html -stars -sort \
             $(PREFIXED_OCAMLINCLUDES) \
             $(mapprefix -package, $(OCAMLPACKS)) \
             $(SOURCES)

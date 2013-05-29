@@ -9,6 +9,7 @@ let suite =
       Test_elist.suite;
       Test_algo.suite;
       Test_equiv.suite;
+      Test_timer.suite;
       Test_symb.suite;
       Test_term.suite;
       Test_clause.suite;
