@@ -70,6 +70,8 @@ module Solver = struct
 
   let model_value _ _ = failwith "Not implemented"
 
+  let interrupt _ = failwith "not implemented"
+
   let to_lit sign v = match sign with
     | Sat_solver.Pos -> v + v
     | Sat_solver.Neg -> v + v + 1

@@ -27,6 +27,8 @@ external solve : t -> lit array -> Sat_solver.lbool = "cmsat_solve"
 
 external model_value : t -> var -> Sat_solver.lbool = "cmsat_model_value"
 
+external interrupt : t -> unit = "cmsat_interrupt"
+
 val to_lit : Sat_solver.sign -> var -> lit
 
 val to_var : lit -> var

@@ -26,6 +26,8 @@ module type S = sig
 
   val model_value : t -> var -> lbool
 
+  val interrupt : t -> unit
+
   val to_lit : sign -> var -> lit
 
   val to_var : lit -> var

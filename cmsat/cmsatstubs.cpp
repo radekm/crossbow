@@ -153,4 +153,15 @@ CAMLprim value cmsat_model_value(value sv, value varv) {
   CAMLreturn (Val_int(res));
 }
 
+CAMLprim value cmsat_interrupt(value sv) {
+  CAMLparam1 (sv);
+
+  Solver * s = Solver_val(sv);
+  s->setNeedToInterrupt();
+
+  log("cmsat_interrupt(%p)\n", (void *)s);
+
+  CAMLreturn (Val_unit);
+}
+
 } // extern "C" {

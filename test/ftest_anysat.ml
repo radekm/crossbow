@@ -2,12 +2,67 @@
 
 open OUnit
 
+let (|>) = BatPervasives.(|>)
+
 module Make (Solv : Sat_solver.S) : sig
   val suite : string -> test
 end = struct
 
   let lit = Solv.to_lit Sat_solver.Pos
   let neg_lit = Solv.to_lit Sat_solver.Neg
+
+  let base_dir = "test/data/cnf/"
+
+  (* Initialize parser from CNF file. *)
+  let of_cnf_file file =
+    let lines =
+      BatFile.lines_of file
+      |> BatEnum.map BatString.trim
+      |> BatEnum.filter (fun line -> line <> "")
+      |> BatEnum.filter (fun line -> BatString.starts_with line "c" |> not)
+      |> BatList.of_enum in
+    match lines with
+      | [] -> failwith "of_cnf_file: no header"
+      | l :: ls ->
+          match BatString.nsplit l " " with
+            | ["p"; "cnf"; nvars_str; _] ->
+                let solver = Solv.create () in
+                let nvars = int_of_string nvars_str in
+                let x =
+                  if nvars <= 0 then
+                    ~-1
+                  else begin
+                    let x = Solv.new_var solver in
+                    for v = 2 to nvars do
+                      Solv.new_var solver |> ignore
+                    done;
+                    x
+                  end in
+                let to_lit lit_str =
+                  (* In case of two or more consecutive spaces. *)
+                  if lit_str = "" then
+                    None
+                  else
+                    let lit = int_of_string lit_str in
+                    if lit = 0 then
+                      None
+                    else
+                      let sign =
+                        if lit < 0
+                        then Sat_solver.Neg
+                        else Sat_solver.Pos in
+                      let var = x + abs lit - 1 in
+                      Some (Solv.to_lit sign var) in
+                let add_clause clause_str =
+                  let lits =
+                    BatString.nsplit clause_str " "
+                    |> BatList.filter_map to_lit
+                    |> Array.of_list in
+                  let n = Array.length lits in
+                  Solv.add_clause solver lits n |> ignore in
+                List.iter add_clause ls;
+                solver
+            | _ -> failwith "of_cnf_file: invalid header"
 
   let test_new_vars_are_consecutive_ints () =
     let s = Solv.create () in
@@ -131,6 +186,34 @@ end = struct
     let assumpts = [| lit phs.(0).(2); lit phs.(1).(1) |] in
     assert_equal Sat_solver.Ltrue (Solv.solve s assumpts)
 
+  (* Hard problem which cannot be solved in such short time. *)
+  let test_interrupt () =
+    let solver = of_cnf_file (base_dir ^ "sgen1-unsat-145-100.cnf") in
+    let result, interrupted =
+      Timer.with_timer 2
+        (fun () -> Solv.interrupt solver)
+        (fun () -> Solv.solve solver [| |]) in
+    assert_equal Sat_solver.Lundef result;
+    assert_bool "" interrupted
+
+  let test_interrupt_sat () =
+    let solver = of_cnf_file (base_dir ^ "simple-sat-v3-c2.cnf") in
+    let result, interrupted =
+      Timer.with_timer 10
+        (fun () -> Solv.interrupt solver)
+        (fun () -> Solv.solve solver [| |]) in
+    assert_equal Sat_solver.Ltrue result;
+    assert_bool "" (not interrupted)
+
+  let test_interrupt_unsat () =
+    let solver = of_cnf_file (base_dir ^ "simple-unsat-v0-c1.cnf") in
+    let result, interrupted =
+      Timer.with_timer 10
+        (fun () -> Solv.interrupt solver)
+        (fun () -> Solv.solve solver [| |]) in
+    assert_equal Sat_solver.Lfalse result;
+    assert_bool "" (not interrupted)
+
   let suite name =
     (name ^ " suite") >:::
       [
@@ -145,6 +228,9 @@ end = struct
         "sat" >:: test_sat;
         "unsat with assumptions" >:: test_unsat_with_assumpts;
         "sat with assumptions" >:: test_sat_with_assumpts;
+        "interrupt" >:: test_interrupt;
+        "interrupt - sat" >:: test_interrupt_sat;
+        "interrupt - unsat" >:: test_interrupt_unsat;
       ]
 
 end
