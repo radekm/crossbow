@@ -190,7 +190,7 @@ end = struct
   let test_interrupt () =
     let solver = of_cnf_file (base_dir ^ "sgen1-unsat-145-100.cnf") in
     let result, interrupted =
-      Timer.with_timer 2
+      Timer.with_timer 2000
         (fun () -> Solv.interrupt solver)
         (fun () -> Solv.solve solver [| |]) in
     assert_equal Sat_solver.Lundef result;
@@ -199,7 +199,7 @@ end = struct
   let test_interrupt_sat () =
     let solver = of_cnf_file (base_dir ^ "simple-sat-v3-c2.cnf") in
     let result, interrupted =
-      Timer.with_timer 10
+      Timer.with_timer (10 * 1000)
         (fun () -> Solv.interrupt solver)
         (fun () -> Solv.solve solver [| |]) in
     assert_equal Sat_solver.Ltrue result;
@@ -208,7 +208,7 @@ end = struct
   let test_interrupt_unsat () =
     let solver = of_cnf_file (base_dir ^ "simple-unsat-v0-c1.cnf") in
     let result, interrupted =
-      Timer.with_timer 10
+      Timer.with_timer (10 * 1000)
         (fun () -> Solv.interrupt solver)
         (fun () -> Solv.solve solver [| |]) in
     assert_equal Sat_solver.Lfalse result;

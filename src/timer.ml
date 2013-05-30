@@ -1,8 +1,11 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-let with_timer secs callback f =
-  let ns = Int64.of_int (secs * 1000 * 1000 * 1000) in
-  let max_ns = BatInt64.(Oclock.gettime Oclock.monotonic_raw + ns) in
+let get_ms () =
+  let ns = Int64.to_int (Oclock.gettime Oclock.monotonic_raw) in
+  ns / 1000000
+
+let with_timer ms callback f =
+  let max_ms = get_ms () + ms in
   let callback_called = ref false in
   let finished = ref false in
   let m = Mutex.create () in
@@ -14,9 +17,7 @@ let with_timer secs callback f =
       Mutex.unlock m;
       if fin then
         ()
-      else if
-        BatInt64.(Oclock.gettime Oclock.monotonic_raw > max_ns)
-      then begin
+      else if get_ms () > max_ms then begin
         callback_called := true;
         callback ()
       end else begin

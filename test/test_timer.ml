@@ -4,7 +4,7 @@ open OUnit
 
 let test_with_timer_no_callback () =
   let res, called =
-    Timer.with_timer 3600
+    Timer.with_timer (3600 * 1000)
       (fun () -> ())
       (fun () -> Thread.delay 1.; 3) in
   assert_equal 3 res;
@@ -14,13 +14,13 @@ let test_with_timer_no_callback_exn () =
   assert_raises
     (Failure "x")
     (fun () ->
-      ignore (Timer.with_timer 5
+      ignore (Timer.with_timer 5000
                 (fun () -> ())
                 (fun () -> failwith "x")))
 
 let test_with_timer_callback () =
   let res, called =
-    Timer.with_timer 1
+    Timer.with_timer 1000
       (fun () -> ())
       (fun () -> Thread.delay 1.5; "res") in
   assert_equal "res" res;
