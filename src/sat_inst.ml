@@ -25,6 +25,8 @@ module type Inst_sig = sig
 
   val solve : t -> Sat_solver.lbool
 
+  val solve_timed : t -> int -> Sat_solver.lbool * bool
+
   val construct_model : t -> Ms_model.t
 
   val get_solver : t -> solver
@@ -541,6 +543,11 @@ struct
             Solv.solve inst.solver [| Solv.to_lit Sat_solver.Neg switch |] in
           inst.can_construct_model <- result = Sat_solver.Ltrue;
           result
+
+  let solve_timed inst ms =
+    Timer.with_timer ms
+      (fun () -> Solv.interrupt inst.solver)
+      (fun () -> solve inst)
 
   let construct_model inst =
     if not inst.can_construct_model then

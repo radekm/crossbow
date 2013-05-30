@@ -60,6 +60,16 @@ module type Inst_sig = sig
   *)
   val solve : t -> Sat_solver.lbool
 
+  (** Adds "at least one value" clauses and starts the solver.
+     The solver is interrupted if it doesn't finish within
+     the given number of miliseconds. Returns the solver result
+     and the indicator whether the solver was interrupted.
+
+     Raises [Failure] when the maximum domain size is 0 or when it is
+     lower than the number of the distinct constants.
+  *)
+  val solve_timed : t -> int -> Sat_solver.lbool * bool
+
   (** Constructs a multi-sorted model for all constants, non-auxiliary
      functions and non-auxiliary predicates.
 
