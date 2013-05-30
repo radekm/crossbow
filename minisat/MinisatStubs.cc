@@ -133,7 +133,8 @@ CAMLprim value minisat_model_value(value sv, value varv) {
   CAMLparam2 (sv, varv);
 
   Solver * s = Solver_val(sv);
-  int res = toInt(s->modelValue((Var)Int_val(varv)));
+  Var var = Int_val(varv);
+  int res = toInt(s->modelValue(var));
 
   // Normalize lbool.
   if (res != 0 && res != 1)
