@@ -6,6 +6,9 @@ src/doc
 test/test_runner
 test/test_runner.opt
 
+scripts/run_crossbow
+scripts/run_crossbow.opt
+
 # OCaml
 *.cmi
 *.cmo

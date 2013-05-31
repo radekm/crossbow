@@ -1,0 +1,18 @@
+# Copyright (c) 2013 Radek Micek
+
+OCAMLFLAGS += -thread
+
+OCAMLPACKS[] =
+    threads
+    batteries
+    tptp
+    zarith
+    oclock
+    yojson
+    cmdliner
+
+OCamlProgram(run_crossbow, shared run_shared run_crossbow)
+
+clean:
+    $(CLEAN)
+    rm -rf run_crossbow$(EXE)
