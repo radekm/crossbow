@@ -8,7 +8,7 @@ module Term = Cmdliner.Term
 let (|>) = BatPervasives.(|>)
 let (|-) = BatPervasives.(|-)
 
-let main exe opts max_mem problems out_dir =
+let main exe opts max_time max_mem problems out_dir =
   let each_problem file =
     let model_file =
       Shared.file_in_dir out_dir (Shared.file_name file ^ ".m.mod") in
@@ -19,11 +19,12 @@ let main exe opts max_mem problems out_dir =
           [| "--output-file"; model_file |];
           [| file |];
         ] in
-    let s_time, s_mem_peak, s_exit_code = RS.run_solver max_mem exe args in
+    let s_time, s_mem_peak, s_exit_status =
+      RS.run_solver max_time max_mem exe args in
     let s_model = Sys.file_exists model_file in
-    { RS.s_time; RS.s_mem_peak; RS.s_exit_code; RS.s_model } in
+    { RS.s_time; RS.s_mem_peak; RS.s_exit_status; RS.s_model } in
 
-  RS.shared_main "crossbow" opts max_mem problems out_dir each_problem
+  RS.shared_main "crossbow" opts max_time max_mem problems out_dir each_problem
 
 let exe =
   let doc = "Crossbow executable." in
@@ -31,7 +32,8 @@ let exe =
          info ["exe"] ~docv:"FILE" ~doc)
 
 let main_t =
-  Term.(pure main $ exe $ RS.opts $ RS.max_mem $ RS.problems $ RS.out_dir)
+  Term.(pure main $ exe $ RS.opts $ RS.max_time $ RS.max_mem $
+          RS.problems $ RS.out_dir)
 
 let info =
   Term.info "run_crossbow" ~version:RS.version

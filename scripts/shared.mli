@@ -19,20 +19,28 @@ val file_in_dir : string -> string -> string
 *)
 val file_in_program_dir : string -> string
 
-(** [run_with_lim_mem timeout_exe max_mem prog args new_stdin new_stdout
-   new_stderr] executes a program in file [prog] with arguments [args]
+type exit_status =
+  | ES_time
+  (** Program breached the time limit and it was killed. *)
+  | ES_memory
+  (** Program breached the memory limit and it was killed. *)
+  | ES_ok of int
+  (** Program exited normally. Carries the exit code. *)
+
+(** [run_with_limits timeout_exe max_time max_mem prog args
+   new_stdin new_stdout new_stderr] executes a program in file [prog]
+   with arguments [args], time limit [max_time] (in seconds)
    and memory limit [max_mem] (in kilobytes).
 
-   [timeout_exe] is the path to a script which enforces the memory limit.
+   [timeout_exe] is the path to a script which enforces the limits.
 
-   Returns [(time, mem_peak, exit_code)]. [time] is the elapsed
+   Returns [(time, mem_peak, exit_status)]. [time] is the elapsed
    number of miliseconds between the invocation and the termination of [prog].
    [mem_peak] is the maximal amount of memory which was allocated
-   by the program and its children. [exit_code] is [None] when the program
-   breached the memory limit [max_mem], otherwise it contains the exit code.
+   by the program and its children.
 *)
-val run_with_lim_mem :
-  string -> int ->
+val run_with_limits :
+  string -> int option -> int option ->
   string -> string array ->
   Unix.file_descr -> Unix.file_descr -> Unix.file_descr ->
-  int * int * int option
+  int * int * exit_status

@@ -53,16 +53,32 @@ let file_in_program_dir file =
   |> Path.map_name (fun _ -> file)
   |> Path.to_ustring
 
-let run_with_lim_mem
-    timeout_exe max_mem
+type exit_status =
+  | ES_time
+  | ES_memory
+  | ES_ok of int
+
+let run_with_limits
+    timeout_exe max_time max_mem
     prog args
     new_stdin new_stdout new_stderr =
 
   let stats_file = BatFile.with_temporary_out (fun _ name -> name) in
   let args =
-    Array.append
-      [| "-c"; "-m"; string_of_int max_mem; "-o"; stats_file; "--"; prog |]
-      args in
+    Array.concat
+      [
+        [| "-c"; "-o"; stats_file |];
+        BatOption.map_default
+          (fun max_time -> [| "-t"; string_of_int max_time |])
+          [| |]
+          max_time;
+        BatOption.map_default
+          (fun max_mem -> [| "-m"; string_of_int max_mem |])
+          [| |]
+          max_mem;
+        [| "--"; prog |];
+        args;
+      ] in
   let ms_before = get_ms () in
   let pid =
     Unix.create_process
@@ -74,7 +90,7 @@ let run_with_lim_mem
     | Unix.WSIGNALED _
     | Unix.WSTOPPED _ ->
         Sys.remove stats_file;
-        failwith "run_with_lim_mem: process status"
+        failwith "run_with_limits: process status"
     | Unix.WEXITED code ->
         let stats =
           BatFile.lines_of stats_file
@@ -86,9 +102,11 @@ let run_with_lim_mem
           | [reason; _; _; mem_peak] ->
               let mem_peak = int_of_string (BatString.lchop ~n:7 mem_peak) in
               if reason = "REASON:FINISHED" then
-                ms, mem_peak, Some code
+                ms, mem_peak, ES_ok code
+              else if reason = "REASON:TIMEOUT" then
+                ms, mem_peak, ES_time
               else if reason = "REASON:MEM" then
-                ms, mem_peak, None
+                ms, mem_peak, ES_memory
               else
-                failwith "run_with_lim_mem: reason"
-          | _ -> failwith "run_with_lim_mem: statistics"
+                failwith "run_with_limits: reason"
+          | _ -> failwith "run_with_limits: statistics"
