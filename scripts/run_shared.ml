@@ -88,7 +88,7 @@ let shared_main solver_name opts max_time max_mem problems out_dir f =
       ] in
   BatFile.with_file_out
     (Shared.file_in_dir out_dir "__REPORT__")
-    (fun out -> BatIO.write_string out (Yojson.Safe.pretty_to_string json))
+    (fun out -> BatIO.nwrite out (Yojson.Safe.pretty_to_string json))
 
 let run_solver max_time max_mem solver args =
   let timeout_exe = Shared.file_in_program_dir "timeout" in
