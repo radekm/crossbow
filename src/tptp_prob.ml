@@ -229,6 +229,10 @@ let model_to_tptp
       | Some (String str) -> Ast.String str)
       dom_to_tptp in
 
+  (* Comment with domain size. *)
+  f (Ast.Comment (Ast.to_comment_line
+                    (" domain size: " ^ string_of_int model.Model.max_size)));
+
   (* Specify domain - one formula. *)
   let _ =
     let x = Ast.to_var "X" in
