@@ -33,6 +33,7 @@ FILES[] =
     minisat
     cmsat
     symred
+    lnh
     ms_model
     model
     sat_inst
