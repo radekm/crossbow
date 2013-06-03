@@ -8,6 +8,8 @@ test/test_runner.opt
 
 scripts/run_crossbow
 scripts/run_crossbow.opt
+scripts/run_paradox
+scripts/run_paradox.opt
 
 # OCaml
 *.cmi

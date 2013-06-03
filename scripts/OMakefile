@@ -13,6 +13,9 @@ OCAMLPACKS[] =
 
 OCamlProgram(run_crossbow, shared run_shared run_crossbow)
 
+OCamlProgram(run_paradox, shared run_shared run_paradox)
+
 clean:
     $(CLEAN)
     rm -rf run_crossbow$(EXE)
+    rm -rf run_paradox$(EXE)

@@ -92,7 +92,10 @@ let shared_main solver_name opts max_time max_mem problems out_dir f =
     (Shared.file_in_dir out_dir "__REPORT__")
     (fun out -> BatIO.nwrite out (Yojson.Safe.pretty_to_string json))
 
-let run_solver max_time max_mem solver args =
+let run_solver_ex
+    max_time max_mem solver args
+    new_stdin new_stdout new_stderr =
+
   let timeout_exe = Shared.file_in_program_dir "timeout" in
   Printf.fprintf stderr "\n+ %s %s\n\n"
     solver
@@ -101,6 +104,11 @@ let run_solver max_time max_mem solver args =
   Shared.run_with_limits
     timeout_exe max_time max_mem
     solver args
+    new_stdin new_stdout new_stderr
+
+let run_solver max_time max_mem solver args =
+  run_solver_ex
+    max_time max_mem solver args
     (Unix.descr_of_in_channel stdin)
     (Unix.descr_of_out_channel stdout)
     (Unix.descr_of_out_channel stderr)
