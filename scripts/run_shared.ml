@@ -10,7 +10,7 @@ type stat = {
   s_time : int;
   s_mem_peak : int;
   s_exit_status : Shared.exit_status;
-  s_model : bool;
+  s_model_size : int option;
 }
 
 let shared_main solver_name opts max_time max_mem problems out_dir f =
@@ -42,10 +42,10 @@ let shared_main solver_name opts max_time max_mem problems out_dir f =
       let s = f file in
       BatDynArray.add stats (file, s);
       Printf.fprintf stderr
-        "\nTIME (ms): %d  MEM PEAK (kB): %d  MODEL: %s\n"
+        "\nTIME (ms): %d  MEM PEAK (kB): %d  MODEL SIZE: %s\n"
         s.s_time
         s.s_mem_peak
-        (if s.s_model then "yes" else "no");
+        (BatOption.map_default string_of_int "no model" s.s_model_size);
       Printf.fprintf stderr
         "EXIT: %s\n"
         (match s.s_exit_status with
@@ -61,13 +61,15 @@ let shared_main solver_name opts max_time max_mem problems out_dir f =
         | Shared.ES_time -> `String "time"
         | Shared.ES_memory -> `String "memory"
         | Shared.ES_ok i -> `Int i in
+    let model_size =
+      BatOption.map_default (fun i -> `Int i) `Null s.s_model_size in
     `Assoc
       [
         "problem", `String file;
         "time", `Int s.s_time;
         "mem_peak", `Int s.s_mem_peak;
         "exit_status", exit_status;
-        "model", `Bool s.s_model;
+        "model_size", model_size;
       ] in
 
   (* Save statistics to JSON. *)

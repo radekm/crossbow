@@ -21,12 +21,19 @@ let main exe opts max_time max_mem problems out_dir =
         ] in
     let s_time, s_mem_peak, s_exit_status =
       RS.run_solver max_time max_mem exe args in
-    let s_model =
+    let s_model_size =
       match s_exit_status with
+        | Shared.ES_ok _ when Sys.file_exists model_file ->
+            BatFile.with_file_in model_file
+              (fun inp ->
+                let line = BatIO.read_line inp in
+                let size_str =
+                  BatString.split line ":" |> snd |> BatString.trim in
+                Some (int_of_string size_str))
         | Shared.ES_time
-        | Shared.ES_memory -> false
-        | Shared.ES_ok _ -> Sys.file_exists model_file in
-    { RS.s_time; RS.s_mem_peak; RS.s_exit_status; RS.s_model } in
+        | Shared.ES_memory
+        | Shared.ES_ok _ -> None in
+    { RS.s_time; RS.s_mem_peak; RS.s_exit_status; RS.s_model_size } in
 
   RS.shared_main "crossbow" opts max_time max_mem problems out_dir each_problem
 
