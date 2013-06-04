@@ -258,6 +258,75 @@ let test_nested_include () =
   ] in
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
+let test_nested_include_with_sel () =
+  let prob =
+    Tptp_prob.of_file base_dir
+      (base_dir ^ "04_test_nested_include_with_sel.p") in
+
+  let p = Ast.Plain_word (Ast.to_plain_word "p") in
+  let a = Ast.Plain_word (Ast.to_plain_word "a") in
+  let b = Ast.Plain_word (Ast.to_plain_word "b") in
+  let c = Ast.Plain_word (Ast.to_plain_word "c") in
+  let d = Ast.Plain_word (Ast.to_plain_word "d") in
+
+  (* TPTP symbols. *)
+  let p1 = TP.Atomic_word (p, 1) in
+  let a0 = TP.Atomic_word (a, 0) in
+  let b0 = TP.Atomic_word (b, 0) in
+  let c0 = TP.Atomic_word (c, 0) in
+  let d0 = TP.Atomic_word (d, 0) in
+
+  (* All TPTP symbols are mapped. *)
+  assert_equal 5 (Hashtbl.length prob.TP.smap.TP.of_tptp);
+  assert_equal 5 (Hashtbl.length prob.TP.smap.TP.to_tptp);
+
+  (* Find ids of TPTP symbols. *)
+  let find = Hashtbl.find prob.TP.smap.TP.of_tptp in
+  let p1' = find p1 in
+  let a0' = find a0 in
+  let b0' = find b0 in
+  let c0' = find c0 in
+  let d0' = find d0 in
+
+  (* Ids are different. *)
+  assert_equal 5 (List.length (BatList.unique [p1'; a0'; b0'; c0'; d0']));
+
+  (* Hashtable to_tptp is inverse of of_tptp
+     (btw this implies that ids array different).
+  *)
+  Hashtbl.iter
+    (fun k v -> assert_equal k (Hashtbl.find prob.TP.smap.TP.to_tptp v))
+    prob.TP.smap.TP.of_tptp;
+
+  (* Array distinct_consts. *)
+  assert_equal
+    []
+    (BatDynArray.to_list prob.TP.prob.Prob.distinct_consts);
+
+  (* Clauses. *)
+  let exp_clauses =
+    let p a = T.Func (p1', [| a |]) in
+    let const s = T.Func (s, [| |]) in
+    [
+      {
+        Clause.cl_id = 0;
+        Clause.cl_lits = [ p (const a0') ];
+      };
+      {
+        Clause.cl_id = 1;
+        Clause.cl_lits = [ p (const b0') ];
+      };
+      {
+        Clause.cl_id = 2;
+        Clause.cl_lits = [ p (const c0') ];
+      };
+      {
+        Clause.cl_id = 3;
+        Clause.cl_lits = [ p (const d0') ];
+      };
+  ] in
+  assert_equal exp_clauses (BatDynArray.to_list prob.TP.prob.Prob.clauses)
+
 (* TODO: Tests for invalid inputs:
    - predicate symbol is already a function symbol and the other way around
    - syntax error
@@ -400,5 +469,7 @@ let suite =
       "of_file - basic" >:: test_basic;
       "of_file - include" >:: test_include;
       "of_file - nested include" >:: test_nested_include;
+      "of_file - nested include with selection" >::
+        test_nested_include_with_sel;
       "model_to_tptp" >:: test_model_to_tptp;
     ]

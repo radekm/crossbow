@@ -156,21 +156,27 @@ let of_file base_dir file =
     prob = Prob.create ();
   } in
 
-  let rec of_file file sel =
+  let rec of_file file selected =
     BatFile.with_file_in file (fun i ->
       let lexbuf = BatLexing.from_input i in
       let proc_clause name cl =
-        if sel = [] || List.exists (fun x -> x = name) sel then
+        if selected name then
           add_clause p cl in
       let proc_include (file : Ast.file_name) sel =
         let path = combine_paths base_dir (file :> string) in
-        of_file path sel in
+        let selected' =
+          if sel = [] then
+            selected
+          else
+            (fun name ->
+              selected name && Elist.contains name sel) in
+        of_file path selected' in
       with_dispose
         ~dispose:Tptp.close_in
         (iter_tptp_input proc_clause proc_include)
         (Tptp.create_in lexbuf)) in
 
-  of_file file [];
+  of_file file (fun _ -> true);
   p
 
 module M = Model
