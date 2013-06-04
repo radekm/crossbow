@@ -44,3 +44,12 @@ val run_with_limits :
   string -> string array ->
   Unix.file_descr -> Unix.file_descr -> Unix.file_descr ->
   int * int * exit_status
+
+(** [tptp_concat_map f base_dir in_files out_file] reads TPTP formulas and
+   comments from [in_files] and files included from [in_files], transforms
+   them with [f] and writes them to [out_file]. Includes with relative paths
+   are resolved against [base_dir].
+*)
+val tptp_concat_map :
+  (Tptp_ast.tptp_input -> Tptp_ast.tptp_input) ->
+  string -> string list -> string -> unit

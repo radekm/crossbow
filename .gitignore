@@ -10,6 +10,8 @@ scripts/run_crossbow
 scripts/run_crossbow.opt
 scripts/run_paradox
 scripts/run_paradox.opt
+scripts/run_mace4
+scripts/run_mace4.opt
 
 # OCaml
 *.cmi

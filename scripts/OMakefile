@@ -15,7 +15,10 @@ OCamlProgram(run_crossbow, shared run_shared run_crossbow)
 
 OCamlProgram(run_paradox, shared run_shared run_paradox)
 
+OCamlProgram(run_mace4, shared run_shared run_mace4)
+
 clean:
     $(CLEAN)
     rm -rf run_crossbow$(EXE)
     rm -rf run_paradox$(EXE)
+    rm -rf run_mace4$(EXE)
