@@ -384,6 +384,7 @@ let test_model_to_tptp () =
           Ast.af_formula = pred_q;
           Ast.af_annos = None;
         };
+      Ast.Comment (Ast.to_comment_line " domain size: 4");
     ] in
 
   let formulas =
