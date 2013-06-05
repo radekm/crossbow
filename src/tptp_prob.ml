@@ -24,9 +24,9 @@ let add_clause p (Ast.Clause lits) =
   let vars = Hashtbl.create 20 in
 
   let create_symb = function
-    | Atomic_word (_, arity) -> Symb.add_anon_symb p.prob.Prob.symbols arity
+    | Atomic_word (_, arity) -> Symb.add p.prob.Prob.symbols arity
     | Number _
-    | String _ -> Symb.add_anon_symb p.prob.Prob.symbols 0 in
+    | String _ -> Symb.add p.prob.Prob.symbols 0 in
 
   let rec transl_term = function
     | Ast.Var x ->

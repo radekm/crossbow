@@ -340,11 +340,11 @@ let hashtbl_of_list xs = BatHashtbl.of_enum (BatList.enum xs)
 
 let test_model_to_tptp () =
   let db = Symb.create_db () in
-  let p = Symb.add_anon_symb db 1 in
-  let q = Symb.add_anon_symb db 0 in
-  let c = Symb.add_anon_symb db 0 in
-  let d = Symb.add_anon_symb db 0 in
-  let f = Symb.add_anon_symb db 2 in
+  let p = Symb.add db 1 in
+  let q = Symb.add db 0 in
+  let c = Symb.add db 0 in
+  let d = Symb.add db 0 in
+  let f = Symb.add db 2 in
 
   let model = {
     M.max_size = 4;
