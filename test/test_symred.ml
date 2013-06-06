@@ -15,8 +15,8 @@ let print_result result =
 let test_no_consts_no_funcs () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let q = Symb.add db 1 in
+  let p = Symb.add_pred db 2 in
+  let q = Symb.add_pred db 1 in
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 0; 1 |];
@@ -41,10 +41,10 @@ let test_no_consts_no_funcs () =
 let test_consts_in_same_sort () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let c = Symb.add db 0 in
-  let q = Symb.add db 1 in
-  let d = Symb.add db 0 in
+  let p = Symb.add_pred db 2 in
+  let c = Symb.add_func db 0 in
+  let q = Symb.add_pred db 1 in
+  let d = Symb.add_func db 0 in
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 1; 1 |];
@@ -73,11 +73,11 @@ let test_consts_in_same_sort () =
 let test_consts_in_diff_sorts () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let c = Symb.add db 0 in
-  let q = Symb.add db 1 in
-  let d = Symb.add db 0 in
-  let e = Symb.add db 0 in
+  let p = Symb.add_pred db 2 in
+  let c = Symb.add_func db 0 in
+  let q = Symb.add_pred db 1 in
+  let d = Symb.add_func db 0 in
+  let e = Symb.add_func db 0 in
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 1; 1 |];
@@ -109,11 +109,11 @@ let test_consts_in_diff_sorts () =
 let test_distinct_consts () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let c = Symb.add db 0 in
-  let q = Symb.add db 0 in
-  let d = Symb.add db 0 in
-  let e = Symb.add db 0 in
+  let p = Symb.add_pred db 2 in
+  let c = Symb.add_func db 0 in
+  let q = Symb.add_pred db 0 in
+  let d = Symb.add_func db 0 in
+  let e = Symb.add_func db 0 in
   BatDynArray.add prob.Prob.distinct_consts c;
   BatDynArray.add prob.Prob.distinct_consts d;
   BatDynArray.add prob.Prob.distinct_consts e;
@@ -147,13 +147,13 @@ let test_distinct_consts () =
 let test_distinct_consts_consts () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let c1 = Symb.add db 0 in
-  let q = Symb.add db 0 in
-  let c2 = Symb.add db 0 in
-  let c3 = Symb.add db 0 in
-  let d1 = Symb.add db 0 in
-  let d2 = Symb.add db 0 in
+  let p = Symb.add_pred db 2 in
+  let c1 = Symb.add_func db 0 in
+  let q = Symb.add_pred db 0 in
+  let c2 = Symb.add_func db 0 in
+  let c3 = Symb.add_func db 0 in
+  let d1 = Symb.add_func db 0 in
+  let d2 = Symb.add_func db 0 in
   BatDynArray.add prob.Prob.distinct_consts c2;
   BatDynArray.add prob.Prob.distinct_consts c3;
 
@@ -193,9 +193,9 @@ let test_distinct_consts_consts () =
 let test_noncomm_func_one_sort () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let f = Symb.add db 3 in
-  let q = Symb.add db 1 in
+  let p = Symb.add_pred db 2 in
+  let f = Symb.add_func db 3 in
+  let q = Symb.add_pred db 1 in
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 0; 0 |];
@@ -228,9 +228,9 @@ let test_noncomm_func_one_sort () =
 let test_noncomm_func_many_sorts_bounded_res_sort () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let f = Symb.add db 4 in
-  let q = Symb.add db 1 in
+  let p = Symb.add_pred db 2 in
+  let f = Symb.add_func db 4 in
+  let q = Symb.add_pred db 1 in
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 0; 3 |];
@@ -261,9 +261,9 @@ let test_noncomm_func_many_sorts_bounded_res_sort () =
 let test_noncomm_func_many_sorts_bounded_param_sort () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let f = Symb.add db 2 in
-  let q = Symb.add db 1 in
+  let p = Symb.add_pred db 2 in
+  let f = Symb.add_func db 2 in
+  let q = Symb.add_pred db 1 in
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 0; 1 |];
@@ -293,9 +293,9 @@ let test_noncomm_func_many_sorts_bounded_param_sort () =
 let test_noncomm_func_many_sorts_bounded_param_sorts1 () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let f = Symb.add db 2 in
-  let q = Symb.add db 1 in
+  let p = Symb.add_pred db 2 in
+  let f = Symb.add_func db 2 in
+  let q = Symb.add_pred db 1 in
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 0; 1 |];
@@ -324,9 +324,9 @@ let test_noncomm_func_many_sorts_bounded_param_sorts1 () =
 let test_noncomm_func_many_sorts_bounded_param_sorts2 () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 3 in
-  let f = Symb.add db 2 in
-  let q = Symb.add db 1 in
+  let p = Symb.add_pred db 3 in
+  let f = Symb.add_func db 2 in
+  let q = Symb.add_pred db 1 in
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 0; 1; 1 |];
@@ -359,10 +359,10 @@ let test_noncomm_func_many_sorts_bounded_param_sorts2 () =
 let test_noncomm_funcs_many_sorts () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 3 in
-  let f = Symb.add db 2 in
-  let q = Symb.add db 0 in
-  let g = Symb.add db 1 in
+  let p = Symb.add_pred db 3 in
+  let f = Symb.add_func db 2 in
+  let q = Symb.add_pred db 0 in
+  let g = Symb.add_func db 1 in
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 0; 1; 1 |];
@@ -401,9 +401,9 @@ let test_noncomm_funcs_many_sorts () =
 let test_comm_func_one_sort () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 3 in
-  let f = Symb.add db 2 in
-  let q = Symb.add db 0 in
+  let p = Symb.add_pred db 3 in
+  let f = Symb.add_func db 2 in
+  let q = Symb.add_pred db 0 in
   Symb.set_commutative db f true;
 
   let symb_sorts = Hashtbl.create 20 in
@@ -437,10 +437,10 @@ let test_comm_func_one_sort () =
 let test_comm_funcs_many_sorts () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 1 in
-  let f = Symb.add db 2 in
-  let g = Symb.add db 2 in
-  let q = Symb.add db 1 in
+  let p = Symb.add_pred db 1 in
+  let f = Symb.add_func db 2 in
+  let g = Symb.add_func db 2 in
+  let q = Symb.add_pred db 1 in
   Symb.set_commutative db f true;
   Symb.set_commutative db g true;
 
@@ -480,12 +480,12 @@ let test_comm_funcs_many_sorts () =
 let test_distinct_consts_const_func () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 2 in
-  let f = Symb.add db 2 in
-  let c1 = Symb.add db 0 in
-  let c2 = Symb.add db 0 in
-  let c3 = Symb.add db 0 in
-  let d = Symb.add db 0 in
+  let p = Symb.add_pred db 2 in
+  let f = Symb.add_func db 2 in
+  let c1 = Symb.add_func db 0 in
+  let c2 = Symb.add_func db 0 in
+  let c3 = Symb.add_func db 0 in
+  let d = Symb.add_func db 0 in
   BatDynArray.add prob.Prob.distinct_consts c3;
   BatDynArray.add prob.Prob.distinct_consts c1;
 

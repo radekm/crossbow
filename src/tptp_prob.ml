@@ -26,10 +26,8 @@ type wt =
 let add_clause p (Ast.Clause lits) =
   let vars = Hashtbl.create 20 in
 
-  let create_symb = function
-    | Atomic_word (_, arity) -> Symb.add p.prob.Prob.symbols arity
-    | Number _
-    | String _ -> Symb.add p.prob.Prob.symbols 0 in
+  let add_func = Symb.add_func p.prob.Prob.symbols in
+  let add_pred = Symb.add_pred p.prob.Prob.symbols in
 
   let rec transl_term = function
     | Ast.Var x ->
@@ -51,7 +49,7 @@ let add_clause p (Ast.Clause lits) =
             else
               Hashtbl.find p.smap.of_tptp s
           else
-            let id = create_symb s in
+            let id = add_func arity in
             let _ = Hashtbl.add p.smap.of_tptp s id in
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = Hashtbl.add p.preds s false in
@@ -63,7 +61,7 @@ let add_clause p (Ast.Clause lits) =
           if Hashtbl.mem p.smap.of_tptp s then
             Hashtbl.find p.smap.of_tptp s
           else
-            let id = create_symb s in
+            let id = add_func 0 in
             let _ = Hashtbl.add p.smap.of_tptp s id in
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = BatDynArray.add p.prob.Prob.distinct_consts id in
@@ -75,7 +73,7 @@ let add_clause p (Ast.Clause lits) =
           if Hashtbl.mem p.smap.of_tptp s then
             Hashtbl.find p.smap.of_tptp s
           else
-            let id = create_symb s in
+            let id = add_func 0 in
             let _ = Hashtbl.add p.smap.of_tptp s id in
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = BatDynArray.add p.prob.Prob.distinct_consts id in
@@ -97,7 +95,7 @@ let add_clause p (Ast.Clause lits) =
             else
               Hashtbl.find p.smap.of_tptp s
           else
-            let id = create_symb s in
+            let id = add_pred arity in
             let _ = Hashtbl.add p.smap.of_tptp s id in
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = Hashtbl.add p.preds s true in

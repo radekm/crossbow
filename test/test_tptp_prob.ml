@@ -343,11 +343,11 @@ let hashtbl_of_list xs = BatHashtbl.of_enum (BatList.enum xs)
 let test_model_to_tptp () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = Symb.add db 1 in
-  let q = Symb.add db 0 in
-  let c = Symb.add db 0 in
-  let d = Symb.add db 0 in
-  let f = Symb.add db 2 in
+  let p = Symb.add_pred db 1 in
+  let q = Symb.add_pred db 0 in
+  let c = Symb.add_func db 0 in
+  let d = Symb.add_func db 0 in
+  let f = Symb.add_func db 2 in
 
   let model = {
     M.max_size = 4;

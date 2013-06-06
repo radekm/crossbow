@@ -13,7 +13,7 @@ let test_neg_lit1 () =
 
 let test_neg_lit2 () =
   let S.Wr db = S.create_db () in
-  let p = S.add db 1 in
+  let p = S.add_pred db 1 in
   let term = T.Func (p, [| T.Var 2 |]) in
   assert_equal
     (T.Func (S.sym_not, [| term |]))
@@ -21,7 +21,7 @@ let test_neg_lit2 () =
 
 let test_true_lit_false_lit () =
   let S.Wr db = S.create_db () in
-  let f = S.add db 1 in
+  let f = S.add_func db 1 in
   let mk_term v = T.Func (f, [| T.Var v |]) in
   (* true_lit *)
   assert_bool "" (C.true_lit (T.mk_eq (mk_term 1) (mk_term 1)));
@@ -34,8 +34,8 @@ let test_true_lit_false_lit () =
 
 let test_simplify () =
   let S.Wr db = S.create_db () in
-  let f = S.add db 2 in
-  let g = S.add db 2 in
+  let f = S.add_func db 2 in
+  let g = S.add_func db 2 in
   S.set_commutative db f true;
   let f a b = T.Func (f, [| a; b |]) in
   let g a b = T.Func (g, [| a; b |]) in
@@ -67,7 +67,7 @@ let test_simplify () =
 
 let test_simplify_tautology () =
   let S.Wr db = S.create_db () in
-  let f = S.add db 1 in
+  let f = S.add_func db 1 in
   let f a = T.Func (f, [| a |]) in
   let x = T.Var 0 in
   let y = T.Var 1 in
@@ -97,7 +97,7 @@ let test_simplify_tautology () =
 
 let test_normalize_vars () =
   let S.Wr db = S.create_db () in
-  let f = S.add db 2 in
+  let f = S.add_func db 2 in
   let f a b = T.Func (f, [| a; b |]) in
   let orig_clause = {
     C.cl_id = 2;
@@ -121,9 +121,9 @@ let test_normalize_vars () =
 
 let test_flatten () =
   let S.Wr db = S.create_db () in
-  let f = S.add db 1 in
-  let c = S.add db 0 in
-  let d = S.add db 0 in
+  let f = S.add_func db 1 in
+  let c = S.add_func db 0 in
+  let d = S.add_func db 0 in
   let f a = T.Func (f, [| a |]) in
   let c = T.Func (c, [| |]) in
   let d = T.Func (d, [| |]) in
@@ -155,11 +155,11 @@ let test_flatten () =
 
 let test_flatten_commutative_symb () =
   let S.Wr db = S.create_db () in
-  let f = S.add db 2 in
+  let f = S.add_func db 2 in
   S.set_commutative db f true;
-  let p = S.add db 2 in
-  let c = S.add db 0 in
-  let d = S.add db 0 in
+  let p = S.add_pred db 2 in
+  let c = S.add_func db 0 in
+  let d = S.add_func db 0 in
   let f a b = T.Func (f, [| a; b |]) in
   let p a b = T.Func (p, [| a; b |]) in
   let c = T.Func (c, [| |]) in
@@ -191,11 +191,11 @@ let test_flatten_commutative_symb () =
 
 let test_flatten_deep_nesting () =
   let S.Wr db = S.create_db () in
-  let f = S.add db 2 in
-  let g = S.add db 1 in
-  let p = S.add db 1 in
-  let c = S.add db 0 in
-  let d = S.add db 0 in
+  let f = S.add_func db 2 in
+  let g = S.add_func db 1 in
+  let p = S.add_pred db 1 in
+  let c = S.add_func db 0 in
+  let d = S.add_func db 0 in
   let f a b = T.Func (f, [| a; b |]) in
   let g a = T.Func (g, [| a |]) in
   let p a = T.Func (p, [| a |]) in
@@ -230,9 +230,9 @@ let test_flatten_deep_nesting () =
 
 let test_flatten_func_equalities () =
   let S.Wr db = S.create_db () in
-  let f = S.add db 1 in
-  let g = S.add db 1 in
-  let c = S.add db 0 in
+  let f = S.add_func db 1 in
+  let g = S.add_func db 1 in
+  let c = S.add_func db 0 in
   let f a = T.Func (f, [| a |]) in
   let g a = T.Func (g, [| a |]) in
   let c = T.Func (c, [| |]) in
@@ -269,8 +269,8 @@ let test_flatten_func_equalities () =
 
 let test_flatten_tautology () =
   let S.Wr db = S.create_db () in
-  let p = S.add db 1 in
-  let c = S.add db 0 in
+  let p = S.add_pred db 1 in
+  let c = S.add_func db 0 in
   let p a = T.Func (p, [| a |]) in
   let c = T.Func (c, [| |]) in
   let x = T.Var 0 in
@@ -287,10 +287,10 @@ let test_flatten_tautology () =
 
 let test_unflatten () =
   let S.Wr db = S.create_db () in
-  let p = S.add db 1 in
-  let f = S.add db 1 in
-  let c = S.add db 0 in
-  let d = S.add db 0 in
+  let p = S.add_pred db 1 in
+  let f = S.add_func db 1 in
+  let c = S.add_func db 0 in
+  let d = S.add_func db 0 in
   let p a = T.Func (p, [| a |]) in
   let f a = T.Func (f, [| a |]) in
   let c = T.Func (c, [| |]) in
@@ -321,9 +321,9 @@ let test_unflatten () =
 
 let test_unflatten_term_contains_var () =
   let S.Wr db = S.create_db () in
-  let f = S.add db 2 in
-  let c = S.add db 0 in
-  let d = S.add db 0 in
+  let f = S.add_func db 2 in
+  let c = S.add_func db 0 in
+  let d = S.add_func db 0 in
   let f a b = T.Func (f, [| a; b |]) in
   let c = T.Func (c, [| |]) in
   let d = T.Func (d, [| |]) in

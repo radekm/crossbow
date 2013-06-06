@@ -6,7 +6,7 @@ module T = Term
 
 let test_mk_eq () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 2 in
+  let f = Symb.add_func db 2 in
   let l = T.Func (f, [| T.Var 1; T.Var 2 |]) in
   let r = T.Var 0 in
   assert_equal
@@ -15,8 +15,8 @@ let test_mk_eq () =
 
 let test_mk_ineq () =
   let Symb.Wr db = Symb.create_db () in
-  let c = Symb.add db 0 in
-  let d = Symb.add db 0 in
+  let c = Symb.add_func db 0 in
+  let d = Symb.add_func db 0 in
   let c = T.Func (c, [| |]) in
   let d = T.Func (d, [| |]) in
   assert_equal
@@ -26,9 +26,9 @@ let test_mk_ineq () =
 
 let test_contains1 () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 2 in
-  let g = Symb.add db 2 in
-  let i = Symb.add db 1 in
+  let f = Symb.add_func db 2 in
+  let g = Symb.add_func db 2 in
+  let i = Symb.add_func db 1 in
   let subterm = T.Func (f, [| T.Var 0; T.Func (i, [| T.Var 2 |]) |]) in
   let term =
     T.Func (g,
@@ -41,8 +41,8 @@ let test_contains1 () =
 
 let test_contains2 () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 1 in
-  let g = Symb.add db 2 in
+  let f = Symb.add_func db 1 in
+  let g = Symb.add_func db 2 in
   let subterm = T.Func (f, [| T.Var 1 |]) in
   let term =
     T.Func (g,
@@ -55,8 +55,8 @@ let test_contains2 () =
 
 let test_iter () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 2 in
-  let g = Symb.add db 1 in
+  let f = Symb.add_func db 2 in
+  let g = Symb.add_func db 1 in
   let x = T.Var 0 in
   let y = T.Var 1 in
   let z = T.Var 2 in
@@ -73,7 +73,7 @@ let test_iter () =
 
 let test_pickp1 () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 1 in
+  let f = Symb.add_func db 1 in
   let cond p t = match p, t with
     | Some _, T.Func (s, [| (T.Var _) as x |]) when s = f -> Some x
     | _, _ -> None in
@@ -82,7 +82,7 @@ let test_pickp1 () =
 
 let test_pickp2 () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 1 in
+  let f = Symb.add_func db 1 in
   let cond p t = match p, t with
     | Some _, T.Func (s, [| (T.Var _) as x |]) when s = f -> Some x
     | _, _ -> None in
@@ -94,9 +94,9 @@ let test_pickp2 () =
 
 let test_normalize_comm () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 2 in
-  let g = Symb.add db 2 in
-  let h = Symb.add db 2 in
+  let f = Symb.add_func db 2 in
+  let g = Symb.add_func db 2 in
+  let h = Symb.add_func db 2 in
   Symb.set_commutative db f true;
   Symb.set_commutative db h true;
   let orig =
@@ -127,9 +127,9 @@ let test_normalize_comm () =
 
 let test_replace () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 2 in
-  let g = Symb.add db 1 in
-  let c = Symb.add db 0 in
+  let f = Symb.add_func db 2 in
+  let g = Symb.add_func db 1 in
+  let c = Symb.add_func db 0 in
   let sub_old = T.Func (f, [| T.Func (c, [| |]); T.Var 0 |]) in
   let sub_new = T.Func (g, [| T.Func (c, [| |]) |]) in
   let mk_term sub =
@@ -152,9 +152,9 @@ module IntSet = BatSet.IntSet
 
 let test_vars () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 2 in
+  let f = Symb.add_func db 2 in
   let f a b = T.Func (f, [| a; b |]) in
-  let c = Symb.add db 0 in
+  let c = Symb.add_func db 0 in
   let c = T.Func (c, [| |]) in
   let x = T.Var 1 in
   let y = T.Var 5 in
@@ -165,11 +165,11 @@ let test_vars () =
 
 let test_vars_of_many () =
   let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add db 3 in
+  let f = Symb.add_func db 3 in
   let f a b c = T.Func (f, [| a; b; c |]) in
-  let g = Symb.add db 2 in
+  let g = Symb.add_func db 2 in
   let g a b = T.Func (g, [| a; b |]) in
-  let c = Symb.add db 0 in
+  let c = Symb.add_func db 0 in
   let c = T.Func (c, [| |]) in
   let x1 = T.Var 3 in
   let x2 = T.Var 8 in

@@ -4,11 +4,17 @@ type 's id = int
 
 type arity = int
 
+type role =
+  | Func
+  | Pred
+  | Neg
+
 type 's symbol = {
   s_id : 's id;
   s_arity : arity;
   s_commutative : bool;
   s_auxiliary : bool;
+  s_role : role;
 }
 
 type 's db = {
@@ -28,6 +34,7 @@ let create_db () =
     s_arity = 2;
     s_commutative = true;
     s_auxiliary = false;
+    s_role = Pred;
   };
 
   BatDynArray.add by_id {
@@ -35,11 +42,12 @@ let create_db () =
     s_arity = 1;
     s_commutative = false;
     s_auxiliary = false;
+    s_role = Neg;
   };
 
   Wr { by_id }
 
-let add db arity =
+let add_func db arity =
   if arity < 0 || arity > max_arity then invalid_arg "arity";
   let id = BatDynArray.length db.by_id in
   BatDynArray.add db.by_id {
@@ -47,6 +55,19 @@ let add db arity =
     s_arity = arity;
     s_commutative = false;
     s_auxiliary = false;
+    s_role = Func;
+  };
+  id
+
+let add_pred db arity =
+  if arity < 0 || arity > max_arity then invalid_arg "arity";
+  let id = BatDynArray.length db.by_id in
+  BatDynArray.add db.by_id {
+    s_id = id;
+    s_arity = arity;
+    s_commutative = false;
+    s_auxiliary = false;
+    s_role = Pred;
   };
   id
 

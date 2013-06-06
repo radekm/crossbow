@@ -13,9 +13,7 @@ type 's db
 type wdb =
   | Wr : 's db -> wdb
 
-(** An identifier of a symbol in a database.
-   Identifiers are not portable across databases.
-*)
+(** An identifier of a symbol in a database. *)
 type 's id
 
 (** Symbol arity. *)
@@ -26,12 +24,19 @@ val max_arity : int
 (** Creates a new symbol database containing only the predefined symbols. *)
 val create_db : unit -> wdb
 
-(** Adds a new symbol into the database.
+(** Adds a new function symbol into the database.
    The symbol is not commutative and not auxiliary.
 
    Raises [Invalid_argument] if the arity is out of the range.
 *)
-val add : 's db -> arity -> 's id
+val add_func : 's db -> arity -> 's id
+
+(** Adds a new predicate symbol into the database.
+   The symbol is not commutative and not auxiliary.
+
+   Raises [Invalid_argument] if the arity is out of the range.
+*)
+val add_pred : 's db -> arity -> 's id
 
 (** [iter f db] applies [f] to each symbol in the database [db]. *)
 val iter : ('s id -> unit) -> 's db -> unit
