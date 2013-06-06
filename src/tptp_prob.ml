@@ -9,16 +9,19 @@ type tptp_symbol =
   | Number of Q.t
   | String of Ast.tptp_string
 
-type symb_map = {
-  of_tptp : (tptp_symbol, Symb.id) Hashtbl.t;
-  to_tptp : (Symb.id, tptp_symbol) Hashtbl.t;
+type 's symb_map = {
+  of_tptp : (tptp_symbol, 's Symb.id) Hashtbl.t;
+  to_tptp : ('s Symb.id, tptp_symbol) Hashtbl.t;
 }
 
-type t = {
-  smap : symb_map;
+type 's t = {
+  smap : 's symb_map;
   preds : (tptp_symbol, bool) Hashtbl.t;
-  prob : Prob.t;
+  prob : 's Prob.t;
 }
+
+type wt =
+  | Wr : 's t -> wt
 
 let add_clause p (Ast.Clause lits) =
   let vars = Hashtbl.create 20 in
@@ -150,10 +153,11 @@ let combine_paths (a : string) (b : string) : string =
 
 let of_file base_dir file =
 
+  let Prob.Wr prob = Prob.create () in
   let p = {
     smap = { of_tptp = Hashtbl.create 20; to_tptp = Hashtbl.create 20 };
     preds = Hashtbl.create 20;
-    prob = Prob.create ();
+    prob;
   } in
 
   let rec of_file file selected =
@@ -177,7 +181,7 @@ let of_file base_dir file =
         (Tptp.create_in lexbuf)) in
 
   of_file file (fun _ -> true);
-  p
+  Wr p
 
 module M = Model
 

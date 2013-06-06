@@ -3,13 +3,13 @@
 module S = Symb
 module T = Term
 
-type lit = T.t
+type 's lit = 's T.t
 
 type id = int
 
-type t = {
+type 's t = {
   cl_id : id;
-  cl_lits : lit list;
+  cl_lits : 's lit list;
 }
 
 let (|>) = BatPervasives.(|>)

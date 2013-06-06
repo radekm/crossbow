@@ -2,33 +2,28 @@
 
 type args = int array
 
-type cell = Symb.id * args
+type 's cell = 's Symb.id * args
 
 type commutative = bool
 
-module CellSet = Set.Make (struct
-  type t = cell
-  let compare = compare
-end)
-
-type t = {
+type 's t = {
   (* Constant fields. *)
 
-  symb_sorts : (Symb.id, Sorts.sort_id array) Hashtbl.t;
+  symb_sorts : ('s Symb.id, Sorts.sort_id array) Hashtbl.t;
   (* Sorts of predicate and function symbols. *)
 
   adeq_sizes : int array;
   (* [adeq_sizes.(i)] is the adequate domain size of the sort [i]. *)
 
-  consts : Symb.id array array;
+  consts : 's Symb.id array array;
   (* [consts.(i)] is an array of the constants of the sort [i]. *)
 
-  funcs : (Symb.id * commutative) array array;
+  funcs : ('s Symb.id * commutative) array array;
   (* [funcs.(i)] is an array of the function symbols of the sort [i]
      with arity > 0.
   *)
 
-  distinct_consts : Symb.id array;
+  distinct_consts : 's Symb.id array;
   (* Constants which must be assigned distinct values.
      All belong to the same sort.
   *)
@@ -41,7 +36,7 @@ type t = {
   used_elems : int array;
   (* Number of the used elements in each sort. *)
 
-  mutable assigned : CellSet.t;
+  mutable assigned : 's cell BatSet.t;
   (* Cells already assigned by symmetry reduction. *)
 }
 
@@ -69,7 +64,7 @@ let create prob sorts =
     distinct_consts = BatDynArray.to_array prob.Prob.distinct_consts;
     max_size = 0;
     used_elems = Array.make nsorts 0;
-    assigned = CellSet.empty;
+    assigned = BatSet.empty;
   }
 
 let assign_distinct_constant sr result =
@@ -81,7 +76,7 @@ let assign_distinct_constant sr result =
     let v = sr.used_elems.(sort) in
     let range = v, v in
     result := [ cell, range ];
-    sr.assigned <- CellSet.add cell sr.assigned;
+    sr.assigned <- BatSet.add cell sr.assigned;
 
     (* Mark value v as used. *)
     sr.used_elems.(sort) <- v + 1
@@ -90,7 +85,7 @@ let assign_distinct_constant sr result =
 let assign_constants sr total_elems result =
   let find_unassigned_const sort =
     BatArray.Exceptionless.find
-      (fun c -> not (CellSet.mem (c, [| |]) sr.assigned))
+      (fun c -> not (BatSet.mem (c, [| |]) sr.assigned))
       sr.consts.(sort) in
 
   let rec loop () =
@@ -106,7 +101,7 @@ let assign_constants sr total_elems result =
               let v = sr.used_elems.(sort) in
               let range = 0, v in
               result := (cell, range) :: !result;
-              sr.assigned <- CellSet.add cell sr.assigned;
+              sr.assigned <- BatSet.add cell sr.assigned;
 
               (* Mark value v as used. *)
               sr.used_elems.(sort) <- v + 1;
@@ -119,9 +114,12 @@ let assign_constants sr total_elems result =
 
   loop ()
 
-exception Unassigned_cell of cell
+let assign_funcs (type s) (sr : s t) total_elems result =
+  let module M = struct
+    type t = s
+    exception Unassigned_cell of t cell
+  end in
 
-let assign_funcs sr total_elems result =
   (* Finds an unassigned cell where the arguments are some already used
      elements.
   *)
@@ -149,14 +147,14 @@ let assign_funcs sr total_elems result =
               gen a 0 arity adeq_sizes max_size
                 (fun a ->
                   let cell = f, a in
-                  if not (CellSet.mem cell sr.assigned) then
-                    raise (Unassigned_cell cell))
+                  if not (BatSet.mem cell sr.assigned) then
+                    raise (M.Unassigned_cell cell))
             done
           end)
         sr.funcs.(sort);
       None
     with
-      | Unassigned_cell cell -> Some cell in
+      | M.Unassigned_cell cell -> Some cell in
 
   (* Marks some unused elements as used so that find_unassigned_cell
      succeeds. Returns false if no elements were marked.
@@ -252,7 +250,7 @@ let assign_funcs sr total_elems result =
               let v = sr.used_elems.(sort) in
               let range = 0, v in
               result := (cell, range) :: !result;
-              sr.assigned <- CellSet.add cell sr.assigned;
+              sr.assigned <- BatSet.add cell sr.assigned;
 
               (* Mark value v as used. *)
               sr.used_elems.(sort) <- v + 1;

@@ -25,7 +25,7 @@ let count_connections n norm_lits : int array =
   Array.init n (fun x -> Array.fold_left (+) 0 connected.(x))
 
 let paradox_binary_split
-    (partition_lits : T.var -> C.lit list -> C.lit list * C.lit list)
+    (partition_lits : T.var -> 's C.lit list -> 's C.lit list * 's C.lit list)
     new_pred
     lits =
   let cl, n = C.normalize_vars { C.cl_id = -1; C.cl_lits = lits } in
@@ -61,7 +61,7 @@ let paradox_binary_split
         T.Func (p, args) in
       ([], [atom :: left; C.neg_lit atom :: right])
 
-type t = (int -> Symb.id) -> C.lit list -> C.lit list list
+type 's t = (int -> 's Symb.id) -> 's C.lit list -> 's C.lit list list
 
 (* Repeatedly apply splitting to the given clause. *)
 let binary_splitting split new_pred lits =
@@ -72,10 +72,10 @@ let binary_splitting split new_pred lits =
         loop (List.rev_append fin finished) (List.rev_append unfin rest) in
   loop [] [lits]
 
-let paradox_splitting =
+let paradox_splitting new_pred lits =
   let partition_lits x lits =
     BatList.partition (T.vars |- IntSet.mem x) lits in
-  binary_splitting (paradox_binary_split partition_lits)
+  binary_splitting (paradox_binary_split partition_lits) new_pred lits
 
 let paradox_mod_splitting new_pred lits =
   let partition_lits x lits =

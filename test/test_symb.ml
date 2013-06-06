@@ -2,7 +2,7 @@
 open OUnit
 
 let test_iter () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let s1 = Symb.add db 2 in
   let s2 = Symb.add db 1 in
   let s3 = Symb.add db 0 in
@@ -16,7 +16,7 @@ let test_iter () =
   assert_equal [] !symbs
 
 let test_set_commutative () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let s1 = Symb.add db 2 in
   let s2 = Symb.add db 2 in
   assert_bool "" (not (Symb.commutative db s1));
@@ -32,27 +32,27 @@ let test_set_commutative () =
   assert_bool "" (not (Symb.commutative db s2))
 
 let test_set_commutative_rejects_predefined_symbs () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   assert_raises
     (Failure "predefined symbol")
     (fun () -> Symb.set_commutative db Symb.sym_eq true)
 
 let test_set_commutative_rejects_nonbinary_symbs () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let s = Symb.add db 3 in
   assert_raises
     (Failure "non-binary symbol")
     (fun () -> Symb.set_commutative db s true)
 
 let test_set_auxiliary () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let s = Symb.add db 2 in
   assert_bool "" (not (Symb.auxiliary db s));
   Symb.set_auxiliary db s true;
   assert_bool "" (Symb.auxiliary db s)
 
 let test_set_auxiliary_rejects_predefined_symbs () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   assert_raises
     (Failure "predefined symbol")
     (fun () -> Symb.set_auxiliary db Symb.sym_not true)

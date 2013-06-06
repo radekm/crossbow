@@ -13,7 +13,7 @@ end = struct
      not surjective: f(x) <> c
   *)
   let test_only_infinite_model () =
-    let prob = Prob.create () in
+    let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let f =
       let s = Symb.add db 1 in
@@ -44,7 +44,7 @@ end = struct
     done
 
   let test_only_nullary_preds () =
-    let prob = Prob.create () in
+    let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let psymb = Symb.add db 0 in
     let qsymb = Symb.add db 0 in
@@ -121,7 +121,7 @@ end = struct
     done
 
   let test_symmetric_pred () =
-    let prob = Prob.create () in
+    let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let psymb = Symb.add db 2 in
     let p a b = T.Func (psymb, [| a; b |]) in
@@ -197,7 +197,7 @@ end = struct
     done
 
   let test_latin_square () =
-    let prob = Prob.create () in
+    let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let fsymb = Symb.add db 2 in
     let f a b = T.Func (fsymb, [| a; b |]) in
@@ -266,7 +266,7 @@ end = struct
      f(x) = y -> f(y) = x
   *)
   let test_fin_models_even_size () =
-    let prob = Prob.create () in
+    let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let fsymb = Symb.add db 1 in
     let f a = T.Func (fsymb, [| a |]) in

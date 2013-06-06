@@ -1,18 +1,23 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-type t = {
-  clauses : Clause.t BatDynArray.t;
-  distinct_consts : Symb.id BatDynArray.t;
-  symbols : Symb.db;
+type 's t = {
+  clauses : 's Clause.t BatDynArray.t;
+  distinct_consts : 's Symb.id BatDynArray.t;
+  symbols : 's Symb.db;
   next_clause_id : Clause.id ref;
 }
 
-let create () = {
-  clauses = BatDynArray.create ();
-  distinct_consts = BatDynArray.create ();
-  symbols = Symb.create_db ();
-  next_clause_id = ref 0;
-}
+type wt =
+  | Wr : 's t -> wt
+
+let create () =
+  let Symb.Wr symbols = Symb.create_db () in
+  Wr {
+    clauses = BatDynArray.create ();
+    distinct_consts = BatDynArray.create ();
+    symbols;
+    next_clause_id = ref 0;
+  }
 
 let fresh_id prob =
   let id = !(prob.next_clause_id) in

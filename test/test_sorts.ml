@@ -17,7 +17,7 @@ let assert_same_elems arr1 arr2 =
 
 
 let test_one_sort_adeq_size () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c1 = S.add db 0 in
   let c2 = S.add db 0 in
@@ -62,7 +62,7 @@ let test_one_sort_adeq_size () =
 
 
 let test_one_sort_no_adeq_size () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let x = T.Var 5 in
   let y = T.Var 2 in
   let z = T.Var 3 in
@@ -103,7 +103,7 @@ let test_one_sort_no_adeq_size () =
    and the other contains function symbol with arity > 0.
 *)
 let test_no_adeq_size_both_reasons () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = S.add db 1 in
   let x = T.Var 5431 in
@@ -146,7 +146,7 @@ let test_no_adeq_size_both_reasons () =
 
 
 let test_more_clauses () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c1 = S.add db 0 in
   let c2 = S.add db 0 in
@@ -204,7 +204,7 @@ let test_more_clauses () =
 
 
 let test_predicate () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let le = S.add db 2 in
   let succ = S.add db 1 in
@@ -254,7 +254,7 @@ let test_predicate () =
 
 
 let test_func_high_arity () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = S.add db 4 in
   let g = S.add db 1 in

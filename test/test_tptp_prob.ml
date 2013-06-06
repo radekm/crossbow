@@ -10,7 +10,8 @@ module C = Clause
 let base_dir = "test/data/tptp_prob/"
 
 let test_basic () =
-  let p = Tptp_prob.of_file base_dir (base_dir ^ "01_test_basic.p") in
+  let Tptp_prob.Wr p =
+    Tptp_prob.of_file base_dir (base_dir ^ "01_test_basic.p") in
 
   let q = Ast.Plain_word (Ast.to_plain_word "q") in
   let c = Ast.Plain_word (Ast.to_plain_word "c") in
@@ -122,7 +123,8 @@ let test_basic () =
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
 let test_include () =
-  let p = Tptp_prob.of_file base_dir (base_dir ^ "02_test_include.p") in
+  let Tptp_prob.Wr p =
+    Tptp_prob.of_file base_dir (base_dir ^ "02_test_include.p") in
 
   let q = Ast.Plain_word (Ast.to_plain_word "q") in
   let c = Ast.Plain_word (Ast.to_plain_word "c") in
@@ -210,7 +212,7 @@ let test_include () =
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
 let test_nested_include () =
-  let p =
+  let Tptp_prob.Wr p =
     Tptp_prob.of_file base_dir (base_dir ^ "03_test_nested_include.p") in
 
   let r = Ast.Plain_word (Ast.to_plain_word "r") in
@@ -259,7 +261,7 @@ let test_nested_include () =
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
 let test_nested_include_with_sel () =
-  let prob =
+  let Tptp_prob.Wr prob =
     Tptp_prob.of_file base_dir
       (base_dir ^ "04_test_nested_include_with_sel.p") in
 
@@ -339,7 +341,8 @@ module M = Model
 let hashtbl_of_list xs = BatHashtbl.of_enum (BatList.enum xs)
 
 let test_model_to_tptp () =
-  let db = Symb.create_db () in
+  let Prob.Wr prob = Prob.create () in
+  let db = prob.Prob.symbols in
   let p = Symb.add db 1 in
   let q = Symb.add db 0 in
   let c = Symb.add db 0 in
@@ -377,7 +380,7 @@ let test_model_to_tptp () =
     {
       TP.smap;
       TP.preds;
-      TP.prob = Prob.create ();
+      TP.prob;
     } in
 
   let interp_name = Ast.N_word (Ast.to_plain_word "interp") in

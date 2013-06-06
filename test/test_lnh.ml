@@ -6,7 +6,7 @@ module C = Clause
 module T = Term
 
 let test_lnh_one_sort () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add db 2 in
   let x = T.Var 0 in
@@ -37,7 +37,7 @@ let test_lnh_one_sort () =
   assert_equal exp_constrs2 constrs2
 
 let test_lnh_more_sorts () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add db 2 in
   let x = T.Var 0 in

@@ -4,9 +4,9 @@ module S = Symb
 
 type var = int
 
-type t =
+type 's t =
   | Var of var
-  | Func of S.id * t array
+  | Func of 's S.id * 's t array
 
 let (|>) = BatPervasives.(|>)
 

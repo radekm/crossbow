@@ -5,7 +5,7 @@ open OUnit
 module T = Term
 
 let test_mk_eq () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 2 in
   let l = T.Func (f, [| T.Var 1; T.Var 2 |]) in
   let r = T.Var 0 in
@@ -14,7 +14,7 @@ let test_mk_eq () =
     (T.mk_eq l r)
 
 let test_mk_ineq () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let c = Symb.add db 0 in
   let d = Symb.add db 0 in
   let c = T.Func (c, [| |]) in
@@ -25,7 +25,7 @@ let test_mk_ineq () =
     (T.mk_ineq c d)
 
 let test_contains1 () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 2 in
   let g = Symb.add db 2 in
   let i = Symb.add db 1 in
@@ -40,7 +40,7 @@ let test_contains1 () =
   assert_bool "" (not (T.contains subterm term))
 
 let test_contains2 () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 1 in
   let g = Symb.add db 2 in
   let subterm = T.Func (f, [| T.Var 1 |]) in
@@ -54,7 +54,7 @@ let test_contains2 () =
   assert_bool "" (T.contains subterm term)
 
 let test_iter () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 2 in
   let g = Symb.add db 1 in
   let x = T.Var 0 in
@@ -72,7 +72,7 @@ let test_iter () =
   assert_equal [] !subterms
 
 let test_pickp1 () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 1 in
   let cond p t = match p, t with
     | Some _, T.Func (s, [| (T.Var _) as x |]) when s = f -> Some x
@@ -81,7 +81,7 @@ let test_pickp1 () =
   assert_equal None (T.pickp cond term)
 
 let test_pickp2 () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 1 in
   let cond p t = match p, t with
     | Some _, T.Func (s, [| (T.Var _) as x |]) when s = f -> Some x
@@ -93,7 +93,7 @@ let test_pickp2 () =
   assert_equal (Some (T.Var 42)) (T.pickp cond term)
 
 let test_normalize_comm () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 2 in
   let g = Symb.add db 2 in
   let h = Symb.add db 2 in
@@ -126,7 +126,7 @@ let test_normalize_comm () =
   assert_equal normalized (T.normalize_comm db orig)
 
 let test_replace () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 2 in
   let g = Symb.add db 1 in
   let c = Symb.add db 0 in
@@ -151,7 +151,7 @@ let test_replace () =
 module IntSet = BatSet.IntSet
 
 let test_vars () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 2 in
   let f a b = T.Func (f, [| a; b |]) in
   let c = Symb.add db 0 in
@@ -164,7 +164,7 @@ let test_vars () =
   assert_equal ~cmp:IntSet.equal exp_vars (T.vars term)
 
 let test_vars_of_many () =
-  let db = Symb.create_db () in
+  let Symb.Wr db = Symb.create_db () in
   let f = Symb.add db 3 in
   let f a b c = T.Func (f, [| a; b; c |]) in
   let g = Symb.add db 2 in

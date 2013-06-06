@@ -3,7 +3,7 @@
 (** Splitting. *)
 
 (** Splitting strategy. *)
-type t
+type 's t
 
 (** Two variables are {b connected} iff there is a literal where
    they both occur. This relation is reflexive and symmetric.
@@ -15,7 +15,7 @@ type t
    of variables. Literals with [x] are placed to one clause
    and remaining literals are placed to the other clause.
 *)
-val paradox_splitting : t
+val paradox_splitting : 's t
 
 (** Removes the ground literals and repeatedly performs
    proper binary splits as follows:
@@ -30,11 +30,11 @@ val paradox_splitting : t
    to a clause which has the (lexicographically)
    smallest (number of variables, number of literals).
 *)
-val paradox_mod_splitting : t
+val paradox_mod_splitting : 's t
 
 (** Splits the given clause using the given strategy.
 
    This may introduce new auxiliary predicate symbols
    and generate new clause ids.
 *)
-val split_clause : t -> Prob.t -> Clause.t -> Clause.t list
+val split_clause : 's t -> 's Prob.t -> 's Clause.t -> 's Clause.t list

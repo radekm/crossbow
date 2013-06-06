@@ -3,23 +3,23 @@
 (** Clauses. *)
 
 (** A literal is an atomic formula or its negation. *)
-type lit = Term.t
+type 's lit = 's Term.t
 
 type id = int
 
-type t = {
+type 's t = {
   cl_id : id;
-  cl_lits : lit list;
+  cl_lits : 's lit list;
 }
 
 (** [neg_lit l] negates the literal [l]. *)
-val neg_lit : lit -> lit
+val neg_lit : 's lit -> 's lit
 
 (** Returns [true] iff the literal is an equality of two identical terms. *)
-val true_lit : lit -> bool
+val true_lit : 's lit -> bool
 
 (** Returns [true] iff the literal is an inequality of two identical terms. *)
-val false_lit : lit -> bool
+val false_lit : 's lit -> bool
 
 (** Simplifies the clause. Here is a list of performed simplifications:
 
@@ -31,13 +31,13 @@ val false_lit : lit -> bool
 
    Returns [None] if the clause is tautology.
 *)
-val simplify : Symb.db -> t -> t option
+val simplify : 's Symb.db -> 's t -> 's t option
 
 (** Counts and renumbers the variables in the given clause.
    The variables are assigned numbers [0,..,n-1] where [n]
    is the count of the distinct variables in the clause.
 *)
-val normalize_vars : t -> t * int
+val normalize_vars : 's t -> 's t * int
 
 (** Returns a logically equivalent clause which is flat
    or [None] if the clause is a tautology.
@@ -51,14 +51,14 @@ val normalize_vars : t -> t * int
 
    Question mark means an optional negation.
 *)
-val flatten : Symb.db -> t -> t option
+val flatten : 's Symb.db -> 's t -> 's t option
 
 (** Returns a logically equivalent clause or [None] if the clause
    is a tautology.
 
    Tries to reduce the number of variables.
 *)
-val unflatten : Symb.db -> t -> t option
+val unflatten : 's Symb.db -> 's t -> 's t option
 
 (** Converts clause to string. *)
-val show : t -> string
+val show : 's t -> string

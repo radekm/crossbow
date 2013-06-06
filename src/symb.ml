@@ -1,19 +1,22 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-type id = int
+type 's id = int
 
 type arity = int
 
-type symbol = {
-  s_id : id;
+type 's symbol = {
+  s_id : 's id;
   s_arity : arity;
   s_commutative : bool;
   s_auxiliary : bool;
 }
 
-type db = {
-  by_id : symbol BatDynArray.t;
+type 's db = {
+  by_id : 's symbol BatDynArray.t;
 }
+
+type wdb =
+  | Wr : 's db -> wdb
 
 let max_arity = 255
 
@@ -34,7 +37,7 @@ let create_db () =
     s_auxiliary = false;
   };
 
-  { by_id }
+  Wr { by_id }
 
 let add db arity =
   if arity < 0 || arity > max_arity then invalid_arg "arity";

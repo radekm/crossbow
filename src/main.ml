@@ -42,7 +42,7 @@ let find_model
     Solv_cmsat, (module Cmsat_inst.Inst : Sat_inst.Inst_sig);
   ] in
   let module Solver = (val List.assoc solver solvers) in
-  let tptp_prob = Tptp_prob.of_file base_dir in_file in
+  let Tptp_prob.Wr tptp_prob = Tptp_prob.of_file base_dir in_file in
   let p = tptp_prob.Tptp_prob.prob in
   let symb_db = p.Prob.symbols in
   (* Preprocessing. *)

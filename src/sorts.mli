@@ -28,8 +28,8 @@ type sort_id = int
    The array [adeq_sizes] contains an adequate domain size for each sort or
    zero if no adequate domain size was found.
 *)
-type t = {
-  symb_sorts : (Symb.id, sort_id array) Hashtbl.t;
+type 's t = {
+  symb_sorts : ('s Symb.id, sort_id array) Hashtbl.t;
   (** Sorts of predicate and function symbols. *)
 
   var_sorts : (Clause.id * Term.var, sort_id) Hashtbl.t;
@@ -38,7 +38,7 @@ type t = {
   adeq_sizes : int array;
   (** [adeq_sizes.(i)] is the adequate domain size of the sort [i]. *)
 
-  consts : Symb.id array array;
+  consts : 's Symb.id array array;
   (** [consts.(i)] is an array of the constants of the sort [i]. *)
 
   only_consts : bool ref;
@@ -58,4 +58,4 @@ type t = {
      and no literal [x = y] where [x] has sort [A] then
      [k + 1] is an adequate domain size.
 *)
-val of_problem : Prob.t -> t
+val of_problem : 's Prob.t -> 's t

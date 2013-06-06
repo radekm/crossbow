@@ -12,7 +12,7 @@ let test_neg_lit1 () =
     (C.neg_lit (T.mk_ineq (T.Var 0) (T.Var 1)))
 
 let test_neg_lit2 () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let p = S.add db 1 in
   let term = T.Func (p, [| T.Var 2 |]) in
   assert_equal
@@ -20,7 +20,7 @@ let test_neg_lit2 () =
     (C.neg_lit term)
 
 let test_true_lit_false_lit () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let f = S.add db 1 in
   let mk_term v = T.Func (f, [| T.Var v |]) in
   (* true_lit *)
@@ -33,7 +33,7 @@ let test_true_lit_false_lit () =
   assert_bool "" (not (C.false_lit (T.mk_eq (mk_term 1) (mk_term 1))))
 
 let test_simplify () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let f = S.add db 2 in
   let g = S.add db 2 in
   S.set_commutative db f true;
@@ -66,7 +66,7 @@ let test_simplify () =
     (C.simplify db orig_clause)
 
 let test_simplify_tautology () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let f = S.add db 1 in
   let f a = T.Func (f, [| a |]) in
   let x = T.Var 0 in
@@ -96,7 +96,7 @@ let test_simplify_tautology () =
     })
 
 let test_normalize_vars () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let f = S.add db 2 in
   let f a b = T.Func (f, [| a; b |]) in
   let orig_clause = {
@@ -120,7 +120,7 @@ let test_normalize_vars () =
     (C.normalize_vars orig_clause)
 
 let test_flatten () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let f = S.add db 1 in
   let c = S.add db 0 in
   let d = S.add db 0 in
@@ -154,7 +154,7 @@ let test_flatten () =
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_commutative_symb () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let f = S.add db 2 in
   S.set_commutative db f true;
   let p = S.add db 2 in
@@ -190,7 +190,7 @@ let test_flatten_commutative_symb () =
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_deep_nesting () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let f = S.add db 2 in
   let g = S.add db 1 in
   let p = S.add db 1 in
@@ -229,7 +229,7 @@ let test_flatten_deep_nesting () =
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_func_equalities () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let f = S.add db 1 in
   let g = S.add db 1 in
   let c = S.add db 0 in
@@ -268,7 +268,7 @@ let test_flatten_func_equalities () =
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_tautology () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let p = S.add db 1 in
   let c = S.add db 0 in
   let p a = T.Func (p, [| a |]) in
@@ -286,7 +286,7 @@ let test_flatten_tautology () =
   assert_equal None (C.flatten db orig_clause)
 
 let test_unflatten () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let p = S.add db 1 in
   let f = S.add db 1 in
   let c = S.add db 0 in
@@ -320,7 +320,7 @@ let test_unflatten () =
   assert_equal (Some exp_clause) (C.unflatten db orig_clause)
 
 let test_unflatten_term_contains_var () =
-  let db = S.create_db () in
+  let S.Wr db = S.create_db () in
   let f = S.add db 2 in
   let c = S.add db 0 in
   let d = S.add db 0 in

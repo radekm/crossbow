@@ -23,7 +23,7 @@ let show_clauses cs =
   |> (fun str -> "\n" ^ str)
 
 let test_paradox_splitting_empty_cl () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let cl = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [];
@@ -38,7 +38,7 @@ let test_paradox_splitting_empty_cl () =
   assert_equal ~printer:show_clauses exp_clauses clauses
 
 let test_paradox_mod_splitting_empty_cl () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let cl = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [];
@@ -53,8 +53,16 @@ let test_paradox_mod_splitting_empty_cl () =
   ] in
   assert_equal ~printer:show_clauses exp_clauses clauses
 
+type wrap_cl =
+  | Wr_cl :
+      's Prob.t * 's Symb.db * 's C.t *
+      ('s T.t -> 's T.t -> 's T.t) *
+      ('s T.t -> 's T.t -> 's T.t -> 's T.t -> 's T.t -> 's T.t) *
+      (T.var -> 's T.t) ->
+      wrap_cl
+
 let make_cl () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add db 2 in
   let p a b = T.Func (p, [| a; b |]) in
@@ -74,11 +82,16 @@ let make_cl () =
       T.mk_ineq (x 11) (f (x 1) (x 3) (x 5) (x 7) (x 9));
     ];
   } in
-  prob, db, cl, p, f, x
+  Wr_cl (prob, db, cl, p, f, x)
 
-let check_splitting_cl splitting =
-  let prob, db, cl, p, f, x = make_cl () in
-  let clauses = splitting prob cl in
+(* Polymorphic function is needed. *)
+type split = {
+  f : 's. 's Prob.t -> 's C.t -> 's C.t list;
+}
+
+let check_splitting_cl (split : split) =
+  let Wr_cl (prob, db, cl, p, f, x) = make_cl () in
+  let clauses = split.f prob cl in
   let q1, q2, q3, q4, q5 =
     match get_auxiliary_symbs db with
       | [q1; q2; q3; q4; q5] -> q1, q2, q3, q4, q5
@@ -138,15 +151,26 @@ let check_splitting_cl splitting =
   assert_equal ~printer:show_clauses exp_clauses clauses
 
 let test_paradox_splitting () =
-  check_splitting_cl
-    (Splitting.split_clause Splitting.paradox_splitting)
+  let f p cl =
+    Splitting.split_clause Splitting.paradox_splitting p cl in
+  check_splitting_cl { f }
 
 let test_paradox_mod_splitting () =
-  check_splitting_cl
-    (Splitting.split_clause Splitting.paradox_mod_splitting)
+  let f p cl =
+    Splitting.split_clause Splitting.paradox_mod_splitting p cl in
+  check_splitting_cl { f }
+
+type wrap_cl2 =
+  | Wr_cl2 :
+      's Prob.t * 's Symb.db * 's C.t *
+      ('s T.t -> 's T.t -> 's T.t) *
+      ('s T.t -> 's T.t -> 's T.t -> 's T.t -> 's T.t) *
+      's T.t *
+      (T.var -> 's T.t) ->
+      wrap_cl2
 
 let make_cl2 () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add db 2 in
   let p a b = T.Func (p, [| a; b |]) in
@@ -165,10 +189,10 @@ let make_cl2 () =
       q (x 3) (x 4) (x 5) (x 6);
     ];
   } in
-  prob, db, cl, p, q, r, x
+  Wr_cl2 (prob, db, cl, p, q, r, x)
 
 let test_paradox_splitting2 () =
-  let prob, db, cl, p, q, r, x = make_cl2 () in
+  let Wr_cl2 (prob, db, cl, p, q, r, x) = make_cl2 () in
   let clauses = Splitting.split_clause Splitting.paradox_splitting prob cl in
   let q1, q2 =
     match get_auxiliary_symbs db with
@@ -204,7 +228,7 @@ let test_paradox_splitting2 () =
   assert_equal ~printer:show_clauses exp_clauses clauses
 
 let test_paradox_mod_splitting2 () =
-  let prob, db, cl, p, q, r, x = make_cl2 () in
+  let Wr_cl2 (prob, db, cl, p, q, r, x) = make_cl2 () in
   let clauses =
     Splitting.split_clause Splitting.paradox_mod_splitting prob cl in
   let q1 =

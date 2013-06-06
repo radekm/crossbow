@@ -121,7 +121,7 @@ module T = Term
 module C = Clause
 
 let test_no_symbols_only_clause () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let x = T.Var 0 in
   let y = T.Var 1 in
   let z = T.Var 2 in
@@ -203,7 +203,7 @@ let test_no_symbols_only_clause () =
     ]
 
 let test_nullary_preds () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = T.Func (Symb.add db 0, [| |]) in
   let q = T.Func (Symb.add db 0, [| |]) in
@@ -274,7 +274,7 @@ let test_nullary_preds () =
     ]
 
 let test_constants () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = T.Func (Symb.add db 0, [| |]) in
   let d = T.Func (Symb.add db 0, [| |]) in
@@ -354,7 +354,7 @@ let test_constants () =
     ]
 
 let test_distinct_consts () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = T.Func (Symb.add db 0, [| |]) in
   let d =
@@ -490,7 +490,7 @@ let test_distinct_consts () =
     ]
 
 let test_unary_func () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f =
     let s = Symb.add db 1 in
@@ -558,7 +558,7 @@ let test_unary_func () =
     ]
 
 let test_unary_pred () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = T.Func (Symb.add db 0, [| |]) in
   let p =
@@ -624,7 +624,7 @@ let test_unary_pred () =
     ]
 
 let test_commutative_func () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f =
     let s = Symb.add db 2 in
@@ -755,7 +755,7 @@ let test_commutative_func () =
     ]
 
 let test_symmetric_pred () =
-  let prob = Prob.create () in
+  let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p =
     let s = Symb.add db 2 in

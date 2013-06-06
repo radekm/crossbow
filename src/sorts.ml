@@ -14,14 +14,14 @@ type inf_sort = Equiv.item
 (* Inferred many-sorted signature.
    The equality is not part of the signature.
 *)
-type inferred = {
+type 's inferred = {
   (* Sorts of predicate and function symbols.
      A predicate symbol has [n] sorts and a function symbol has [n+1] sorts
      ([n] sorts for its parameters and [1] sort for its result)
      where [n] is the arity of the symbol.
      Predicate symbols must be disjoint from function symbols.
   *)
-  inf_symb_sorts : (Symb.id, inf_sort array) Hashtbl.t;
+  inf_symb_sorts : ('s Symb.id, inf_sort array) Hashtbl.t;
   (* Sorts of variables. *)
   inf_var_sorts : (Clause.id * Term.var, inf_sort) Hashtbl.t;
   (* Equivalence on sorts. *)
@@ -45,10 +45,10 @@ let init_inferred () = {
      (except for the equality which works on all sorts).
 *)
 let update_inferred
-    (symdb : Symb.db)
-    (sorts : inferred)
+    (symdb : 's Symb.db)
+    (sorts : 's inferred)
     (clause_id : Clause.id)
-    (lit : Clause.lit)
+    (lit : 's Clause.lit)
     : unit =
 
   let get_arg_sort = function
@@ -127,9 +127,9 @@ let update_inferred
    constants. Missing constants are added to the signature.
 *)
 let merge_sorts_of_constants
-    (symdb : Symb.db)
-    (sorts : inferred)
-    (consts : Symb.id BatEnum.t) =
+    (symdb : 's Symb.db)
+    (sorts : 's inferred)
+    (consts : 's Symb.id BatEnum.t) =
 
   let get_const_sort c =
     assert (Symb.arity symdb c = 0);
@@ -152,23 +152,23 @@ let merge_sorts_of_constants
 
 type sort_id = int
 
-type t = {
-  symb_sorts : (Symb.id, sort_id array) Hashtbl.t;
+type 's t = {
+  symb_sorts : ('s Symb.id, sort_id array) Hashtbl.t;
   var_sorts : (Clause.id * Term.var, sort_id) Hashtbl.t;
   adeq_sizes : int array;
-  consts : Symb.id array array;
+  consts : 's Symb.id array array;
   only_consts : bool ref;
 }
 
 (* Note: Only a many-sorted signature is computed.
    The other record fields have default values.
 *)
-let infer_sorts (p : Prob.t) : t =
+let infer_sorts (p : 's Prob.t) : 's t =
 
   (* Infer sorts. *)
 
   let inf_sorts = init_inferred () in
-  let each_clause (cl : Clause.t) : unit =
+  let each_clause (cl : 's Clause.t) : unit =
     List.iter
       (update_inferred p.Prob.symbols inf_sorts cl.Clause.cl_id)
       cl.Clause.cl_lits in

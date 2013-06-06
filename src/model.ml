@@ -4,9 +4,9 @@ type table = {
   values : int array;
 }
 
-type t = {
+type 's t = {
   max_size : int;
-  symbs : (Symb.id, table) Hashtbl.t;
+  symbs : ('s Symb.id, table) Hashtbl.t;
 }
 
 module Ms = Ms_model
