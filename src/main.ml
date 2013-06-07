@@ -52,11 +52,11 @@ let find_model
       | Unfl_no -> orig_clauses
       | Unfl_yes ->
           BatDynArray.filter_map
-            (Clause.unflatten symb_db)
+            (Clause2.unflatten symb_db)
             orig_clauses in
   let flat_clauses =
     BatDynArray.filter_map
-      (Clause.flatten symb_db)
+      (Clause2.flatten symb_db)
       unflat_clauses in
   let splitted_clauses =
     match splitting with

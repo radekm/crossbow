@@ -4,7 +4,7 @@ open OUnit
 
 module S = Symb
 module T = Term
-module C = Clause
+module C = Clause2
 
 
 (* Asserts that the given arrays are equal up to the order of the elements. *)

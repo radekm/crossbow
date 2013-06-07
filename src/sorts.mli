@@ -32,7 +32,7 @@ type 's t = {
   symb_sorts : ('s Symb.id, sort_id array) Hashtbl.t;
   (** Sorts of predicate and function symbols. *)
 
-  var_sorts : (Clause.id * Term.var, sort_id) Hashtbl.t;
+  var_sorts : (Clause2.id * Term.var, sort_id) Hashtbl.t;
   (** Sorts of variables. *)
 
   adeq_sizes : int array;

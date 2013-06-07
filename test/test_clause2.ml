@@ -4,7 +4,7 @@ open OUnit
 
 module S = Symb
 module T = Term
-module C = Clause
+module C = Clause2
 
 let test_neg_lit1 () =
   assert_equal
@@ -352,7 +352,7 @@ let test_unflatten_term_contains_var () =
   assert_equal (Some exp_clause) (C.unflatten db orig_clause)
 
 let suite =
-  "Clause suite" >:::
+  "Clause2 suite" >:::
     [
       "neg_lit 1" >:: test_neg_lit1;
       "neg_lit 2" >:: test_neg_lit2;

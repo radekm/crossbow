@@ -118,7 +118,7 @@ let lit v = Solver.to_lit Sat_solver.Pos v
 let lit' v = Solver.to_lit Sat_solver.Neg v
 
 module T = Term
-module C = Clause
+module C = Clause2
 
 let test_no_symbols_only_clause () =
   let Prob.Wr prob = Prob.create () in

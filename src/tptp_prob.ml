@@ -104,11 +104,11 @@ let add_clause p (Ast.Clause lits) =
 
   let transl_lit = function
     | Ast.Lit (Ast.Pos, atom) -> transl_atom atom
-    | Ast.Lit (Ast.Neg, atom) -> Clause.neg_lit (transl_atom atom) in
+    | Ast.Lit (Ast.Neg, atom) -> Clause2.neg_lit (transl_atom atom) in
 
   let clause = {
-    Clause.cl_id = Prob.fresh_id p.prob;
-    Clause.cl_lits = BatList.map transl_lit lits;
+    Clause2.cl_id = Prob.fresh_id p.prob;
+    Clause2.cl_lits = BatList.map transl_lit lits;
   } in
 
   BatDynArray.add p.prob.Prob.clauses clause

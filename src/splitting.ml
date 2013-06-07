@@ -1,7 +1,7 @@
 (* Copyright (c) 2013 Radek Micek *)
 
 module T = Term
-module C = Clause
+module C = Clause2
 
 module IntSet = BatSet.IntSet
 

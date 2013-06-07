@@ -3,7 +3,7 @@
 open OUnit
 
 module T = Term
-module C = Clause
+module C = Clause2
 
 let (|>) = BatPervasives.(|>)
 

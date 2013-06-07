@@ -1,10 +1,10 @@
 (* Copyright (c) 2013 Radek Micek *)
 
 type 's t = {
-  clauses : 's Clause.t BatDynArray.t;
+  clauses : 's Clause2.t BatDynArray.t;
   distinct_consts : 's Symb.id BatDynArray.t;
   symbols : 's Symb.db;
-  next_clause_id : Clause.id ref;
+  next_clause_id : Clause2.id ref;
 }
 
 type wt =

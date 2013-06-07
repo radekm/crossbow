@@ -3,6 +3,7 @@
 open BatPervasives
 
 module T = Term
+module C = Clause2
 
 
 (* ************************************************************************* *)
@@ -23,7 +24,7 @@ type 's inferred = {
   *)
   inf_symb_sorts : ('s Symb.id, inf_sort array) Hashtbl.t;
   (* Sorts of variables. *)
-  inf_var_sorts : (Clause.id * Term.var, inf_sort) Hashtbl.t;
+  inf_var_sorts : (C.id * Term.var, inf_sort) Hashtbl.t;
   (* Equivalence on sorts. *)
   inf_equiv : Equiv.t;
 }
@@ -47,8 +48,8 @@ let init_inferred () = {
 let update_inferred
     (symdb : 's Symb.db)
     (sorts : 's inferred)
-    (clause_id : Clause.id)
-    (lit : 's Clause.lit)
+    (clause_id : C.id)
+    (lit : 's C.lit)
     : unit =
 
   let get_arg_sort = function
@@ -154,7 +155,7 @@ type sort_id = int
 
 type 's t = {
   symb_sorts : ('s Symb.id, sort_id array) Hashtbl.t;
-  var_sorts : (Clause.id * Term.var, sort_id) Hashtbl.t;
+  var_sorts : (C.id * Term.var, sort_id) Hashtbl.t;
   adeq_sizes : int array;
   consts : 's Symb.id array array;
   only_consts : bool ref;
@@ -168,10 +169,10 @@ let infer_sorts (p : 's Prob.t) : 's t =
   (* Infer sorts. *)
 
   let inf_sorts = init_inferred () in
-  let each_clause (cl : 's Clause.t) : unit =
+  let each_clause (cl : 's C.t) : unit =
     List.iter
-      (update_inferred p.Prob.symbols inf_sorts cl.Clause.cl_id)
-      cl.Clause.cl_lits in
+      (update_inferred p.Prob.symbols inf_sorts cl.C.cl_id)
+      cl.C.cl_lits in
   BatDynArray.iter each_clause p.Prob.clauses;
   merge_sorts_of_constants
     p.Prob.symbols
@@ -284,7 +285,7 @@ let compute_sort_sizes prob sorts =
         var_func_eq.(var_sort) <- true
     | _ -> () in
   let each_clause cl =
-    List.iter (each_lit cl.Clause.cl_id) cl.Clause.cl_lits in
+    List.iter (each_lit cl.C.cl_id) cl.C.cl_lits in
   BatDynArray.iter each_clause prob.Prob.clauses;
 
   (* Put constants into [sorts] record. *)

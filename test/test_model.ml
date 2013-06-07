@@ -2,7 +2,7 @@
 
 open OUnit
 
-module C = Clause
+module C = Clause2
 module T = Term
 module Ms = Ms_model
 module M = Model

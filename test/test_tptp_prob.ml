@@ -5,7 +5,7 @@ open OUnit
 module Ast = Tptp_ast
 module TP = Tptp_prob
 module T = Term
-module C = Clause
+module C = Clause2
 
 let base_dir = "test/data/tptp_prob/"
 
@@ -85,16 +85,16 @@ let test_basic () =
   let f1 a = T.Func (f1', [| a |]) in
   let exp_clauses = [
     {
-      Clause.cl_id = 0;
-      Clause.cl_lits = [ q2 (T.Var 0) c0 ];
+      C.cl_id = 0;
+      C.cl_lits = [ q2 (T.Var 0) c0 ];
     };
     {
-      Clause.cl_id = 1;
-      Clause.cl_lits = [ C.neg_lit (q2 c0 d0) ];
+      C.cl_id = 1;
+      C.cl_lits = [ C.neg_lit (q2 c0 d0) ];
     };
     {
-      Clause.cl_id = 2;
-      Clause.cl_lits = [
+      C.cl_id = 2;
+      C.cl_lits = [
         T.mk_eq (T.Var 0) (T.Var 1);
         T.mk_ineq
           (f2 (T.Var 0) (T.Var 1))
@@ -102,8 +102,8 @@ let test_basic () =
       ];
     };
     {
-      Clause.cl_id = 3;
-      Clause.cl_lits = [
+      C.cl_id = 3;
+      C.cl_lits = [
         C.neg_lit
           (q2
              (T.Func (str_hi', [| |]))
@@ -111,8 +111,8 @@ let test_basic () =
       ];
     };
     {
-      Clause.cl_id = 4;
-      Clause.cl_lits = [
+      C.cl_id = 4;
+      C.cl_lits = [
         q1 (T.Func (num_seven', [| |]));
         T.mk_eq
           (f1 (T.Var 0))
@@ -185,28 +185,28 @@ let test_include () =
   let num_one = T.Func (num_one', [| |]) in
   let exp_clauses = [
     {
-      Clause.cl_id = 0;
-      Clause.cl_lits = [ T.mk_eq (g1 c0) num_zero ];
+      C.cl_id = 0;
+      C.cl_lits = [ T.mk_eq (g1 c0) num_zero ];
     };
     {
-      Clause.cl_id = 1;
-      Clause.cl_lits = [ T.mk_eq c0 (g1 (g1 c0)) ];
+      C.cl_id = 1;
+      C.cl_lits = [ T.mk_eq c0 (g1 (g1 c0)) ];
     };
     {
-      Clause.cl_id = 2;
-      Clause.cl_lits = [ q1 c0 ];
+      C.cl_id = 2;
+      C.cl_lits = [ q1 c0 ];
     };
     {
-      Clause.cl_id = 3;
-      Clause.cl_lits = [ T.mk_ineq d0 c0 ];
+      C.cl_id = 3;
+      C.cl_lits = [ T.mk_ineq d0 c0 ];
     };
     {
-      Clause.cl_id = 4;
-      Clause.cl_lits = [ T.mk_eq d0 num_one ];
+      C.cl_id = 4;
+      C.cl_lits = [ T.mk_eq d0 num_one ];
     };
     {
-      Clause.cl_id = 5;
-      Clause.cl_lits = [ q1 d0 ];
+      C.cl_id = 5;
+      C.cl_lits = [ q1 d0 ];
     };
   ] in
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
@@ -254,8 +254,8 @@ let test_nested_include () =
   (* Clauses. *)
   let exp_clauses = [
     {
-      Clause.cl_id = 0;
-      Clause.cl_lits = [ T.Func (r0', [| |]); C.neg_lit (T.Func (s0', [| |])) ];
+      C.cl_id = 0;
+      C.cl_lits = [ T.Func (r0', [| |]); C.neg_lit (T.Func (s0', [| |])) ];
     };
   ] in
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
@@ -311,20 +311,20 @@ let test_nested_include_with_sel () =
     let const s = T.Func (s, [| |]) in
     [
       {
-        Clause.cl_id = 0;
-        Clause.cl_lits = [ p (const a0') ];
+        C.cl_id = 0;
+        C.cl_lits = [ p (const a0') ];
       };
       {
-        Clause.cl_id = 1;
-        Clause.cl_lits = [ p (const b0') ];
+        C.cl_id = 1;
+        C.cl_lits = [ p (const b0') ];
       };
       {
-        Clause.cl_id = 2;
-        Clause.cl_lits = [ p (const c0') ];
+        C.cl_id = 2;
+        C.cl_lits = [ p (const c0') ];
       };
       {
-        Clause.cl_id = 3;
-        Clause.cl_lits = [ p (const d0') ];
+        C.cl_id = 3;
+        C.cl_lits = [ p (const d0') ];
       };
   ] in
   assert_equal exp_clauses (BatDynArray.to_list prob.TP.prob.Prob.clauses)

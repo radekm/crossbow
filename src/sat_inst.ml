@@ -228,8 +228,8 @@ struct
               sign := Sat_solver.Neg;
               each_atom atom
           | atom -> each_atom atom in
-      List.iter each_lit cl.Clause.cl_lits;
-      let _, nvars = Clause.normalize_vars cl in
+      List.iter each_lit cl.Clause2.cl_lits;
+      let _, nvars = Clause2.normalize_vars cl in
       {
         var_adeq_sizes =
           Array.init nvars
@@ -237,7 +237,7 @@ struct
               let sort =
                 Hashtbl.find
                   sorts.Sorts.var_sorts
-                  (cl.Clause.cl_id, v) in
+                  (cl.Clause2.cl_id, v) in
               sorts.Sorts.adeq_sizes.(sort));
         var_equalities = BatDynArray.to_array var_eqs;
         nullary_pred_lits = BatDynArray.to_array nullary_pred_lits;

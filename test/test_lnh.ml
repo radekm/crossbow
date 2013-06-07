@@ -2,7 +2,7 @@
 
 open OUnit
 
-module C = Clause
+module C = Clause2
 module T = Term
 
 let test_lnh_one_sort () =
