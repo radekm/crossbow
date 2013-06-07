@@ -1,7 +1,8 @@
 (* Copyright (c) 2013 Radek Micek *)
 
 module T = Term
-module C = Clause2
+module C = Clause
+module C2 = Clause2
 
 module IntSet = BatSet.IntSet
 
@@ -28,8 +29,7 @@ let paradox_binary_split
     (partition_lits : T.var -> 's T.lit list -> 's T.lit list * 's T.lit list)
     new_pred
     lits =
-  let cl, n = C.normalize_vars { C.cl_id = -1; C.cl_lits = lits } in
-  let lits = cl.C.cl_lits in
+  let lits, n = C.normalize_vars lits in
   let nconns = count_connections n lits in
   (* Don't split clauses with 3 or less variables. *)
   if n <= 3 then
@@ -50,8 +50,8 @@ let paradox_binary_split
       let left, right = partition_lits x lits in
       let shared_vars =
         IntSet.inter
-          (T.vars_of_many left)
-          (T.vars_of_many right) in
+          (C.vars left)
+          (C.vars right) in
       let p = new_pred (IntSet.cardinal shared_vars) in
       let atom =
         let args =
@@ -80,7 +80,7 @@ let paradox_splitting new_pred lits =
 let paradox_mod_splitting new_pred lits =
   let partition_lits x lits =
     let l, r = BatList.partition (T.vars |- IntSet.mem x) lits in
-    let lvars = Term.vars_of_many l in
+    let lvars = C.vars l in
     (* Literals in l' contain only variables from lvars.
        Moving these literals from the right to the left can
        decrease the number of variable on the right and in the intersection.
@@ -102,7 +102,7 @@ let paradox_mod_splitting new_pred lits =
     | [] -> failwith "paradox_mod_splitting: no clauses"
     | c :: cs ->
         let count_vars_lits c =
-          IntSet.cardinal (Term.vars_of_many c), List.length c in
+          IntSet.cardinal (C.vars c), List.length c in
         let best_stats = ref (count_vars_lits c) in
         let best_idx = ref 0 in
         BatList.iteri
@@ -121,12 +121,10 @@ let paradox_mod_splitting new_pred lits =
             else c)
           clauses
 
-let split_clause splitting p cl =
+let split_clause splitting p lits =
   let new_pred arity =
     let s = Symb.add_pred p.Prob.symbols arity in
     Symb.set_auxiliary p.Prob.symbols s true;
     s in
-  let clauses = splitting new_pred cl.C.cl_lits in
-  BatList.map
-    (fun cl_lits -> { C.cl_id = Prob.fresh_id p; C.cl_lits })
-    clauses
+  let clauses = splitting new_pred lits in
+  clauses

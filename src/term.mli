@@ -54,8 +54,5 @@ val replace : 's t -> 's t -> 's t -> 's t
 (** Returns the set of the variables in the given term. *)
 val vars : 's t -> BatSet.IntSet.t
 
-(** Returns the set of the variables in the given terms. *)
-val vars_of_many : 's t list -> BatSet.IntSet.t
-
 (** Converts term to string. *)
 val show : 's t -> string

@@ -190,30 +190,6 @@ let test_vars () =
   let exp_vars = List.fold_right IntSet.add [1; 5; 2] IntSet.empty in
   assert_equal ~cmp:IntSet.equal exp_vars (T.vars term)
 
-let test_vars_of_many () =
-  let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add_func db 3 in
-  let f a b c = T.Func (f, [| a; b; c |]) in
-  let g = Symb.add_func db 2 in
-  let g a b = T.Func (g, [| a; b |]) in
-  let c = Symb.add_func db 0 in
-  let c = T.Func (c, [| |]) in
-  let x1 = T.Var 3 in
-  let x2 = T.Var 8 in
-  let x3 = T.Var 0 in
-  let x4 = T.Var 9 in
-  let x5 = T.Var 15 in
-  let y = T.Var 2 in
-  let z = T.Var 1 in
-  let terms = [
-    T.mk_ineq (f (g c x1) x3 x3) x2;
-    T.mk_eq x4 (f (g x5 c) c c);
-    T.mk_eq y (g z z);
-  ] in
-  let exp_vars =
-    List.fold_right IntSet.add [3; 8; 0; 9; 15; 2; 1] IntSet.empty in
-  assert_equal ~cmp:IntSet.equal exp_vars (T.vars_of_many terms)
-
 let suite =
   "Term suite" >:::
     [
@@ -230,5 +206,4 @@ let suite =
       "normalize_comm" >:: test_normalize_comm;
       "replace" >:: test_replace;
       "vars" >:: test_vars;
-      "vars_of_many" >:: test_vars_of_many;
     ]

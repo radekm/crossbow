@@ -52,11 +52,17 @@ let find_model
       | Unfl_no -> orig_clauses
       | Unfl_yes ->
           BatDynArray.filter_map
-            (Clause2.unflatten symb_db)
+            (fun cl ->
+              match Clause.unflatten symb_db cl.Clause2.cl_lits with
+                | None -> None
+                | Some cl_lits -> Some { cl with Clause2.cl_lits })
             orig_clauses in
   let flat_clauses =
     BatDynArray.filter_map
-      (Clause2.flatten symb_db)
+      (fun cl ->
+        match Clause.flatten symb_db cl.Clause2.cl_lits with
+          | None -> None
+          | Some cl_lits -> Some { cl with Clause2.cl_lits })
       unflat_clauses in
   let splitted_clauses =
     match splitting with
@@ -72,8 +78,10 @@ let find_model
           BatDynArray.iter
             (fun cl ->
               List.iter
-                (BatDynArray.add cs)
-                (Splitting.split_clause strategy p cl))
+                (fun cl_lits ->
+                  BatDynArray.add cs
+                    { Clause2.cl_id = Prob.fresh_id p; Clause2.cl_lits })
+                (Splitting.split_clause strategy p cl.Clause2.cl_lits))
             flat_clauses;
           cs in
   BatDynArray.clear p.Prob.clauses;

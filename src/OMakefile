@@ -22,6 +22,7 @@ FILES[] =
     timer
     symb
     term
+    clause
     clause2
     prob
     splitting

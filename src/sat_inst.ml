@@ -229,7 +229,7 @@ struct
               each_atom atom
           | atom -> each_atom atom in
       List.iter each_lit cl.Clause2.cl_lits;
-      let _, nvars = Clause2.normalize_vars cl in
+      let _, nvars = Clause.normalize_vars cl.Clause2.cl_lits in
       {
         var_adeq_sizes =
           Array.init nvars

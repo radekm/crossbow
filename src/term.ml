@@ -77,12 +77,6 @@ let vars term =
     term;
   !xs
 
-let vars_of_many terms =
-  List.fold_left
-    (fun xs t -> IntSet.union xs (vars t))
-    IntSet.empty
-    terms
-
 let rec show = function
   | Var x -> Printf.sprintf "X%d" x
   | Func (f, args) ->

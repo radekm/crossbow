@@ -4,7 +4,7 @@ open OUnit
 
 module S = Symb
 module T = Term
-module C = Clause2
+module C = Clause
 
 let test_simplify () =
   let S.Wr db = S.create_db () in
@@ -17,24 +17,18 @@ let test_simplify () =
   let y = T.Var 1 in
   let z = T.Var 2 in
   (* f(x, y) != f(y, z), z != y, g(x, y) != g(y, x), g(y, x) != g(x, z), z = x *)
-  let orig_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_ineq (f x y) (f x z);
-      T.mk_ineq z y;
-      T.mk_ineq (g x y) (g y x);
-      T.mk_ineq (g y x) (g x z);
-      T.mk_eq z x;
-    ];
-  } in
+  let orig_clause = [
+    T.mk_ineq (f x y) (f x z);
+    T.mk_ineq z y;
+    T.mk_ineq (g x y) (g y x);
+    T.mk_ineq (g y x) (g x z);
+    T.mk_eq z x;
+  ] in
   (* g(x, y) != g(y, x), x = y *)
-  let simpl_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_ineq (g x y) (g y x);
-      T.mk_eq x y;
-    ];
-  } in
+  let simpl_clause = [
+    T.mk_ineq (g x y) (g y x);
+    T.mk_eq x y;
+  ] in
   assert_equal
     (Some simpl_clause)
     (C.simplify db orig_clause)
@@ -49,46 +43,34 @@ let test_simplify_tautology () =
   (* f(y) = f(x), f(z) != f(y), x != z *)
   assert_equal
     None
-    (C.simplify db {
-      C.cl_id = 1;
-      C.cl_lits = [
-        T.mk_eq (f y) (f x);
-        T.mk_ineq (f z) (f y);
-        T.mk_ineq x z;
-      ];
-    });
+    (C.simplify db [
+      T.mk_eq (f y) (f x);
+      T.mk_ineq (f z) (f y);
+      T.mk_ineq x z;
+    ]);
   (* f(x) = f(z), x != y, y != z *)
   assert_equal
     None
-    (C.simplify db {
-      C.cl_id = 2;
-      C.cl_lits = [
-        T.mk_eq (f x) (f y);
-        T.mk_ineq x y;
-        T.mk_ineq y z;
-      ];
-    })
+    (C.simplify db [
+      T.mk_eq (f x) (f y);
+      T.mk_ineq x y;
+      T.mk_ineq y z;
+    ])
 
 let test_normalize_vars () =
   let S.Wr db = S.create_db () in
   let f = S.add_func db 2 in
   let f a b = T.Func (f, [| a; b |]) in
-  let orig_clause = {
-    C.cl_id = 2;
-    C.cl_lits = [
-      T.mk_eq (f (T.Var 3) (T.Var 3)) (T.Var 7);
-      T.mk_ineq (T.Var 4) (T.Var 3);
-      T.mk_ineq (f (T.Var 8) (T.Var 7)) (f (T.Var 0) (T.Var 3));
-    ];
-  } in
-  let norm_clause = {
-    C.cl_id = 2;
-    C.cl_lits = [
-      T.mk_eq (f (T.Var 0) (T.Var 0)) (T.Var 1);
-      T.mk_ineq (T.Var 2) (T.Var 0);
-      T.mk_ineq (f (T.Var 3) (T.Var 1)) (f (T.Var 4) (T.Var 0));
-    ];
-  } in
+  let orig_clause = [
+    T.mk_eq (f (T.Var 3) (T.Var 3)) (T.Var 7);
+    T.mk_ineq (T.Var 4) (T.Var 3);
+    T.mk_ineq (f (T.Var 8) (T.Var 7)) (f (T.Var 0) (T.Var 3));
+  ] in
+  let norm_clause = [
+    T.mk_eq (f (T.Var 0) (T.Var 0)) (T.Var 1);
+    T.mk_ineq (T.Var 2) (T.Var 0);
+    T.mk_ineq (f (T.Var 3) (T.Var 1)) (f (T.Var 4) (T.Var 0));
+  ] in
   assert_equal
     (norm_clause, 5)
     (C.normalize_vars orig_clause)
@@ -106,25 +88,19 @@ let test_flatten () =
   let v1 = T.Var 2 in
   let v2 = T.Var 3 in
   (* x != f(c), y != f(d), f(c) = f(d) *)
-  let orig_clause = {
-    C.cl_id = 0;
-    C.cl_lits = [
-      T.mk_ineq x (f c);
-      T.mk_ineq y (f d);
-      T.mk_eq (f c) (f d);
-    ];
-  } in
+  let orig_clause = [
+    T.mk_ineq x (f c);
+    T.mk_ineq y (f d);
+    T.mk_eq (f c) (f d);
+  ] in
   (* v2 != d, v1 != c, x != f(v1), y != f(v2), x = y *)
-  let flat_clause = {
-    C.cl_id = 0;
-    C.cl_lits = [
-      T.mk_ineq v2 d;
-      T.mk_ineq v1 c;
-      T.mk_ineq x (f v1);
-      T.mk_ineq y (f v2);
-      T.mk_eq x y;
-    ];
-  } in
+  let flat_clause = [
+    T.mk_ineq v2 d;
+    T.mk_ineq v1 c;
+    T.mk_ineq x (f v1);
+    T.mk_ineq y (f v2);
+    T.mk_eq x y;
+  ] in
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_commutative_symb () =
@@ -142,25 +118,19 @@ let test_flatten_commutative_symb () =
   let y = T.Var 1 in
   let z = T.Var 2 in
   (* x != f(c, d), p(f(d, c), x), y != d, c != z *)
-  let orig_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_ineq x (f c d);
-      p (f d c) x;
-      T.mk_ineq y d;
-      T.mk_ineq c z;
-    ];
-  } in
+  let orig_clause = [
+    T.mk_ineq x (f c d);
+    p (f d c) x;
+    T.mk_ineq y d;
+    T.mk_ineq c z;
+  ] in
   (* x != f(y, z), p(x, x), y != d, z != c *)
-  let flat_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_ineq x (f y z);
-      p x x;
-      T.mk_ineq y d;
-      T.mk_ineq z c;
-    ];
-  } in
+  let flat_clause = [
+    T.mk_ineq x (f y z);
+    p x x;
+    T.mk_ineq y d;
+    T.mk_ineq z c;
+  ] in
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_deep_nesting () =
@@ -181,25 +151,19 @@ let test_flatten_deep_nesting () =
   let v3 = T.Var 3 in
   let v4 = T.Var 4 in
   (* p(f(c, g(d))), g(c) = x *)
-  let orig_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      p (f c (g d));
-      T.mk_eq (g c) x;
-    ];
-  } in
+  let orig_clause = [
+    p (f c (g d));
+    T.mk_eq (g c) x;
+  ] in
   (* v4 != d, v3 != g(v4), v2 != c, v1 != f(v2, v3), p(v1), x = g(v2) *)
-  let flat_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_ineq v4 d;
-      T.mk_ineq v3 (g v4);
-      T.mk_ineq v2 c;
-      T.mk_ineq v1 (f v2 v3);
-      p v1;
-      T.mk_eq x (g v2);
-    ];
-  } in
+  let flat_clause = [
+    T.mk_ineq v4 d;
+    T.mk_ineq v3 (g v4);
+    T.mk_ineq v2 c;
+    T.mk_ineq v1 (f v2 v3);
+    p v1;
+    T.mk_eq x (g v2);
+  ] in
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_func_equalities () =
@@ -216,29 +180,23 @@ let test_flatten_func_equalities () =
   let v1 = T.Var 3 in
   let v2 = T.Var 4 in
   (* g(y) = f(x), f(y) = f(x), g(x) = g(z), g(z) = f(x), c = g(z) *)
-  let orig_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
+  let orig_clause = [
       T.mk_eq (g y) (f x);
       T.mk_eq (f y) (f x);
       T.mk_eq (g x) (g z);
       T.mk_eq (g z) (f x);
       T.mk_eq c (g z);
-    ];
-  } in
+  ] in
   (* v2 != f(x), v1 != g(z), v2 = g(y), v2 = f(y), v1 = g(x), v1 = v2, v1 = c *)
-  let flat_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_ineq v2 (f x);
-      T.mk_ineq v1 (g z);
-      T.mk_eq v2 (g y);
-      T.mk_eq v2 (f y);
-      T.mk_eq v1 (g x);
-      T.mk_eq v1 v2;
-      T.mk_eq v1 c;
-    ];
-  } in
+  let flat_clause = [
+    T.mk_ineq v2 (f x);
+    T.mk_ineq v1 (g z);
+    T.mk_eq v2 (g y);
+    T.mk_eq v2 (f y);
+    T.mk_eq v1 (g x);
+    T.mk_eq v1 v2;
+    T.mk_eq v1 c;
+  ] in
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_tautology () =
@@ -249,14 +207,11 @@ let test_flatten_tautology () =
   let c = T.Func (c, [| |]) in
   let x = T.Var 0 in
   (* x != c, p(c), ~p(x) *)
-  let orig_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_ineq x c;
-      p c;
-      T.neg_lit (p x);
-    ];
-  } in
+  let orig_clause = [
+    T.mk_ineq x c;
+    p c;
+    T.neg_lit (p x);
+  ] in
   assert_equal None (C.flatten db orig_clause)
 
 let test_unflatten () =
@@ -273,24 +228,18 @@ let test_unflatten () =
   let y = T.Var 1 in
   let z = T.Var 2 in
   (* f(y) = x, z != c, ~p(x), z != f(y), f(d) != y *)
-  let orig_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_eq (f y) x;
-      T.mk_ineq z c;
-      T.neg_lit (p x);
-      T.mk_ineq z (f y);
-      T.mk_ineq (f d) y;
-    ];
-  } in
-  let exp_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_eq x (f (f d));
-      T.neg_lit (p x);
-      T.mk_ineq (f (f d)) c;
-    ];
-  } in
+  let orig_clause = [
+    T.mk_eq (f y) x;
+    T.mk_ineq z c;
+    T.neg_lit (p x);
+    T.mk_ineq z (f y);
+    T.mk_ineq (f d) y;
+  ] in
+  let exp_clause = [
+    T.mk_eq x (f (f d));
+    T.neg_lit (p x);
+    T.mk_ineq (f (f d)) c;
+  ] in
   assert_equal (Some exp_clause) (C.unflatten db orig_clause)
 
 let test_unflatten_term_contains_var () =
@@ -305,28 +254,48 @@ let test_unflatten_term_contains_var () =
   let y = T.Var 1 in
   let z = T.Var 2 in
   (* f(c, y) != y, z != x, c = d, y = c, x != d *)
-  let orig_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_ineq (f c y) y;
-      T.mk_ineq z x;
-      T.mk_eq c d;
-      T.mk_eq y c;
-      T.mk_ineq x d;
-    ];
-  } in
-  let exp_clause = {
-    C.cl_id = 1;
-    C.cl_lits = [
-      T.mk_ineq y (f c y);
-      T.mk_eq c d;
-      T.mk_eq y c;
-    ];
-  } in
+  let orig_clause = [
+    T.mk_ineq (f c y) y;
+    T.mk_ineq z x;
+    T.mk_eq c d;
+    T.mk_eq y c;
+    T.mk_ineq x d;
+  ] in
+  let exp_clause = [
+    T.mk_ineq y (f c y);
+    T.mk_eq c d;
+    T.mk_eq y c;
+  ] in
   assert_equal (Some exp_clause) (C.unflatten db orig_clause)
 
+module IntSet = BatSet.IntSet
+
+let test_vars () =
+  let Symb.Wr db = Symb.create_db () in
+  let f = Symb.add_func db 3 in
+  let f a b c = T.Func (f, [| a; b; c |]) in
+  let g = Symb.add_func db 2 in
+  let g a b = T.Func (g, [| a; b |]) in
+  let c = Symb.add_func db 0 in
+  let c = T.Func (c, [| |]) in
+  let x1 = T.Var 3 in
+  let x2 = T.Var 8 in
+  let x3 = T.Var 0 in
+  let x4 = T.Var 9 in
+  let x5 = T.Var 15 in
+  let y = T.Var 2 in
+  let z = T.Var 1 in
+  let terms = [
+    T.mk_ineq (f (g c x1) x3 x3) x2;
+    T.mk_eq x4 (f (g x5 c) c c);
+    T.mk_eq y (g z z);
+  ] in
+  let exp_vars =
+    List.fold_right IntSet.add [3; 8; 0; 9; 15; 2; 1] IntSet.empty in
+  assert_equal ~cmp:IntSet.equal exp_vars (C.vars terms)
+
 let suite =
-  "Clause2 suite" >:::
+  "Clause suite" >:::
     [
       "simplify" >:: test_simplify;
       "simplify tautology" >:: test_simplify_tautology;
@@ -338,4 +307,5 @@ let suite =
       "flatten - tautology" >:: test_flatten_tautology;
       "unflatten" >:: test_unflatten;
       "unflatten - term contains var" >:: test_unflatten_term_contains_var;
+      "vars" >:: test_vars;
     ]
