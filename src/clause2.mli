@@ -2,24 +2,12 @@
 
 (** Clauses. *)
 
-(** A literal is an atomic formula or its negation. *)
-type 's lit = 's Term.t
-
 type id = int
 
 type 's t = {
   cl_id : id;
-  cl_lits : 's lit list;
+  cl_lits : 's Term.lit list;
 }
-
-(** [neg_lit l] negates the literal [l]. *)
-val neg_lit : 's lit -> 's lit
-
-(** Returns [true] iff the literal is an equality of two identical terms. *)
-val true_lit : 's lit -> bool
-
-(** Returns [true] iff the literal is an inequality of two identical terms. *)
-val false_lit : 's lit -> bool
 
 (** Simplifies the clause. Here is a list of performed simplifications:
 

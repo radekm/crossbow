@@ -2,6 +2,7 @@
 
 open OUnit
 
+module S = Symb
 module T = Term
 
 let test_mk_eq () =
@@ -23,6 +24,32 @@ let test_mk_ineq () =
     (T.Func (Symb.sym_not,
            [| T.Func (Symb.sym_eq, [| c; d |]) |]))
     (T.mk_ineq c d)
+
+let test_neg_lit1 () =
+  assert_equal
+    (T.mk_eq (T.Var 0) (T.Var 1))
+    (T.neg_lit (T.mk_ineq (T.Var 0) (T.Var 1)))
+
+let test_neg_lit2 () =
+  let S.Wr db = S.create_db () in
+  let p = S.add_pred db 1 in
+  let term = T.Func (p, [| T.Var 2 |]) in
+  assert_equal
+    (T.Func (S.sym_not, [| term |]))
+    (T.neg_lit term)
+
+let test_true_lit_false_lit () =
+  let S.Wr db = S.create_db () in
+  let f = S.add_func db 1 in
+  let mk_term v = T.Func (f, [| T.Var v |]) in
+  (* true_lit *)
+  assert_bool "" (T.true_lit (T.mk_eq (mk_term 1) (mk_term 1)));
+  assert_bool "" (not (T.true_lit (T.mk_eq (mk_term 2) (mk_term 1))));
+  assert_bool "" (not (T.true_lit (T.mk_ineq (mk_term 1) (mk_term 1))));
+  (* false_lit *)
+  assert_bool "" (T.false_lit (T.mk_ineq (mk_term 1) (mk_term 1)));
+  assert_bool "" (not (T.false_lit (T.mk_ineq (mk_term 2) (mk_term 1))));
+  assert_bool "" (not (T.false_lit (T.mk_eq (mk_term 1) (mk_term 1))))
 
 let test_contains1 () =
   let Symb.Wr db = Symb.create_db () in
@@ -192,6 +219,9 @@ let suite =
     [
       "mk_eq" >:: test_mk_eq;
       "mk_ineq" >:: test_mk_ineq;
+      "neg_lit 1" >:: test_neg_lit1;
+      "neg_lit 2" >:: test_neg_lit2;
+      "true_lit, false_lit" >:: test_true_lit_false_lit;
       "contains 1" >:: test_contains1;
       "contains 2" >:: test_contains2;
       "iter" >:: test_iter;

@@ -72,11 +72,11 @@ let make_cl () =
   let cl = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      C.neg_lit (p (x 0) (x 1));
-      C.neg_lit (p (x 2) (x 3));
-      C.neg_lit (p (x 4) (x 5));
-      C.neg_lit (p (x 6) (x 7));
-      C.neg_lit (p (x 8) (x 9));
+      T.neg_lit (p (x 0) (x 1));
+      T.neg_lit (p (x 2) (x 3));
+      T.neg_lit (p (x 4) (x 5));
+      T.neg_lit (p (x 6) (x 7));
+      T.neg_lit (p (x 8) (x 9));
       p (x 10) (x 11);
       T.mk_ineq (x 10) (f (x 0) (x 2) (x 4) (x 6) (x 8));
       T.mk_ineq (x 11) (f (x 1) (x 3) (x 5) (x 7) (x 9));
@@ -102,7 +102,7 @@ let check_splitting_cl (split : split) =
       C.cl_id = 1;
       C.cl_lits = [
         T.Func (q1, [| x 1; x 2; x 4; x 6; x 8; x 10 |]);
-        C.neg_lit (p (x 0) (x 1));
+        T.neg_lit (p (x 0) (x 1));
         T.mk_ineq (x 10) (f (x 0) (x 2) (x 4) (x 6) (x 8));
       ];
     };
@@ -110,24 +110,24 @@ let check_splitting_cl (split : split) =
       C.cl_id = 2;
       C.cl_lits = [
         T.Func (q2, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-        C.neg_lit (T.Func (q1, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
-        C.neg_lit (p (x 1) (x 6));
+        T.neg_lit (T.Func (q1, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+        T.neg_lit (p (x 1) (x 6));
       ];
     };
     normalize {
       C.cl_id = 3;
       C.cl_lits = [
         T.Func (q3, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-        C.neg_lit (T.Func (q2, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
-        C.neg_lit (p (x 1) (x 6));
+        T.neg_lit (T.Func (q2, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+        T.neg_lit (p (x 1) (x 6));
       ];
     };
     normalize {
       C.cl_id = 4;
       C.cl_lits = [
         T.Func (q4, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-        C.neg_lit (T.Func (q3, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
-        C.neg_lit (p (x 1) (x 6));
+        T.neg_lit (T.Func (q3, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+        T.neg_lit (p (x 1) (x 6));
 
       ];
     };
@@ -135,14 +135,14 @@ let check_splitting_cl (split : split) =
       C.cl_id = 5;
       C.cl_lits = [
         T.Func (q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-        C.neg_lit (T.Func (q4, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
-        C.neg_lit (p (x 1) (x 6));
+        T.neg_lit (T.Func (q4, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+        T.neg_lit (p (x 1) (x 6));
       ];
     };
     normalize {
       C.cl_id = 6;
       C.cl_lits = [
-        C.neg_lit (T.Func (q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]));
+        T.neg_lit (T.Func (q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]));
         p (x 2) (x 7);
         T.mk_ineq (x 7) (f (x 0) (x 3) (x 4) (x 5) (x 6));
       ];
@@ -212,14 +212,14 @@ let test_paradox_splitting2 () =
       C.cl_id = 2;
       C.cl_lits = [
         T.Func (q2, [| |]);
-        C.neg_lit (T.Func (q1, [| x 0; x 1 |]));
+        T.neg_lit (T.Func (q1, [| x 0; x 1 |]));
         p (x 0) (x 1);
       ];
     };
     normalize {
       C.cl_id = 3;
       C.cl_lits = [
-        C.neg_lit (T.Func (q2, [| |]));
+        T.neg_lit (T.Func (q2, [| |]));
         r;
         q (x 2) (x 3) (x 4) (x 5);
       ];
@@ -250,7 +250,7 @@ let test_paradox_mod_splitting2 () =
     normalize {
       C.cl_id = 2;
       C.cl_lits = [
-        C.neg_lit (T.Func (q1, [| |]));
+        T.neg_lit (T.Func (q1, [| |]));
         q (x 3) (x 4) (x 5) (x 6);
       ];
     };

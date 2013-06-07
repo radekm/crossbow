@@ -3,30 +3,15 @@
 module S = Symb
 module T = Term
 
-type 's lit = 's T.t
-
 type id = int
 
 type 's t = {
   cl_id : id;
-  cl_lits : 's lit list;
+  cl_lits : 's T.lit list;
 }
 
 let (|>) = BatPervasives.(|>)
 let (|-) = BatPervasives.(|-)
-
-let neg_lit = function
-  | T.Func (s, [| t |]) when s = S.sym_not -> t
-  | t -> T.Func (S.sym_not, [| t |])
-
-let true_lit = function
-  | T.Func (s, [| l; r |]) -> s = S.sym_eq && l = r
-  | _ -> false
-
-let false_lit = function
-  | T.Func (s, [| T.Func (s2, [| l; r; |]) |]) ->
-      s = S.sym_not && s2 = S.sym_eq && l = r
-  | _ -> false
 
 (* Every inequality of variables [x != y] is removed and [x]
    is replaced by [y].
@@ -52,9 +37,11 @@ let simplify symdb cl =
     |> remove_var_ineqs
     |> BatList.map (T.normalize_comm symdb)
     |> BatList.unique
-    |> BatList.filter (false_lit |- not) in
+    |> BatList.filter (T.false_lit |- not) in
   let taut =
-    List.exists (fun l -> true_lit l || Elist.contains (neg_lit l) lits) lits in
+    List.exists
+      (fun l -> T.true_lit l || Elist.contains (T.neg_lit l) lits)
+      lits in
   if taut then None else Some { cl with cl_lits = lits }
 
 let normalize_vars cl =

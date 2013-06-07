@@ -215,7 +215,7 @@ let test_predicate () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      C.neg_lit (T.Func (le, [| T.Func (succ, [| x |]); two |]));
+      T.neg_lit (T.Func (le, [| T.Func (succ, [| x |]); two |]));
       T.mk_eq x (T.Func (zero, [| |]));
       T.mk_eq (T.Func (succ, [| T.Func (zero, [| |]) |])) x;
     ];

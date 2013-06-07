@@ -90,7 +90,7 @@ let test_basic () =
     };
     {
       C.cl_id = 1;
-      C.cl_lits = [ C.neg_lit (q2 c0 d0) ];
+      C.cl_lits = [ T.neg_lit (q2 c0 d0) ];
     };
     {
       C.cl_id = 2;
@@ -104,7 +104,7 @@ let test_basic () =
     {
       C.cl_id = 3;
       C.cl_lits = [
-        C.neg_lit
+        T.neg_lit
           (q2
              (T.Func (str_hi', [| |]))
              (T.Func (num_twelve_point_five', [| |])));
@@ -255,7 +255,7 @@ let test_nested_include () =
   let exp_clauses = [
     {
       C.cl_id = 0;
-      C.cl_lits = [ T.Func (r0', [| |]); C.neg_lit (T.Func (s0', [| |])) ];
+      C.cl_lits = [ T.Func (r0', [| |]); T.neg_lit (T.Func (s0', [| |])) ];
     };
   ] in
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)

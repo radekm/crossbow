@@ -10,9 +10,24 @@ type 's t =
 
 let (|>) = BatPervasives.(|>)
 
+type 's lit = 's t
+
 let mk_eq l r = Func (S.sym_eq, [| l; r; |])
 
 let mk_ineq l r = Func (S.sym_not, [| mk_eq l r |])
+
+let neg_lit = function
+  | Func (s, [| t |]) when s = S.sym_not -> t
+  | t -> Func (S.sym_not, [| t |])
+
+let true_lit = function
+  | Func (s, [| l; r |]) -> s = S.sym_eq && l = r
+  | _ -> false
+
+let false_lit = function
+  | Func (s, [| Func (s2, [| l; r; |]) |]) ->
+      s = S.sym_not && s2 = S.sym_eq && l = r
+  | _ -> false
 
 let contains subterm term =
   let rec contains = function

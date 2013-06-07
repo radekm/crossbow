@@ -49,7 +49,7 @@ let update_inferred
     (symdb : 's Symb.db)
     (sorts : 's inferred)
     (clause_id : C.id)
-    (lit : 's C.lit)
+    (lit : 's T.lit)
     : unit =
 
   let get_arg_sort = function

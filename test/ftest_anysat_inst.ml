@@ -56,32 +56,32 @@ end = struct
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p, ~q, ~r *)
-      C.cl_lits = [ C.neg_lit p; C.neg_lit q; C.neg_lit r ];
+      C.cl_lits = [ T.neg_lit p; T.neg_lit q; T.neg_lit r ];
     } in
     let clause2 = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p, ~q, r *)
-      C.cl_lits = [ C.neg_lit p; C.neg_lit q; r ];
+      C.cl_lits = [ T.neg_lit p; T.neg_lit q; r ];
     } in
     let clause3 = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p, q, ~r *)
-      C.cl_lits = [ C.neg_lit p; q; C.neg_lit r ];
+      C.cl_lits = [ T.neg_lit p; q; T.neg_lit r ];
     } in
     let clause4 = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p, q, r *)
-      C.cl_lits = [ C.neg_lit p; q; r ];
+      C.cl_lits = [ T.neg_lit p; q; r ];
     } in
     let clause5 = {
       C.cl_id = Prob.fresh_id prob;
       (* p, ~q, ~r *)
-      C.cl_lits = [ p; C.neg_lit q; C.neg_lit r ];
+      C.cl_lits = [ p; T.neg_lit q; T.neg_lit r ];
     } in
     let clause6 = {
       C.cl_id = Prob.fresh_id prob;
       (* p, q, ~r *)
-      C.cl_lits = [ p; q; C.neg_lit r ];
+      C.cl_lits = [ p; q; T.neg_lit r ];
     } in
     let clause7 = {
       C.cl_id = Prob.fresh_id prob;
@@ -141,7 +141,7 @@ end = struct
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p(c1, c2) *)
-      C.cl_lits = [ C.neg_lit (p x y); T.mk_ineq c1 x; T.mk_ineq c2 y ];
+      C.cl_lits = [ T.neg_lit (p x y); T.mk_ineq c1 x; T.mk_ineq c2 y ];
     } in
     let clause2 = {
       C.cl_id = Prob.fresh_id prob;

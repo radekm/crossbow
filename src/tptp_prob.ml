@@ -104,7 +104,7 @@ let add_clause p (Ast.Clause lits) =
 
   let transl_lit = function
     | Ast.Lit (Ast.Pos, atom) -> transl_atom atom
-    | Ast.Lit (Ast.Neg, atom) -> Clause2.neg_lit (transl_atom atom) in
+    | Ast.Lit (Ast.Neg, atom) -> Term.neg_lit (transl_atom atom) in
 
   let clause = {
     Clause2.cl_id = Prob.fresh_id p.prob;

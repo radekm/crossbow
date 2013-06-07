@@ -6,32 +6,6 @@ module S = Symb
 module T = Term
 module C = Clause2
 
-let test_neg_lit1 () =
-  assert_equal
-    (T.mk_eq (T.Var 0) (T.Var 1))
-    (C.neg_lit (T.mk_ineq (T.Var 0) (T.Var 1)))
-
-let test_neg_lit2 () =
-  let S.Wr db = S.create_db () in
-  let p = S.add_pred db 1 in
-  let term = T.Func (p, [| T.Var 2 |]) in
-  assert_equal
-    (T.Func (S.sym_not, [| term |]))
-    (C.neg_lit term)
-
-let test_true_lit_false_lit () =
-  let S.Wr db = S.create_db () in
-  let f = S.add_func db 1 in
-  let mk_term v = T.Func (f, [| T.Var v |]) in
-  (* true_lit *)
-  assert_bool "" (C.true_lit (T.mk_eq (mk_term 1) (mk_term 1)));
-  assert_bool "" (not (C.true_lit (T.mk_eq (mk_term 2) (mk_term 1))));
-  assert_bool "" (not (C.true_lit (T.mk_ineq (mk_term 1) (mk_term 1))));
-  (* false_lit *)
-  assert_bool "" (C.false_lit (T.mk_ineq (mk_term 1) (mk_term 1)));
-  assert_bool "" (not (C.false_lit (T.mk_ineq (mk_term 2) (mk_term 1))));
-  assert_bool "" (not (C.false_lit (T.mk_eq (mk_term 1) (mk_term 1))))
-
 let test_simplify () =
   let S.Wr db = S.create_db () in
   let f = S.add_func db 2 in
@@ -280,7 +254,7 @@ let test_flatten_tautology () =
     C.cl_lits = [
       T.mk_ineq x c;
       p c;
-      C.neg_lit (p x);
+      T.neg_lit (p x);
     ];
   } in
   assert_equal None (C.flatten db orig_clause)
@@ -304,7 +278,7 @@ let test_unflatten () =
     C.cl_lits = [
       T.mk_eq (f y) x;
       T.mk_ineq z c;
-      C.neg_lit (p x);
+      T.neg_lit (p x);
       T.mk_ineq z (f y);
       T.mk_ineq (f d) y;
     ];
@@ -313,7 +287,7 @@ let test_unflatten () =
     C.cl_id = 1;
     C.cl_lits = [
       T.mk_eq x (f (f d));
-      C.neg_lit (p x);
+      T.neg_lit (p x);
       T.mk_ineq (f (f d)) c;
     ];
   } in
@@ -354,9 +328,6 @@ let test_unflatten_term_contains_var () =
 let suite =
   "Clause2 suite" >:::
     [
-      "neg_lit 1" >:: test_neg_lit1;
-      "neg_lit 2" >:: test_neg_lit2;
-      "true_lit, false_lit" >:: test_true_lit_false_lit;
       "simplify" >:: test_simplify;
       "simplify tautology" >:: test_simplify_tautology;
       "normalize_vars" >:: test_normalize_vars;

@@ -139,7 +139,7 @@ let test_unary_pred_one_sort_adeq_size () =
     C.cl_id = Prob.fresh_id prob;
     (* ~p(x), x = c, x = d *)
     C.cl_lits = [
-      C.neg_lit (T.Func (p, [| x |]));
+      T.neg_lit (T.Func (p, [| x |]));
       T.mk_eq x (T.Func (c, [| |]));
       T.mk_eq x (T.Func (d, [| |]));
     ];
@@ -224,7 +224,7 @@ let test_unary_pred_one_sort_adeq_size2 () =
     C.cl_id = Prob.fresh_id prob;
     (* ~p(x), x <> c, x <> d *)
     C.cl_lits = [
-      C.neg_lit (T.Func (p, [| x |]));
+      T.neg_lit (T.Func (p, [| x |]));
       T.mk_ineq x (T.Func (c, [| |]));
       T.mk_ineq x (T.Func (d, [| |]));
     ];

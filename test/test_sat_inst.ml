@@ -212,11 +212,11 @@ let test_nullary_preds () =
   let y = T.Var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
-    C.cl_lits = [ p; T.mk_eq x y; C.neg_lit q ];
+    C.cl_lits = [ p; T.mk_eq x y; T.neg_lit q ];
   } in
   let clause2 = {
     C.cl_id = Prob.fresh_id prob;
-    C.cl_lits = [ C.neg_lit r; q ];
+    C.cl_lits = [ T.neg_lit r; q ];
   } in
   List.iter
     (BatDynArray.add prob.Prob.clauses)
@@ -568,7 +568,7 @@ let test_unary_pred () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* ~p(x), x = c *)
-    C.cl_lits = [ C.neg_lit (p x); T.mk_eq x c  ];
+    C.cl_lits = [ T.neg_lit (p x); T.mk_eq x c  ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
   let sorts = Sorts.of_problem prob in
