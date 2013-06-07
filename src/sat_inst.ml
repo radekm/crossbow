@@ -221,10 +221,11 @@ struct
                       Array.map
                         (fun sort -> sorts.Sorts.adeq_sizes.(sort))
                         (Hashtbl.find sorts.Sorts.symb_sorts p);
-                  } in
+                  }
+          | Term.Neg _ -> failwith "invalid atom" in
         match lit with
           | Term.Var _ -> failwith "invalid literal"
-          | Term.Func (s, [| atom |]) when s = Symb.sym_not ->
+          | Term.Neg atom ->
               sign := Sat_solver.Neg;
               each_atom atom
           | atom -> each_atom atom in

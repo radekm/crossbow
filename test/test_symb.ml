@@ -7,7 +7,7 @@ let test_iter () =
   let s2 = Symb.add_pred db 1 in
   let s3 = Symb.add_func db 0 in
   let s4 = Symb.add_func db 3 in
-  let symbs = ref [s1; s2; s3; s4; Symb.sym_eq; Symb.sym_not] in
+  let symbs = ref [s1; s2; s3; s4; Symb.sym_eq] in
   Symb.iter
     (fun s ->
       assert_bool "" (List.mem s !symbs);
@@ -55,7 +55,7 @@ let test_set_auxiliary_rejects_predefined_symbs () =
   let Symb.Wr db = Symb.create_db () in
   assert_raises
     (Failure "predefined symbol")
-    (fun () -> Symb.set_auxiliary db Symb.sym_not true)
+    (fun () -> Symb.set_auxiliary db Symb.sym_eq true)
 
 let suite =
   "Symb suite" >:::

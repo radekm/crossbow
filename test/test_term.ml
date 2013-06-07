@@ -21,8 +21,7 @@ let test_mk_ineq () =
   let c = T.Func (c, [| |]) in
   let d = T.Func (d, [| |]) in
   assert_equal
-    (T.Func (Symb.sym_not,
-           [| T.Func (Symb.sym_eq, [| c; d |]) |]))
+    (T.Neg (T.Func (Symb.sym_eq, [| c; d |]) ))
     (T.mk_ineq c d)
 
 let test_neg_lit1 () =
@@ -35,7 +34,7 @@ let test_neg_lit2 () =
   let p = S.add_pred db 1 in
   let term = T.Func (p, [| T.Var 2 |]) in
   assert_equal
-    (T.Func (S.sym_not, [| term |]))
+    (T.Neg term)
     (T.neg_lit term)
 
 let test_true_lit_false_lit () =

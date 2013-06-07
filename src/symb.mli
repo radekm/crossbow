@@ -78,6 +78,3 @@ val set_auxiliary : 's db -> 's id -> bool -> unit
 
 (** The id of the equality symbol [=/2]. *)
 val sym_eq : 's id
-
-(** The id of the negation symbol [~/1]. *)
-val sym_not : 's id

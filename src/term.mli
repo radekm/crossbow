@@ -8,6 +8,7 @@ type var = int
 type 's t =
   | Var of var
   | Func of 's Symb.id * 's t array
+  | Neg of 's t
 
 (** A literal is an atomic formula or its negation. *)
 type 's lit = 's t

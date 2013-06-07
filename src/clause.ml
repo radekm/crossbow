@@ -13,8 +13,8 @@ let (|-) = BatPervasives.(|-)
 *)
 let remove_var_ineqs lits =
   let var_ineq = function
-    | T.Func (s, [| T.Func (s2, [| (T.Var _) as x; (T.Var _) as y |]) |])
-      when s = S.sym_not && s2 = S.sym_eq ->
+    | T.Neg (T.Func (s, [| (T.Var _) as x; (T.Var _) as y |]))
+      when s = S.sym_eq ->
         Some (x, y)
     | _ -> None in
   let rec loop lits =
@@ -50,7 +50,8 @@ let normalize_vars lits =
       y in
   let rec norm_vars_in_term = function
     | T.Var x -> T.Var (norm_var x)
-    | T.Func (s, args) -> T.Func (s, Array.map norm_vars_in_term args) in
+    | T.Func (s, args) -> T.Func (s, Array.map norm_vars_in_term args)
+    | T.Neg a -> T.Neg (norm_vars_in_term a) in
   let lits2 = BatList.map norm_vars_in_term lits in
   lits2, Hashtbl.length vars
 
@@ -64,9 +65,9 @@ let flatten symdb lits =
     x in
 
   let var_func_ineq lits i = function
-    | T.Func (s, [| T.Func (s2, [| (T.Var _) as x; (T.Func (_, _)) as f |]) |])
-    | T.Func (s, [| T.Func (s2, [| (T.Func (_, _)) as f; (T.Var _) as x |]) |])
-      when s = S.sym_not && s2 = S.sym_eq ->
+    | T.Neg (T.Func (s, [| (T.Var _) as x; (T.Func _) as f |]))
+    | T.Neg (T.Func (s, [| (T.Func _) as f; (T.Var _) as x |]))
+      when s = S.sym_eq ->
         if Elist.existsi (fun j l -> j <> i && Term.contains f l) lits
         then Some (i, (x, f))
         else None
@@ -75,11 +76,11 @@ let flatten symdb lits =
   let nested_func p t =
     match p, t with
       (* f(..) != g(..) *)
-      | Some (T.Func (s, _)), T.Func (s2, [| (T.Func (_, _)) as t; T.Func (_, _) |])
-        when s = S.sym_not && s2 = S.sym_eq -> Some t
+      | Some (T.Neg _), T.Func (s, [| (T.Func _) as t; T.Func _ |])
+        when s = S.sym_eq -> Some t
       (* g(..,f(..),..) or ?p(..,f(..),..) *)
-      | Some (T.Func (s, _)), T.Func (_, _)
-        when s <> S.sym_not && s <> S.sym_eq -> Some t
+      | Some (T.Func (s, _)), T.Func _
+        when s <> S.sym_eq -> Some t
       | _ -> None in
 
   let func_eq = function
@@ -134,9 +135,9 @@ let flatten symdb lits =
 
 let unflatten symdb lits =
   let var_func_ineq = function
-    | T.Func (s, [| T.Func (s2, [| (T.Var _) as x; (T.Func (_, _)) as f |]) |])
-    | T.Func (s, [| T.Func (s2, [| (T.Func (_, _)) as f; (T.Var _) as x |]) |])
-      when s = S.sym_not && s2 = S.sym_eq && not (Term.contains x f) ->
+    | T.Neg (T.Func (s, [| (T.Var _) as x; (T.Func _) as f |]))
+    | T.Neg (T.Func (s, [| (T.Func _) as f; (T.Var _) as x |]))
+      when s = S.sym_eq && not (Term.contains x f) ->
         Some (x, f)
     | _ -> None in
 

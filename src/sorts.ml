@@ -83,11 +83,12 @@ let update_inferred
         let func_sorts = Hashtbl.find sorts.inf_symb_sorts s in
         assert (Array.length func_sorts = Array.length args + 1);
         (* Sort of the result. *)
-        func_sorts.(Array.length args) in
+        func_sorts.(Array.length args)
+    | T.Neg _ -> failwith "get_arg_sort: negation" in
 
   let each_subterm = function
     | T.Var _ -> ()
-    | T.Func (s, [| _ |]) when s = Symb.sym_not -> ()
+    | T.Neg _ -> ()
     | T.Func (s, [| l; r |]) when s = Symb.sym_eq ->
         Equiv.union sorts.inf_equiv (get_arg_sort l) (get_arg_sort r)
     | T.Func (s, args) ->
