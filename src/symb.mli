@@ -50,7 +50,7 @@ val id_to_int : 's id -> int
 *)
 
 (** Returns the arity. *)
-val arity : 's db -> 's id -> arity
+val arity : 's id -> arity
 
 (** Returns whether the symbol is commutative. *)
 val commutative : 's db -> 's id -> bool

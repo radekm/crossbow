@@ -174,7 +174,7 @@ struct
     let funcs = BatDynArray.create () in
     List.iter
       (fun (symb, sorts) ->
-        if Array.length sorts = Symb.arity prob.Prob.symbols symb + 1 then
+        if Array.length sorts = Symb.arity symb + 1 then
           BatDynArray.add funcs symb)
       sorted_symb_sorts;
 
@@ -646,7 +646,7 @@ struct
     (* Functions, constants, non-nullary predicates. *)
     BatMap.iter
       (fun s (adeq_sizes, commutative) ->
-        let arity = Symb.arity inst.symbols s in
+        let arity = Symb.arity s in
         if not (Symb.auxiliary inst.symbols s) || arity = 0 then begin
           let dsize i =
             if

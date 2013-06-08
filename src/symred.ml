@@ -47,7 +47,7 @@ let create prob sorts =
     let each_symb s sorts =
       if
         (* s is a function symbol *)
-        Array.length sorts = Symb.arity prob.Prob.symbols s + 1 &&
+        Array.length sorts = Symb.arity s + 1 &&
         (* s has arity > 0 *)
         Array.length sorts > 1
       then

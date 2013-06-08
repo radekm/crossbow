@@ -11,8 +11,7 @@ type 's t = {
 
 let lnh symbols sorts proc_cells ((symb, args), (lo, hi)) =
   let get_sorts symb = Hashtbl.find sorts.Sorts.symb_sorts symb in
-  let get_arity symb = Symb.arity symbols symb in
-  let get_res_sort symb = (get_sorts symb).(get_arity symb) in
+  let get_res_sort symb = (get_sorts symb).(Symb.arity symb) in
   let sort = get_res_sort symb in
 
   (* Potentially unused values from the interval (lo, hi). *)

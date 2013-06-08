@@ -64,7 +64,7 @@ let update_inferred
        of a predicate or function symbol.
     *)
     | T.Func (s, args) ->
-        assert (Symb.arity symdb s = Array.length args);
+        assert (Symb.arity s = Array.length args);
 
         (* no sorts are assigned to s. *)
         if not (Hashtbl.mem sorts.inf_symb_sorts s) then begin
@@ -93,7 +93,7 @@ let update_inferred
         Equiv.union sorts.inf_equiv (get_arg_sort l) (get_arg_sort r)
     | T.Func (s, args) ->
         let param_sorts =
-          assert (Symb.arity symdb s = Array.length args);
+          assert (Symb.arity s = Array.length args);
 
           (* no sorts are assigned to s.
              This means that s is a predicate symbol since it is not used
@@ -134,7 +134,7 @@ let merge_sorts_of_constants
     (consts : 's Symb.id BatEnum.t) =
 
   let get_const_sort c =
-    assert (Symb.arity symdb c = 0);
+    assert (Symb.arity c = 0);
 
     (* no sorts are assigned to c. *)
     if not (Hashtbl.mem sorts.inf_symb_sorts c) then
@@ -250,7 +250,7 @@ let compute_sort_sizes prob sorts =
        which has [A] as its result sort.
   *)
   let each_symb s symb_sorts =
-    let arity = Symb.arity prob.Prob.symbols s in
+    let arity = Symb.arity s in
     assert (
       Array.length symb_sorts = arity ||
       Array.length symb_sorts = arity + 1);
