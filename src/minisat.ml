@@ -21,7 +21,7 @@ external interrupt : t -> unit = "minisat_interrupt"
 external clear_interrupt : t -> unit = "minisat_clear_interrupt"
 
 let to_lit sign v = match sign with
-  | Sat_solver.Pos -> v + v
-  | Sat_solver.Neg -> v + v + 1
+  | Sh.Pos -> v + v
+  | Sh.Neg -> v + v + 1
 
 let to_var lit = lit / 2

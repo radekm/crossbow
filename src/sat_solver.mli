@@ -7,10 +7,6 @@ type lbool =
   | Lfalse
   | Lundef
 
-type sign =
-  | Pos
-  | Neg
-
 module type S = sig
   type t
 
@@ -33,7 +29,7 @@ module type S = sig
 
   val interrupt : t -> unit
 
-  val to_lit : sign -> var -> lit
+  val to_lit : Sh.sign -> var -> lit
 
   val to_var : lit -> var
 end

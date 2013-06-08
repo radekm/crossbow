@@ -19,7 +19,7 @@ external model_value : t -> var -> Sat_solver.lbool = "cmsat_model_value"
 external interrupt : t -> unit = "cmsat_interrupt"
 
 let to_lit sign v = match sign with
-  | Sat_solver.Pos -> v + v
-  | Sat_solver.Neg -> v + v + 1
+  | Sh.Pos -> v + v
+  | Sh.Neg -> v + v + 1
 
 let to_var lit = lit / 2

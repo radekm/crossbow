@@ -8,8 +8,8 @@ module Make (Solv : Sat_solver.S) : sig
   val suite : string -> test
 end = struct
 
-  let lit = Solv.to_lit Sat_solver.Pos
-  let neg_lit = Solv.to_lit Sat_solver.Neg
+  let lit = Solv.to_lit Sh.Pos
+  let neg_lit = Solv.to_lit Sh.Neg
 
   let base_dir = "test/data/cnf/"
 
@@ -49,8 +49,8 @@ end = struct
                     else
                       let sign =
                         if lit < 0
-                        then Sat_solver.Neg
-                        else Sat_solver.Pos in
+                        then Sh.Neg
+                        else Sh.Pos in
                       let var = x + abs lit - 1 in
                       Some (Solv.to_lit sign var) in
                 let add_clause clause_str =

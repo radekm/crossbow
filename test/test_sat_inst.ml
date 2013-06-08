@@ -73,11 +73,11 @@ module Solver = struct
   let interrupt _ = failwith "not implemented"
 
   let to_lit sign v = match sign with
-    | Sat_solver.Pos -> v + v
-    | Sat_solver.Neg -> v + v + 1
+    | Sh.Pos -> v + v
+    | Sh.Neg -> v + v + 1
 
   let lit_sign lit =
-    if lit mod 2 = 0 then Sat_solver.Pos else Sat_solver.Neg
+    if lit mod 2 = 0 then Sh.Pos else Sh.Neg
 
   let to_var lit = lit / 2
 end
@@ -91,8 +91,8 @@ let assert_log i exp_log =
 
 let print_log i =
   let lit_to_str lit = match Solver.lit_sign lit with
-    | Sat_solver.Pos -> string_of_int (Solver.to_var lit)
-    | Sat_solver.Neg -> "~" ^ string_of_int (Solver.to_var lit) in
+    | Sh.Pos -> string_of_int (Solver.to_var lit)
+    | Sh.Neg -> "~" ^ string_of_int (Solver.to_var lit) in
   let cl_to_str cl =
     String.concat ", " (List.map lit_to_str (Array.to_list cl)) in
   print_endline "Log:";
@@ -114,8 +114,8 @@ let print_log i =
         Printf.printf "solve: %s\n" (cl_to_str assumpts))
     (Inst.get_solver i).Solver.log
 
-let lit v = Solver.to_lit Sat_solver.Pos v
-let lit' v = Solver.to_lit Sat_solver.Neg v
+let lit v = Solver.to_lit Sh.Pos v
+let lit' v = Solver.to_lit Sh.Neg v
 
 module T = Term
 module C = Clause2

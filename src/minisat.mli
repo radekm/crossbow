@@ -31,6 +31,6 @@ external interrupt : t -> unit = "minisat_interrupt"
 
 external clear_interrupt : t -> unit = "minisat_clear_interrupt"
 
-val to_lit : Sat_solver.sign -> var -> lit
+val to_lit : Sh.sign -> var -> lit
 
 val to_var : lit -> var
