@@ -37,4 +37,4 @@ val paradox_mod_splitting : 's t
    This may introduce new auxiliary predicate symbols
    and generate new clause ids.
 *)
-val split_clause : 's t -> 's Prob.t -> 's Clause.t -> 's Clause.t list
+val split_clause : 's t -> 's Symb.db -> 's Clause.t -> 's Clause.t list

@@ -81,7 +81,7 @@ let find_model
                 (fun cl_lits ->
                   BatDynArray.add cs
                     { Clause2.cl_id = Prob.fresh_id p; Clause2.cl_lits })
-                (Splitting.split_clause strategy p cl.Clause2.cl_lits))
+                (Splitting.split_clause strategy symb_db cl.Clause2.cl_lits))
             flat_clauses;
           cs in
   BatDynArray.clear p.Prob.clauses;

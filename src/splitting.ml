@@ -121,10 +121,10 @@ let paradox_mod_splitting new_pred lits =
             else c)
           clauses
 
-let split_clause splitting p lits =
+let split_clause splitting symdb lits =
   let new_pred arity =
-    let s = Symb.add_pred p.Prob.symbols arity in
-    Symb.set_auxiliary p.Prob.symbols s true;
+    let s = Symb.add_pred symdb arity in
+    Symb.set_auxiliary symdb s true;
     s in
   let clauses = splitting new_pred lits in
   clauses
