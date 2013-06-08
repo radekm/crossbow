@@ -296,7 +296,7 @@ let test_constants () =
     [
       Solver.Enew_var 0; (* For: c = 0 *)
       Solver.Enew_var 1; (* For: d = 0 *)
-      Solver.Eadd_symmetry_clause [| lit 1 |];
+      Solver.Eadd_symmetry_clause [| lit 0|];
       Solver.Eadd_clause [| lit' 0; lit' 1 |];
     ];
   assert_equal 1 (Inst.get_max_size i);
@@ -304,7 +304,7 @@ let test_constants () =
   assert_log i
     [
       Solver.Enew_false_var 2;
-      Solver.Eadd_at_least_one_val_clause [| lit 0; lit 2 |];
+      Solver.Eadd_at_least_one_val_clause [| lit 1; lit 2 |];
       Solver.Esolve [| lit' 2 |];
     ];
 
@@ -314,7 +314,7 @@ let test_constants () =
       Solver.Enew_var 3; (* For: c = 1 *)
       Solver.Enew_var 4; (* For: d = 1 *)
       Solver.Eremove_clauses_with_lit (lit 2);
-      Solver.Eadd_symmetry_clause [| lit 0; lit 3 |];
+      Solver.Eadd_symmetry_clause [| lit 1; lit 4|];
       Solver.Eadd_at_most_one_val_clause [| lit' 3; lit' 0 |];
       Solver.Eadd_at_most_one_val_clause [| lit' 4; lit' 1 |];
       Solver.Eadd_clause [| lit' 3; lit' 4 |];

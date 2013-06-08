@@ -90,7 +90,7 @@ struct
     pvars : ('s Symb.id, pvar BatDynArray.t) Hashtbl.t;
 
     (* Except nullary predicates. *)
-    adeq_sizes : ('s Symb.id, (int array * commutative)) Hashtbl.t;
+    adeq_sizes : ('s Symb.id, (int array * commutative)) BatMap.t;
 
     (* Constants and functions. *)
     funcs : 's Symb.id array;
@@ -128,18 +128,27 @@ struct
     mutable can_construct_model : bool;
   }
 
+  let (|>) = BatPervasives.(|>)
+
   let create prob sorts =
     let symred = Symred.create prob sorts in
     let solver = Solv.create () in
     let symbols = prob.Prob.symbols in
 
+    (* Sort to make SAT instantiation deterministic. *)
+    let sorted_symb_sorts =
+      sorts.Sorts.symb_sorts
+      |> BatHashtbl.enum
+      |> BatList.of_enum
+      |> BatList.sort in
+
     (* Create propositional variables for nullary predicates. *)
     let nullary_pred_pvars = Hashtbl.create 20 in
-    Hashtbl.iter
-      (fun symb sorts ->
+    List.iter
+      (fun (symb, sorts) ->
         if Array.length sorts = 0 then
           Hashtbl.add nullary_pred_pvars symb (Solv.new_var solver))
-      sorts.Sorts.symb_sorts;
+      sorted_symb_sorts;
 
     (* Prepare hashtable with propositional variables of symbols. *)
     let pvars = Hashtbl.create 20 in
@@ -149,22 +158,25 @@ struct
           Hashtbl.add pvars symb (BatDynArray.create ()))
       sorts.Sorts.symb_sorts;
 
-    let adeq_sizes = Hashtbl.create 20 in
-    Hashtbl.iter
-      (fun symb sorts' ->
-        if Array.length sorts' > 0 then
-          let adeq_sizes' =
-            Array.map (fun sort -> sorts.Sorts.adeq_sizes.(sort)) sorts' in
-          let commutative = Symb.commutative prob.Prob.symbols symb in
-          Hashtbl.add adeq_sizes symb (adeq_sizes', commutative))
-      sorts.Sorts.symb_sorts;
+    let adeq_sizes =
+      BatHashtbl.fold
+        (fun symb sorts' m ->
+          if Array.length sorts' > 0 then
+            let adeq_sizes' =
+              Array.map (fun sort -> sorts.Sorts.adeq_sizes.(sort)) sorts' in
+            let commutative = Symb.commutative prob.Prob.symbols symb in
+            BatMap.add symb (adeq_sizes', commutative) m
+          else
+            m)
+        sorts.Sorts.symb_sorts
+        BatMap.empty in
 
     let funcs = BatDynArray.create () in
-    Hashtbl.iter
-      (fun symb sorts ->
+    List.iter
+      (fun (symb, sorts) ->
         if Array.length sorts = Symb.arity prob.Prob.symbols symb + 1 then
           BatDynArray.add funcs symb)
-      sorts.Sorts.symb_sorts;
+      sorted_symb_sorts;
 
     let each_clause cl =
       let nullary_pred_lits = BatDynArray.create () in
@@ -295,7 +307,7 @@ struct
 
   (* Add propositional variables for predicate and function symbols. *)
   let add_prop_vars inst =
-    Hashtbl.iter
+    BatMap.iter
       (fun symb (adeq_sizes, commutative) ->
         let cnt =
           let count =
@@ -316,7 +328,7 @@ struct
     let assigned_cells = Symred.incr_max_size inst.symred in
     List.iter
       (fun ((symb, args), (lo, hi)) ->
-        let adeq_sizes, commutative = Hashtbl.find inst.adeq_sizes symb in
+        let adeq_sizes, commutative = BatMap.find symb inst.adeq_sizes in
         let pvars = Hashtbl.find inst.pvars symb in
         let arity = Array.length args in
         let rank =
@@ -341,7 +353,7 @@ struct
               inst.symbols inst.sorts
               inst.assig_by_symred_list ((symb, args), (lo, hi)) in
           let cell_to_pvar (symb, args) res =
-            let adeq_sizes, commutative = Hashtbl.find inst.adeq_sizes symb in
+            let adeq_sizes, commutative = BatMap.find symb inst.adeq_sizes in
             let pvars = Hashtbl.find inst.pvars symb in
             let arity = Array.length args in
             let rank =
@@ -391,7 +403,7 @@ struct
   let add_at_most_one_val_clauses inst pclause =
     Array.iter
       (fun f ->
-        let adeq_sizes, commutative = Hashtbl.find inst.adeq_sizes f in
+        let adeq_sizes, commutative = BatMap.find f inst.adeq_sizes in
         let pvars = Hashtbl.find inst.pvars f in
         let arity = Array.length adeq_sizes - 1 in
         let res_max_el =
@@ -534,7 +546,7 @@ struct
 
       Array.iter
         (fun f ->
-          let adeq_sizes, commutative = Hashtbl.find inst.adeq_sizes f in
+          let adeq_sizes, commutative = BatMap.find f inst.adeq_sizes in
           let pvars = Hashtbl.find inst.pvars f in
           let arity = Array.length adeq_sizes - 1 in
           let res_max_el =
@@ -632,7 +644,7 @@ struct
       inst.nullary_pred_pvars;
 
     (* Functions, constants, non-nullary predicates. *)
-    Hashtbl.iter
+    BatMap.iter
       (fun s (adeq_sizes, commutative) ->
         let arity = Symb.arity inst.symbols s in
         if not (Symb.auxiliary inst.symbols s) || arity = 0 then begin

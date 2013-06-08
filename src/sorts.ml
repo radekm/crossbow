@@ -290,7 +290,12 @@ let compute_sort_sizes prob sorts =
   BatDynArray.iter each_clause prob.Prob.clauses;
 
   (* Put constants into [sorts] record. *)
-  Array.iteri (fun i cs -> sorts.consts.(i) <- Array.of_list cs) consts;
+  Array.iteri
+    (fun i cs ->
+      sorts.consts.(i) <- Array.of_list cs;
+      (* Sort array to make SAT instantiation deterministic. *)
+      Array.sort compare sorts.consts.(i))
+    consts;
 
   (* Fill adequate domain sizes. *)
   for i = 0 to nsorts - 1 do
