@@ -12,11 +12,11 @@ let test_simplify () =
   let f = S.add_func db 2 in
   let g = S.add_func db 2 in
   S.set_commutative db f true;
-  let f a b = T.Func (f, [| a; b |]) in
-  let g a b = T.Func (g, [| a; b |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
+  let f a b = T.func (f, [| a; b |]) in
+  let g a b = T.func (g, [| a; b |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
   (* f(x, y) != f(y, z), z != y, g(x, y) != g(y, x), g(y, x) != g(x, z), z = x *)
   let orig_clause = [
     L.mk_ineq (f x y) (f x z);
@@ -37,10 +37,10 @@ let test_simplify () =
 let test_simplify_tautology () =
   let S.Wr db = S.create_db () in
   let f = S.add_func db 1 in
-  let f a = T.Func (f, [| a |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
+  let f a = T.func (f, [| a |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
   (* f(y) = f(x), f(z) != f(y), x != z *)
   assert_equal
     None
@@ -61,16 +61,16 @@ let test_simplify_tautology () =
 let test_normalize_vars () =
   let S.Wr db = S.create_db () in
   let f = S.add_func db 2 in
-  let f a b = T.Func (f, [| a; b |]) in
+  let f a b = T.func (f, [| a; b |]) in
   let orig_clause = [
-    L.mk_eq (f (T.Var 3) (T.Var 3)) (T.Var 7);
-    L.mk_ineq (T.Var 4) (T.Var 3);
-    L.mk_ineq (f (T.Var 8) (T.Var 7)) (f (T.Var 0) (T.Var 3));
+    L.mk_eq (f (T.var 3) (T.var 3)) (T.var 7);
+    L.mk_ineq (T.var 4) (T.var 3);
+    L.mk_ineq (f (T.var 8) (T.var 7)) (f (T.var 0) (T.var 3));
   ] in
   let norm_clause = [
-    L.mk_eq (f (T.Var 0) (T.Var 0)) (T.Var 1);
-    L.mk_ineq (T.Var 2) (T.Var 0);
-    L.mk_ineq (f (T.Var 3) (T.Var 1)) (f (T.Var 4) (T.Var 0));
+    L.mk_eq (f (T.var 0) (T.var 0)) (T.var 1);
+    L.mk_ineq (T.var 2) (T.var 0);
+    L.mk_ineq (f (T.var 3) (T.var 1)) (f (T.var 4) (T.var 0));
   ] in
   assert_equal
     (norm_clause, 5)
@@ -81,13 +81,13 @@ let test_flatten () =
   let f = S.add_func db 1 in
   let c = S.add_func db 0 in
   let d = S.add_func db 0 in
-  let f a = T.Func (f, [| a |]) in
-  let c = T.Func (c, [| |]) in
-  let d = T.Func (d, [| |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let v1 = T.Var 2 in
-  let v2 = T.Var 3 in
+  let f a = T.func (f, [| a |]) in
+  let c = T.func (c, [| |]) in
+  let d = T.func (d, [| |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let v1 = T.var 2 in
+  let v2 = T.var 3 in
   (* x != f(c), y != f(d), f(c) = f(d) *)
   let orig_clause = [
     L.mk_ineq x (f c);
@@ -111,13 +111,13 @@ let test_flatten_commutative_symb () =
   let p = S.add_pred db 2 in
   let c = S.add_func db 0 in
   let d = S.add_func db 0 in
-  let f a b = T.Func (f, [| a; b |]) in
-  let p a b = L.Lit (Sh.Pos, p, [| a; b |]) in
-  let c = T.Func (c, [| |]) in
-  let d = T.Func (d, [| |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
+  let f a b = T.func (f, [| a; b |]) in
+  let p a b = L.lit (Sh.Pos, p, [| a; b |]) in
+  let c = T.func (c, [| |]) in
+  let d = T.func (d, [| |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
   (* x != f(c, d), p(f(d, c), x), y != d, c != z *)
   let orig_clause = [
     L.mk_ineq x (f c d);
@@ -141,16 +141,16 @@ let test_flatten_deep_nesting () =
   let p = S.add_pred db 1 in
   let c = S.add_func db 0 in
   let d = S.add_func db 0 in
-  let f a b = T.Func (f, [| a; b |]) in
-  let g a = T.Func (g, [| a |]) in
-  let p a = L.Lit (Sh.Pos, p, [| a |]) in
-  let c = T.Func (c, [| |]) in
-  let d = T.Func (d, [| |]) in
-  let x = T.Var 0 in
-  let v1 = T.Var 1 in
-  let v2 = T.Var 2 in
-  let v3 = T.Var 3 in
-  let v4 = T.Var 4 in
+  let f a b = T.func (f, [| a; b |]) in
+  let g a = T.func (g, [| a |]) in
+  let p a = L.lit (Sh.Pos, p, [| a |]) in
+  let c = T.func (c, [| |]) in
+  let d = T.func (d, [| |]) in
+  let x = T.var 0 in
+  let v1 = T.var 1 in
+  let v2 = T.var 2 in
+  let v3 = T.var 3 in
+  let v4 = T.var 4 in
   (* p(f(c, g(d))), g(c) = x *)
   let orig_clause = [
     p (f c (g d));
@@ -172,14 +172,14 @@ let test_flatten_func_equalities () =
   let f = S.add_func db 1 in
   let g = S.add_func db 1 in
   let c = S.add_func db 0 in
-  let f a = T.Func (f, [| a |]) in
-  let g a = T.Func (g, [| a |]) in
-  let c = T.Func (c, [| |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
-  let v1 = T.Var 3 in
-  let v2 = T.Var 4 in
+  let f a = T.func (f, [| a |]) in
+  let g a = T.func (g, [| a |]) in
+  let c = T.func (c, [| |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
+  let v1 = T.var 3 in
+  let v2 = T.var 4 in
   (* g(y) = f(x), f(y) = f(x), g(x) = g(z), g(z) = f(x), c = g(z) *)
   let orig_clause = [
       L.mk_eq (g y) (f x);
@@ -204,9 +204,9 @@ let test_flatten_tautology () =
   let S.Wr db = S.create_db () in
   let p = S.add_pred db 1 in
   let c = S.add_func db 0 in
-  let p a = L.Lit (Sh.Pos, p, [| a |]) in
-  let c = T.Func (c, [| |]) in
-  let x = T.Var 0 in
+  let p a = L.lit (Sh.Pos, p, [| a |]) in
+  let c = T.func (c, [| |]) in
+  let x = T.var 0 in
   (* x != c, p(c), ~p(x) *)
   let orig_clause = [
     L.mk_ineq x c;
@@ -221,13 +221,13 @@ let test_unflatten () =
   let f = S.add_func db 1 in
   let c = S.add_func db 0 in
   let d = S.add_func db 0 in
-  let p a = L.Lit (Sh.Pos, p, [| a |]) in
-  let f a = T.Func (f, [| a |]) in
-  let c = T.Func (c, [| |]) in
-  let d = T.Func (d, [| |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
+  let p a = L.lit (Sh.Pos, p, [| a |]) in
+  let f a = T.func (f, [| a |]) in
+  let c = T.func (c, [| |]) in
+  let d = T.func (d, [| |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
   (* f(y) = x, z != c, ~p(x), z != f(y), f(d) != y *)
   let orig_clause = [
     L.mk_eq (f y) x;
@@ -248,12 +248,12 @@ let test_unflatten_term_contains_var () =
   let f = S.add_func db 2 in
   let c = S.add_func db 0 in
   let d = S.add_func db 0 in
-  let f a b = T.Func (f, [| a; b |]) in
-  let c = T.Func (c, [| |]) in
-  let d = T.Func (d, [| |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
+  let f a b = T.func (f, [| a; b |]) in
+  let c = T.func (c, [| |]) in
+  let d = T.func (d, [| |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
   (* f(c, y) != y, z != x, c = d, y = c, x != d *)
   let orig_clause = [
     L.mk_ineq (f c y) y;
@@ -274,18 +274,18 @@ module IntSet = BatSet.IntSet
 let test_vars () =
   let Symb.Wr db = Symb.create_db () in
   let f = Symb.add_func db 3 in
-  let f a b c = T.Func (f, [| a; b; c |]) in
+  let f a b c = T.func (f, [| a; b; c |]) in
   let g = Symb.add_func db 2 in
-  let g a b = T.Func (g, [| a; b |]) in
+  let g a b = T.func (g, [| a; b |]) in
   let c = Symb.add_func db 0 in
-  let c = T.Func (c, [| |]) in
-  let x1 = T.Var 3 in
-  let x2 = T.Var 8 in
-  let x3 = T.Var 0 in
-  let x4 = T.Var 9 in
-  let x5 = T.Var 15 in
-  let y = T.Var 2 in
-  let z = T.Var 1 in
+  let c = T.func (c, [| |]) in
+  let x1 = T.var 3 in
+  let x2 = T.var 8 in
+  let x3 = T.var 0 in
+  let x4 = T.var 9 in
+  let x5 = T.var 15 in
+  let y = T.var 2 in
+  let z = T.var 1 in
   let terms = [
     L.mk_ineq (f (g c x1) x3 x3) x2;
     L.mk_eq x4 (f (g x5 c) c c);

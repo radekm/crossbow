@@ -50,8 +50,8 @@ let normalize_vars lits =
       let _ = Hashtbl.add vars x y in
       y in
   let rec norm_vars_t = function
-    | T.Var x -> T.Var (norm_var x)
-    | T.Func (s, args) -> T.Func (s, Array.map norm_vars_t args) in
+    | T.Var x -> T.var (norm_var x)
+    | T.Func (s, args) -> T.func (s, Array.map norm_vars_t args) in
   let norm_vars_l = L.lift norm_vars_t in
   let lits2 = BatList.map norm_vars_l lits in
   lits2, Hashtbl.length vars
@@ -61,7 +61,7 @@ let flatten symdb lits =
 
   let nvars = ref 0 in
   let fresh_var () =
-    let x = T.Var !nvars in
+    let x = T.var !nvars in
     incr nvars;
     x in
 

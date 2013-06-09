@@ -40,7 +40,7 @@ let test_nullary_pred () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* p *)
-    C.cl_lits = [ L.Lit (Sh.Pos, p, [| |]) ];
+    C.cl_lits = [ L.lit (Sh.Pos, p, [| |]) ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
 
@@ -66,11 +66,11 @@ let test_unary_func_one_sort_no_adeq_size () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 1 in
-  let x = T.Var 0 in
+  let x = T.var 0 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x) <> x *)
-    C.cl_lits = [ L.mk_ineq (T.Func (f, [| x |])) x ];
+    C.cl_lits = [ L.mk_ineq (T.func (f, [| x |])) x ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
 
@@ -96,15 +96,15 @@ let test_binary_pred_two_sorts_no_adeq_size () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let u = T.Var 2 in
-  let v = T.Var 3 in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let u = T.var 2 in
+  let v = T.var 3 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* p(x, y), x = u, y = v *)
     C.cl_lits = [
-      L.Lit (Sh.Pos, p, [| x; y; |]);
+      L.lit (Sh.Pos, p, [| x; y; |]);
       L.mk_eq x u;
       L.mk_eq y v;
     ];
@@ -135,14 +135,14 @@ let test_unary_pred_one_sort_adeq_size () =
   let p = Symb.add_pred db 1 in
   let c = Symb.add_func db 0 in
   let d = Symb.add_func db 0 in
-  let x = T.Var 0 in
+  let x = T.var 0 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* ~p(x), x = c, x = d *)
     C.cl_lits = [
-      L.neg (L.Lit (Sh.Pos, p, [| x |]));
-      L.mk_eq x (T.Func (c, [| |]));
-      L.mk_eq x (T.Func (d, [| |]));
+      L.neg (L.lit (Sh.Pos, p, [| x |]));
+      L.mk_eq x (T.func (c, [| |]));
+      L.mk_eq x (T.func (d, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -220,14 +220,14 @@ let test_unary_pred_one_sort_adeq_size2 () =
   let p = Symb.add_pred db 1 in
   let c = Symb.add_func db 0 in
   let d = Symb.add_func db 0 in
-  let x = T.Var 0 in
+  let x = T.var 0 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* ~p(x), x <> c, x <> d *)
     C.cl_lits = [
-      L.neg (L.Lit (Sh.Pos, p, [| x |]));
-      L.mk_ineq x (T.Func (c, [| |]));
-      L.mk_ineq x (T.Func (d, [| |]));
+      L.neg (L.lit (Sh.Pos, p, [| x |]));
+      L.mk_ineq x (T.func (c, [| |]));
+      L.mk_ineq x (T.func (d, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -281,14 +281,14 @@ let test_binary_func_two_sorts_one_adeq_size () =
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   let c = Symb.add_func db 0 in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
+  let x = T.var 0 in
+  let y = T.var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = y, x = c *)
     C.cl_lits = [
-      L.mk_eq (T.Func (f, [| x; y |])) y;
-      L.mk_eq x (T.Func (c, [| |]));
+      L.mk_eq (T.func (f, [| x; y |])) y;
+      L.mk_eq x (T.func (c, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -365,14 +365,14 @@ let test_binary_func_two_sorts_one_adeq_size2 () =
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   let c = Symb.add_func db 0 in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
+  let x = T.var 0 in
+  let y = T.var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = x, y = c *)
     C.cl_lits = [
-      L.mk_eq (T.Func (f, [| x; y |])) x;
-      L.mk_eq y (T.Func (c, [| |]));
+      L.mk_eq (T.func (f, [| x; y |])) x;
+      L.mk_eq y (T.func (c, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -450,19 +450,19 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   let d1 = Symb.add_func db 0 in
   let d2 = Symb.add_func db 0 in
   let e = Symb.add_func db 0 in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = z, x <> c1, x <> c2, y = d1, y = d2, z <> e *)
     C.cl_lits = [
-      L.mk_eq (T.Func (f, [| x; y |])) z;
-      L.mk_ineq x (T.Func (c1, [| |]));
-      L.mk_ineq x (T.Func (c2, [| |]));
-      L.mk_eq y (T.Func (d1, [| |]));
-      L.mk_eq y (T.Func (d2, [| |]));
-      L.mk_ineq z (T.Func (e, [| |]));
+      L.mk_eq (T.func (f, [| x; y |])) z;
+      L.mk_ineq x (T.func (c1, [| |]));
+      L.mk_ineq x (T.func (c2, [| |]));
+      L.mk_eq y (T.func (d1, [| |]));
+      L.mk_eq y (T.func (d2, [| |]));
+      L.mk_ineq z (T.func (e, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -595,16 +595,16 @@ let test_comm_func_two_sorts_one_adeq_size () =
   Symb.set_commutative db f true;
   let c = Symb.add_func db 0 in
   let d = Symb.add_func db 0 in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = z, x = c, z <> d *)
     C.cl_lits = [
-      L.mk_eq (T.Func (f, [| x; y |])) z;
-      L.mk_eq x (T.Func (c, [| |]));
-      L.mk_ineq z (T.Func (d, [| |]));
+      L.mk_eq (T.func (f, [| x; y |])) z;
+      L.mk_eq x (T.func (c, [| |]));
+      L.mk_ineq z (T.func (d, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;

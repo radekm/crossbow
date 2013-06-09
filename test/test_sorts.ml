@@ -23,14 +23,14 @@ let test_one_sort_adeq_size () =
   let c1 = S.add_func db 0 in
   let c2 = S.add_func db 0 in
   let c3 = S.add_func db 0 in
-  let x = T.Var 5 in
+  let x = T.var 5 in
   (* x = c1, x = c2, x = c3 *)
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      L.mk_eq x (T.Func (c1, [| |]));
-      L.mk_eq x (T.Func (c2, [| |]));
-      L.mk_eq x (T.Func (c3, [| |]));
+      L.mk_eq x (T.func (c1, [| |]));
+      L.mk_eq x (T.func (c2, [| |]));
+      L.mk_eq x (T.func (c3, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -64,9 +64,9 @@ let test_one_sort_adeq_size () =
 
 let test_one_sort_no_adeq_size () =
   let Prob.Wr prob = Prob.create () in
-  let x = T.Var 5 in
-  let y = T.Var 2 in
-  let z = T.Var 3 in
+  let x = T.var 5 in
+  let y = T.var 2 in
+  let z = T.var 3 in
   (* x = y, y = z, x = z *)
   let clause = {
     C.cl_id = Prob.fresh_id prob;
@@ -107,14 +107,14 @@ let test_no_adeq_size_both_reasons () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = S.add_func db 1 in
-  let x = T.Var 5431 in
-  let y = T.Var 16000 in
+  let x = T.var 5431 in
+  let y = T.var 16000 in
   (* x = y, f(x) != f(y) *)
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
       L.mk_eq x y;
-      L.mk_ineq (T.Func (f, [| x |])) (T.Func (f, [| y |]));
+      L.mk_ineq (T.func (f, [| x |])) (T.func (f, [| y |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -153,21 +153,21 @@ let test_more_clauses () =
   let c2 = S.add_func db 0 in
   let c3 = S.add_func db 0 in
   let c4 = S.add_func db 0 in
-  let x = T.Var 0 in
+  let x = T.var 0 in
   (* c1 != c2 *)
   let clause1 = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      L.mk_ineq (T.Func (c1, [| |])) (T.Func (c2, [| |]));
+      L.mk_ineq (T.func (c1, [| |])) (T.func (c2, [| |]));
     ];
   } in
   (* x = c1, x = c2, c3 = c4 *)
   let clause2 = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      L.mk_eq x (T.Func (c1, [| |]));
-      L.mk_eq x (T.Func (c2, [| |]));
-      L.mk_eq (T.Func (c3, [| |])) (T.Func (c4, [| |]));
+      L.mk_eq x (T.func (c1, [| |]));
+      L.mk_eq x (T.func (c2, [| |]));
+      L.mk_eq (T.func (c3, [| |])) (T.func (c4, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause1;
@@ -210,15 +210,15 @@ let test_predicate () =
   let le = S.add_pred db 2 in
   let succ = S.add_func db 1 in
   let zero = S.add_func db 0 in
-  let x = T.Var 0 in
-  let two = T.Func (succ, [| T.Func (succ, [| T.Func (zero, [| |]) |]) |]) in
+  let x = T.var 0 in
+  let two = T.func (succ, [| T.func (succ, [| T.func (zero, [| |]) |]) |]) in
   (* ~le(succ(x), succ(succ(zero))), x = zero, succ(zero) = x *)
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      L.Lit (Sh.Neg, le, [| T.Func (succ, [| x |]); two |]);
-      L.mk_eq x (T.Func (zero, [| |]));
-      L.mk_eq (T.Func (succ, [| T.Func (zero, [| |]) |])) x;
+      L.lit (Sh.Neg, le, [| T.func (succ, [| x |]); two |]);
+      L.mk_eq x (T.func (zero, [| |]));
+      L.mk_eq (T.func (succ, [| T.func (zero, [| |]) |])) x;
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -260,14 +260,14 @@ let test_func_high_arity () =
   let f = S.add_func db 4 in
   let g = S.add_func db 1 in
   let c = S.add_func db 0 in
-  let x = T.Var 7 in
-  let y = T.Var 8 in
-  let z = T.Var 5 in
+  let x = T.var 7 in
+  let y = T.var 8 in
+  let z = T.var 5 in
   (* f(x, y, g(z), c) = y *)
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      L.mk_eq (T.Func (f, [| x; y; T.Func (g, [| z |]); T.Func (c, [| |]) |])) y;
+      L.mk_eq (T.func (f, [| x; y; T.func (g, [| z |]); T.func (c, [| |]) |])) y;
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;

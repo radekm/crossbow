@@ -4,9 +4,28 @@ module S = Symb
 
 type var = int
 
-type 's t =
-  | Var of var
-  | Func of 's S.id * 's t array
+module Inner : sig
+  type 's t = private
+    | Var of var
+    | Func of 's S.id * 's t array
+  val var : var -> 's t
+  val func : 's Symb.id * 's t array -> 's t
+end = struct
+  type 's t =
+    | Var of var
+    | Func of 's S.id * 's t array
+  let var x = Var x
+  let func (s, args) =
+    match Symb.kind s with
+      | Symb.Pred -> failwith "lit: kind"
+      | Symb.Func ->
+          if Symb.arity s <> Array.length args then
+            failwith "lit: arity"
+          else
+            Func (s, args)
+end
+
+include Inner
 
 let (|>) = BatPervasives.(|>)
 
@@ -33,15 +52,15 @@ let rec normalize_comm symdb term = match term with
       let l = normalize_comm symdb l in
       let r = normalize_comm symdb r in
       let l, r = if l <= r then (l, r) else (r, l) in
-      Func (s, [| l; r |])
+      func (s, [| l; r |])
   | Func (s, args) ->
       let args = Array.map (normalize_comm symdb) args in
-      Func (s, args)
+      func (s, args)
 
 let rec replace a b term = match term with
   | _ when a = term -> b
   | Var _ -> term
-  | Func (s, args) -> Func (s, Array.map (replace a b) args)
+  | Func (s, args) -> func (s, Array.map (replace a b) args)
 
 module IntSet = BatSet.IntSet
 

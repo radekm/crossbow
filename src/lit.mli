@@ -2,8 +2,10 @@
 
 (** Literals. *)
 
-type 's t =
+type 's t = private
   | Lit of Sh.sign * 's Symb.id * 's Term.t array
+
+val lit : Sh.sign * 's Symb.id * 's Term.t array -> 's t
 
 (** Constructs an equality. *)
 val mk_eq : 's Term.t -> 's Term.t -> 's t

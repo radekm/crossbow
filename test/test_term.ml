@@ -10,12 +10,12 @@ let test_contains1 () =
   let f = Symb.add_func db 2 in
   let g = Symb.add_func db 2 in
   let i = Symb.add_func db 1 in
-  let subterm = T.Func (f, [| T.Var 0; T.Func (i, [| T.Var 2 |]) |]) in
+  let subterm = T.func (f, [| T.var 0; T.func (i, [| T.var 2 |]) |]) in
   let term =
-    T.Func (g,
+    T.func (g,
             [|
-              T.Func (f, [| T.Var 0; T.Func (i, [| T.Var 1 |]) |]);
-              T.Func (f, [| T.Func (i, [| T.Var 2 |]); T.Var 0 |]);
+              T.func (f, [| T.var 0; T.func (i, [| T.var 1 |]) |]);
+              T.func (f, [| T.func (i, [| T.var 2 |]); T.var 0 |]);
             |]
     ) in
   assert_bool "" (not (T.contains subterm term))
@@ -24,12 +24,12 @@ let test_contains2 () =
   let Symb.Wr db = Symb.create_db () in
   let f = Symb.add_func db 1 in
   let g = Symb.add_func db 2 in
-  let subterm = T.Func (f, [| T.Var 1 |]) in
+  let subterm = T.func (f, [| T.var 1 |]) in
   let term =
-    T.Func (g,
+    T.func (g,
             [|
-              T.Func (f, [| T.Func (f, [| T.Var 1 |]) |]);
-              T.Var 1;
+              T.func (f, [| T.func (f, [| T.var 1 |]) |]);
+              T.var 1;
             |]
     ) in
   assert_bool "" (T.contains subterm term)
@@ -38,13 +38,13 @@ let test_iter () =
   let Symb.Wr db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let g = Symb.add_func db 1 in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
-  let t1 = T.Func (f, [| x; z |]) in
-  let t2 = T.Func (g, [| t1 |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
+  let t1 = T.func (f, [| x; z |]) in
+  let t2 = T.func (g, [| t1 |]) in
   (* f(g(f(x, z)), y) *)
-  let term = T.Func (f, [| t2; y |]) in
+  let term = T.func (f, [| t2; y |]) in
   let subterms = ref [term; t2; t1; x; z; y] in
   let each_subterm t =
     assert_equal (List.hd !subterms) t;
@@ -60,25 +60,25 @@ let test_normalize_comm () =
   Symb.set_commutative db f true;
   Symb.set_commutative db h true;
   let orig =
-    T.Func (f,
+    T.func (f,
             [|
-              T.Func (h,
+              T.func (h,
                       [|
-                        T.Func (g, [| T.Var 3; T.Var 4 |]);
-                        T.Func (g, [| T.Var 4; T.Var 3 |]);
+                        T.func (g, [| T.var 3; T.var 4 |]);
+                        T.func (g, [| T.var 4; T.var 3 |]);
                       |]
               );
-              T.Func (h, [| T.Var 3; T.Var 1 |]);
+              T.func (h, [| T.var 3; T.var 1 |]);
             |]
     ) in
   let normalized =
-    T.Func (f,
+    T.func (f,
             [|
-              T.Func (h, [| T.Var 1; T.Var 3 |]);
-              T.Func (h,
+              T.func (h, [| T.var 1; T.var 3 |]);
+              T.func (h,
                       [|
-                        T.Func (g, [| T.Var 3; T.Var 4 |]);
-                        T.Func (g, [| T.Var 4; T.Var 3 |]);
+                        T.func (g, [| T.var 3; T.var 4 |]);
+                        T.func (g, [| T.var 4; T.var 3 |]);
                       |]
               );
             |]
@@ -91,12 +91,12 @@ module IntSet = BatSet.IntSet
 let test_vars () =
   let Symb.Wr db = Symb.create_db () in
   let f = Symb.add_func db 2 in
-  let f a b = T.Func (f, [| a; b |]) in
+  let f a b = T.func (f, [| a; b |]) in
   let c = Symb.add_func db 0 in
-  let c = T.Func (c, [| |]) in
-  let x = T.Var 1 in
-  let y = T.Var 5 in
-  let z = T.Var 2 in
+  let c = T.func (c, [| |]) in
+  let x = T.var 1 in
+  let y = T.var 5 in
+  let z = T.var 2 in
   let term = f (f x (f c y)) (f (f x z) c) in
   let exp_vars = List.fold_right IntSet.add [1; 5; 2] IntSet.empty in
   assert_equal ~cmp:IntSet.equal exp_vars (T.vars term)

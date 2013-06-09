@@ -123,9 +123,9 @@ module C = Clause2
 
 let test_no_symbols_only_clause () =
   let Prob.Wr prob = Prob.create () in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
-  let z = T.Var 2 in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [ L.mk_eq x y; L.mk_eq x z ];
@@ -206,11 +206,11 @@ let test_no_symbols_only_clause () =
 let test_nullary_preds () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = L.Lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
-  let q = L.Lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
-  let r = L.Lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
+  let p = L.lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
+  let q = L.lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
+  let r = L.lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [ p; L.mk_eq x y; L.neg q ];
@@ -277,9 +277,9 @@ let test_nullary_preds () =
 let test_constants () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let c = T.Func (Symb.add_func db 0, [| |]) in
-  let d = T.Func (Symb.add_func db 0, [| |]) in
-  let x = T.Var 0 in
+  let c = T.func (Symb.add_func db 0, [| |]) in
+  let d = T.func (Symb.add_func db 0, [| |]) in
+  let x = T.var 0 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* c <> d *)
@@ -357,18 +357,18 @@ let test_constants () =
 let test_distinct_consts () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let c = T.Func (Symb.add_func db 0, [| |]) in
+  let c = T.func (Symb.add_func db 0, [| |]) in
   let d =
     let s = Symb.add_func db 0 in
     BatDynArray.add prob.Prob.distinct_consts s;
-    T.Func (s, [| |]) in
+    T.func (s, [| |]) in
   let d2 =
     let s = Symb.add_func db 0 in
     BatDynArray.add prob.Prob.distinct_consts s;
-    T.Func (s, [| |]) in
-  let c2 = T.Func (Symb.add_func db 0, [| |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
+    T.func (s, [| |]) in
+  let c2 = T.func (Symb.add_func db 0, [| |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* c = x, x <> d *)
@@ -495,9 +495,9 @@ let test_unary_func () =
   let db = prob.Prob.symbols in
   let f =
     let s = Symb.add_func db 1 in
-    fun a -> T.Func (s, [| a |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
+    fun a -> T.func (s, [| a |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x) = y *)
@@ -561,11 +561,11 @@ let test_unary_func () =
 let test_unary_pred () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let c = T.Func (Symb.add_func db 0, [| |]) in
+  let c = T.func (Symb.add_func db 0, [| |]) in
   let p =
     let s = Symb.add_pred db 1 in
-    fun a -> L.Lit (Sh.Pos, s, [| a |]) in
-  let x = T.Var 0 in
+    fun a -> L.lit (Sh.Pos, s, [| a |]) in
+  let x = T.var 0 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* ~p(x), x = c *)
@@ -630,9 +630,9 @@ let test_commutative_func () =
   let f =
     let s = Symb.add_func db 2 in
     Symb.set_commutative db s true;
-    fun a b -> T.Func (s, [| a; b |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
+    fun a b -> T.func (s, [| a; b |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = y *)
@@ -761,9 +761,9 @@ let test_symmetric_pred () =
   let p =
     let s = Symb.add_pred db 2 in
     Symb.set_commutative db s true;
-    fun a b -> L.Lit (Sh.Pos, s, [| a; b |]) in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
+    fun a b -> L.lit (Sh.Pos, s, [| a; b |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* p(x, y), x = y *)

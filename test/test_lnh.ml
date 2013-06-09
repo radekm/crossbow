@@ -10,10 +10,10 @@ let test_lnh_one_sort () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
-  let x = T.Var 0 in
+  let x = T.var 0 in
   let cl = {
     C.cl_id = 1;
-    C.cl_lits = [ L.mk_eq (T.Func (f, [| x; x; |])) x ];
+    C.cl_lits = [ L.mk_eq (T.func (f, [| x; x; |])) x ];
   } in
   BatDynArray.add prob.Prob.clauses cl;
   let sorts = Sorts.of_problem prob in
@@ -41,11 +41,11 @@ let test_lnh_more_sorts () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
-  let x = T.Var 0 in
-  let y = T.Var 1 in
+  let x = T.var 0 in
+  let y = T.var 1 in
   let cl = {
     C.cl_id = 1;
-    C.cl_lits = [ L.mk_eq (T.Func (f, [| x; y |])) y ];
+    C.cl_lits = [ L.mk_eq (T.func (f, [| x; y |])) y ];
   } in
   BatDynArray.add prob.Prob.clauses cl;
   let sorts = Sorts.of_problem prob in

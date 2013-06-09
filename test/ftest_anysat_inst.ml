@@ -18,11 +18,11 @@ end = struct
     let db = prob.Prob.symbols in
     let f =
       let s = Symb.add_func db 1 in
-      fun a -> T.Func (s, [| a |]) in
-    let c = T.Func (Symb.add_func db 0, [| |]) in
-    let x = T.Var 0 in
-    let y = T.Var 1 in
-    let z = T.Var 2 in
+      fun a -> T.func (s, [| a |]) in
+    let c = T.func (Symb.add_func db 0, [| |]) in
+    let x = T.var 0 in
+    let y = T.var 1 in
+    let z = T.var 2 in
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* f(x) <> z, z <> f(y), x = y *)
@@ -50,9 +50,9 @@ end = struct
     let psymb = Symb.add_pred db 0 in
     let qsymb = Symb.add_pred db 0 in
     let rsymb = Symb.add_pred db 0 in
-    let p = L.Lit (Sh.Pos, psymb, [| |]) in
-    let q = L.Lit (Sh.Pos, qsymb, [| |]) in
-    let r = L.Lit (Sh.Pos, rsymb, [| |]) in
+    let p = L.lit (Sh.Pos, psymb, [| |]) in
+    let q = L.lit (Sh.Pos, qsymb, [| |]) in
+    let r = L.lit (Sh.Pos, rsymb, [| |]) in
     (* Only satisfying assignment is: ~p, q, ~r. *)
     let clause = {
       C.cl_id = Prob.fresh_id prob;
@@ -125,20 +125,20 @@ end = struct
     let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let psymb = Symb.add_pred db 2 in
-    let p a b = L.Lit (Sh.Pos, psymb, [| a; b |]) in
+    let p a b = L.lit (Sh.Pos, psymb, [| a; b |]) in
     Symb.set_commutative db psymb true;
     let c1symb = Symb.add_func db 0 in
-    let c1 = T.Func (c1symb, [| |]) in
+    let c1 = T.func (c1symb, [| |]) in
     let c2symb = Symb.add_func db 0 in
-    let c2 = T.Func (c2symb, [| |]) in
+    let c2 = T.func (c2symb, [| |]) in
     let c3symb = Symb.add_func db 0 in
-    let c3 = T.Func (c3symb, [| |]) in
+    let c3 = T.func (c3symb, [| |]) in
     List.iter
       (BatDynArray.add prob.Prob.distinct_consts)
       [c1symb; c2symb; c3symb];
     let nconsts = 3 in
-    let x = T.Var 0 in
-    let y = T.Var 1 in
+    let x = T.var 0 in
+    let y = T.var 1 in
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p(c1, c2) *)
@@ -201,11 +201,11 @@ end = struct
     let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let fsymb = Symb.add_func db 2 in
-    let f a b = T.Func (fsymb, [| a; b |]) in
-    let x = T.Var 0 in
-    let row1 = T.Var 1 in
-    let row2 = T.Var 2 in
-    let col = T.Var 3 in
+    let f a b = T.func (fsymb, [| a; b |]) in
+    let x = T.var 0 in
+    let row1 = T.var 1 in
+    let row2 = T.var 2 in
+    let col = T.var 3 in
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* row1 = row2, f(row1, col) != x, x != f(row2, col) *)
@@ -214,9 +214,9 @@ end = struct
         L.mk_ineq (f row1 col) x;
         L.mk_ineq x (f row2 col) ];
     } in
-    let row = T.Var 1 in
-    let col1 = T.Var 2 in
-    let col2 = T.Var 3 in
+    let row = T.var 1 in
+    let col1 = T.var 2 in
+    let col2 = T.var 3 in
     let clause2 = {
       C.cl_id = Prob.fresh_id prob;
       (* col1 = col2, f(row, col1) != x, x != f(row, col2) *)
@@ -270,9 +270,9 @@ end = struct
     let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let fsymb = Symb.add_func db 1 in
-    let f a = T.Func (fsymb, [| a |]) in
-    let x = T.Var 0 in
-    let y = T.Var 1 in
+    let f a = T.func (fsymb, [| a |]) in
+    let x = T.var 0 in
+    let y = T.var 1 in
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* f(x) <> x *)

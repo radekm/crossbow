@@ -49,10 +49,10 @@ type wrap_cl =
 let make_cl () =
   let Symb.Wr db = Symb.create_db () in
   let p = Symb.add_pred db 2 in
-  let p a b = L.Lit (Sh.Pos, p, [| a; b |]) in
+  let p a b = L.lit (Sh.Pos, p, [| a; b |]) in
   let f = Symb.add_func db 5 in
-  let f a b c d e = T.Func (f, [| a; b; c; d; e |]) in
-  let x i = T.Var i in
+  let f a b c d e = T.func (f, [| a; b; c; d; e |]) in
+  let x i = T.var i in
   let cl = [
     L.neg (p (x 0) (x 1));
     L.neg (p (x 2) (x 3));
@@ -80,32 +80,32 @@ let check_splitting_cl (split : split) =
   let normalize cl = fst (C.normalize_vars cl) in
   let exp_clauses = [
     normalize [
-      L.Lit (Sh.Pos, q1, [| x 1; x 2; x 4; x 6; x 8; x 10 |]);
+      L.lit (Sh.Pos, q1, [| x 1; x 2; x 4; x 6; x 8; x 10 |]);
       L.neg (p (x 0) (x 1));
       L.mk_ineq (x 10) (f (x 0) (x 2) (x 4) (x 6) (x 8));
     ];
     normalize [
-      L.Lit (Sh.Pos, q2, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-      L.neg (L.Lit (Sh.Pos, q1, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+      L.lit (Sh.Pos, q2, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
+      L.neg (L.lit (Sh.Pos, q1, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
       L.neg (p (x 1) (x 6));
     ];
     normalize [
-      L.Lit (Sh.Pos, q3, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-      L.neg (L.Lit (Sh.Pos, q2, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+      L.lit (Sh.Pos, q3, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
+      L.neg (L.lit (Sh.Pos, q2, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
       L.neg (p (x 1) (x 6));
     ];
     normalize [
-      L.Lit (Sh.Pos, q4, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-      L.neg (L.Lit (Sh.Pos, q3, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+      L.lit (Sh.Pos, q4, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
+      L.neg (L.lit (Sh.Pos, q3, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
       L.neg (p (x 1) (x 6));
     ];
     normalize [
-      L.Lit (Sh.Pos, q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-      L.neg (L.Lit (Sh.Pos, q4, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+      L.lit (Sh.Pos, q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
+      L.neg (L.lit (Sh.Pos, q4, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
       L.neg (p (x 1) (x 6));
     ];
     normalize [
-      L.neg (L.Lit (Sh.Pos, q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]));
+      L.neg (L.lit (Sh.Pos, q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]));
       p (x 2) (x 7);
       L.mk_ineq (x 7) (f (x 0) (x 3) (x 4) (x 5) (x 6));
     ];
@@ -134,12 +134,12 @@ type wrap_cl2 =
 let make_cl2 () =
   let Symb.Wr db = Symb.create_db () in
   let p = Symb.add_pred db 2 in
-  let p a b = L.Lit (Sh.Pos, p, [| a; b |]) in
+  let p a b = L.lit (Sh.Pos, p, [| a; b |]) in
   let q = Symb.add_pred db 4 in
-  let q a b c d = L.Lit (Sh.Pos, q, [| a; b; c; d |]) in
+  let q a b c d = L.lit (Sh.Pos, q, [| a; b; c; d |]) in
   let r = Symb.add_pred db 0 in
-  let r = L.Lit (Sh.Pos, r, [| |]) in
-  let x i = T.Var i in
+  let r = L.lit (Sh.Pos, r, [| |]) in
+  let x i = T.var i in
   let cl = [
     p (x 0) (x 1);
     p (x 0) (x 2);
@@ -159,17 +159,17 @@ let test_paradox_splitting2 () =
   let normalize cl = fst (C.normalize_vars cl) in
   let exp_clauses = [
     normalize [
-      L.Lit (Sh.Pos, q1, [| x 1; x 2 |]);
+      L.lit (Sh.Pos, q1, [| x 1; x 2 |]);
       p (x 0) (x 1);
       p (x 0) (x 2);
     ];
     normalize [
-      L.Lit (Sh.Pos, q2, [| |]);
-      L.neg (L.Lit (Sh.Pos, q1, [| x 0; x 1 |]));
+      L.lit (Sh.Pos, q2, [| |]);
+      L.neg (L.lit (Sh.Pos, q1, [| x 0; x 1 |]));
       p (x 0) (x 1);
     ];
     normalize [
-      L.neg (L.Lit (Sh.Pos, q2, [| |]));
+      L.neg (L.lit (Sh.Pos, q2, [| |]));
       r;
       q (x 2) (x 3) (x 4) (x 5);
     ];
@@ -187,14 +187,14 @@ let test_paradox_mod_splitting2 () =
   let normalize cl = fst (C.normalize_vars cl) in
   let exp_clauses = [
     normalize [
-      L.Lit (Sh.Pos, q1, [| |]);
+      L.lit (Sh.Pos, q1, [| |]);
       p (x 0) (x 1);
       p (x 0) (x 2);
       p (x 1) (x 2);
       r;
     ];
     normalize [
-      L.neg (L.Lit (Sh.Pos, q1, [| |]));
+      L.neg (L.lit (Sh.Pos, q1, [| |]));
       q (x 3) (x 4) (x 5) (x 6);
     ];
   ] in

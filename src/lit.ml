@@ -3,17 +3,33 @@
 module S = Symb
 module T = Term
 
-type 's t =
-  | Lit of Sh.sign * 's Symb.id * 's Term.t array
+module Inner : sig
+  type 's t = private
+    | Lit of Sh.sign * 's Symb.id * 's Term.t array
+  val lit : Sh.sign * 's Symb.id * 's Term.t array -> 's t
+end = struct
+  type 's t =
+    | Lit of Sh.sign * 's Symb.id * 's Term.t array
+  let lit (sign, s, args) =
+    match Symb.kind s with
+      | Symb.Func -> failwith "lit: kind"
+      | Symb.Pred ->
+          if Symb.arity s <> Array.length args then
+            failwith "lit: arity"
+          else
+            Lit (sign, s, args)
+end
+
+include Inner
 
 let (|>) = BatPervasives.(|>)
 let (|-) = BatPervasives.(|-)
 
-let mk_eq l r = Lit (Sh.Pos, S.sym_eq, [| l; r; |])
+let mk_eq l r = lit (Sh.Pos, S.sym_eq, [| l; r; |])
 
-let mk_ineq l r = Lit (Sh.Neg, S.sym_eq, [| l; r; |])
+let mk_ineq l r = lit (Sh.Neg, S.sym_eq, [| l; r; |])
 
-let neg (Lit (sign, s, a)) = Lit (Sh.neg sign, s, a)
+let neg (Lit (sign, s, a)) = lit (Sh.neg sign, s, a)
 
 let is_true = function
   | Lit (Sh.Pos, s, [| l; r |]) -> s = S.sym_eq && l = r
@@ -33,13 +49,13 @@ module IntSet = BatSet.IntSet
 let vars (Lit (_, _, args)) =
   Array.fold_left (fun xs -> T.vars |- IntSet.union xs) IntSet.empty args
 
-let lift f (Lit (sign, s, args)) = Lit (sign, s, Array.map f args)
+let lift f (Lit (sign, s, args)) = lit (sign, s, Array.map f args)
 
-let normalize_comm symdb lit =
-  let lit2 = lift (T.normalize_comm symdb) lit in
+let normalize_comm symdb lit1 =
+  let lit2 = lift (T.normalize_comm symdb) lit1 in
   match lit2 with
     | Lit (sign, p, [| l; r |]) when Symb.commutative symdb p && l > r ->
-        Lit (sign, p, [| r; l |])
+        lit (sign, p, [| r; l |])
     | Lit _ -> lit2
 
 let replace a b = lift (T.replace a b)

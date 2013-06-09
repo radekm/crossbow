@@ -78,16 +78,16 @@ let test_basic () =
     (BatDynArray.to_list p.TP.prob.Prob.distinct_consts);
 
   (* Clauses. *)
-  let q2 a b = L.Lit (Sh.Pos, q2', [| a; b |]) in
-  let q1 a = L.Lit (Sh.Pos, q1', [| a |]) in
-  let c0 = T.Func (c0', [| |]) in
-  let d0 = T.Func (d0', [| |]) in
-  let f2 a b = T.Func (f2', [| a; b |]) in
-  let f1 a = T.Func (f1', [| a |]) in
+  let q2 a b = L.lit (Sh.Pos, q2', [| a; b |]) in
+  let q1 a = L.lit (Sh.Pos, q1', [| a |]) in
+  let c0 = T.func (c0', [| |]) in
+  let d0 = T.func (d0', [| |]) in
+  let f2 a b = T.func (f2', [| a; b |]) in
+  let f1 a = T.func (f1', [| a |]) in
   let exp_clauses = [
     {
       C.cl_id = 0;
-      C.cl_lits = [ q2 (T.Var 0) c0 ];
+      C.cl_lits = [ q2 (T.var 0) c0 ];
     };
     {
       C.cl_id = 1;
@@ -96,10 +96,10 @@ let test_basic () =
     {
       C.cl_id = 2;
       C.cl_lits = [
-        L.mk_eq (T.Var 0) (T.Var 1);
+        L.mk_eq (T.var 0) (T.var 1);
         L.mk_ineq
-          (f2 (T.Var 0) (T.Var 1))
-          (f2 (T.Var 1) (T.Var 0));
+          (f2 (T.var 0) (T.var 1))
+          (f2 (T.var 1) (T.var 0));
       ];
     };
     {
@@ -107,17 +107,17 @@ let test_basic () =
       C.cl_lits = [
         L.neg
           (q2
-             (T.Func (str_hi', [| |]))
-             (T.Func (num_twelve_point_five', [| |])));
+             (T.func (str_hi', [| |]))
+             (T.func (num_twelve_point_five', [| |])));
       ];
     };
     {
       C.cl_id = 4;
       C.cl_lits = [
-        q1 (T.Func (num_seven', [| |]));
+        q1 (T.func (num_seven', [| |]));
         L.mk_eq
-          (f1 (T.Var 0))
-          (T.Func (str_hello_world', [| |]));
+          (f1 (T.var 0))
+          (T.func (str_hello_world', [| |]));
       ];
     };
   ] in
@@ -178,12 +178,12 @@ let test_include () =
     (BatDynArray.to_list p.TP.prob.Prob.distinct_consts);
 
   (* Clauses. *)
-  let q1 a = L.Lit (Sh.Pos, q1', [| a |]) in
-  let c0 = T.Func (c0', [| |]) in
-  let d0 = T.Func (d0', [| |]) in
-  let g1 a = T.Func (g1', [| a |]) in
-  let num_zero = T.Func (num_zero', [| |]) in
-  let num_one = T.Func (num_one', [| |]) in
+  let q1 a = L.lit (Sh.Pos, q1', [| a |]) in
+  let c0 = T.func (c0', [| |]) in
+  let d0 = T.func (d0', [| |]) in
+  let g1 a = T.func (g1', [| a |]) in
+  let num_zero = T.func (num_zero', [| |]) in
+  let num_one = T.func (num_one', [| |]) in
   let exp_clauses = [
     {
       C.cl_id = 0;
@@ -257,8 +257,8 @@ let test_nested_include () =
     {
       C.cl_id = 0;
       C.cl_lits = [
-        L.Lit (Sh.Pos, r0', [| |]);
-        L.neg (L.Lit (Sh.Pos, s0', [| |]))
+        L.lit (Sh.Pos, r0', [| |]);
+        L.neg (L.lit (Sh.Pos, s0', [| |]))
       ];
     };
   ] in
@@ -311,8 +311,8 @@ let test_nested_include_with_sel () =
 
   (* Clauses. *)
   let exp_clauses =
-    let p a = L.Lit (Sh.Pos, p1', [| a |]) in
-    let const s = T.Func (s, [| |]) in
+    let p a = L.lit (Sh.Pos, p1', [| a |]) in
+    let const s = T.func (s, [| |]) in
     [
       {
         C.cl_id = 0;

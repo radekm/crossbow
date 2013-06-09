@@ -40,7 +40,7 @@ let add_clause p (Ast.Clause lits) =
             let v = Hashtbl.length vars in
             let _ = Hashtbl.add vars x v in
             v in
-        Term.Var v
+        Term.var v
     | Ast.Func (func, args) ->
         let arity = List.length args in
         let s = Atomic_word (func, arity) in
@@ -56,7 +56,7 @@ let add_clause p (Ast.Clause lits) =
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = Hashtbl.add p.preds s false in
             id in
-        Term.Func (id, Array.of_list (BatList.map transl_term args))
+        Term.func (id, Array.of_list (BatList.map transl_term args))
     | Ast.Number n ->
         let s = Number n in
         let id =
@@ -68,7 +68,7 @@ let add_clause p (Ast.Clause lits) =
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = BatDynArray.add p.prob.Prob.distinct_consts id in
             id in
-        Term.Func (id, [| |])
+        Term.func (id, [| |])
     | Ast.String s ->
         let s = String s in
         let id =
@@ -80,7 +80,7 @@ let add_clause p (Ast.Clause lits) =
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = BatDynArray.add p.prob.Prob.distinct_consts id in
             id in
-        Term.Func (id, [| |]) in
+        Term.func (id, [| |]) in
 
   let transl_sign = function
     | Ast.Pos -> Sh.Pos
@@ -90,7 +90,7 @@ let add_clause p (Ast.Clause lits) =
     | Ast.Lit (sign, Ast.Equals (l, r)) ->
         let l = transl_term l in
         let r = transl_term r in
-        L.Lit (transl_sign sign, S.sym_eq, [| l; r |])
+        L.lit (transl_sign sign, S.sym_eq, [| l; r |])
     | Ast.Lit (sign, Ast.Pred (pred, args)) ->
         let sign = transl_sign sign in
         let arity = List.length args in
@@ -107,7 +107,7 @@ let add_clause p (Ast.Clause lits) =
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = Hashtbl.add p.preds s true in
             id in
-        L.Lit (sign, id, Array.of_list (BatList.map transl_term args)) in
+        L.lit (sign, id, Array.of_list (BatList.map transl_term args)) in
 
   let clause = {
     Clause2.cl_id = Prob.fresh_id p.prob;

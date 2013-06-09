@@ -5,9 +5,13 @@
 type var = int
 
 (** Note: terms should not be modified. *)
-type 's t =
+type 's t = private
   | Var of var
   | Func of 's Symb.id * 's t array
+
+val var : var -> 's t
+
+val func : 's Symb.id * 's t array -> 's t
 
 val get_args : 's t -> 's t array
 
