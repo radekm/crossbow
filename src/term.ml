@@ -17,10 +17,10 @@ end = struct
   let var x = Var x
   let func (s, args) =
     match Symb.kind s with
-      | Symb.Pred -> failwith "lit: kind"
+      | Symb.Pred -> failwith "func: kind"
       | Symb.Func ->
           if Symb.arity s <> Array.length args then
-            failwith "lit: arity"
+            failwith "func: arity"
           else
             Func (s, args)
 end
