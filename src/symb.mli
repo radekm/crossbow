@@ -84,3 +84,17 @@ val set_auxiliary : 's db -> 's id -> bool -> unit
 
 (** The id of the equality symbol [=/2]. *)
 val sym_eq : 's id
+
+module Map : sig
+  type ('s, 'a) t
+
+  val empty : ('s, 'a) t
+  val add : 's id -> 'a -> ('s, 'a) t -> ('s, 'a) t
+  val find : 's id -> ('s, 'a) t -> 'a
+  val mem : 's id -> ('s, 'a) t -> bool
+  val iter : ('s id -> 'a -> unit) -> ('s, 'a) t -> unit
+  val compare : ('a -> 'a -> int) -> ('s, 'a) t -> ('s, 'a) t -> int
+  val equal : ('a -> 'a -> bool) -> ('s, 'a) t -> ('s, 'a) t -> bool
+  val enum : ('s, 'a) t -> ('s id * 'a) BatEnum.t
+  val of_enum : ('s id * 'a) BatEnum.t -> ('s, 'a) t
+end

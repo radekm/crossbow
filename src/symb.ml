@@ -118,3 +118,19 @@ let set_auxiliary db sym aux =
     failwith "predefined symbol";
   let symb = get db sym in
   BatDynArray.set db.by_id (Id.to_idx sym) { symb with s_auxiliary = aux }
+
+module IntMap = BatMap.IntMap
+
+module Map = struct
+  type ('s, 'a) t = 'a IntMap.t
+
+  let empty = IntMap.empty
+  let add = IntMap.add
+  let find = IntMap.find
+  let mem = IntMap.mem
+  let iter = IntMap.iter
+  let compare = IntMap.compare
+  let equal = IntMap.equal
+  let enum = IntMap.enum
+  let of_enum = IntMap.of_enum
+end
