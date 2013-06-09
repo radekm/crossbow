@@ -12,6 +12,7 @@ let suite =
       Test_timer.suite;
       Test_symb.suite;
       Test_term.suite;
+      Test_lit.suite;
       Test_clause.suite;
       Test_splitting.suite;
       Test_tptp_prob.suite;

@@ -4,6 +4,7 @@ open OUnit
 
 module C = Clause2
 module T = Term
+module L = Lit
 module Ms = Ms_model
 module M = Model
 
@@ -39,7 +40,7 @@ let test_nullary_pred () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* p *)
-    C.cl_lits = [ T.Func (p, [| |]) ];
+    C.cl_lits = [ L.Lit (Sh.Pos, p, [| |]) ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
 
@@ -69,7 +70,7 @@ let test_unary_func_one_sort_no_adeq_size () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x) <> x *)
-    C.cl_lits = [ T.mk_ineq (T.Func (f, [| x |])) x ];
+    C.cl_lits = [ L.mk_ineq (T.Func (f, [| x |])) x ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
 
@@ -103,9 +104,9 @@ let test_binary_pred_two_sorts_no_adeq_size () =
     C.cl_id = Prob.fresh_id prob;
     (* p(x, y), x = u, y = v *)
     C.cl_lits = [
-      T.Func (p, [| x; y; |]);
-      T.mk_eq x u;
-      T.mk_eq y v;
+      L.Lit (Sh.Pos, p, [| x; y; |]);
+      L.mk_eq x u;
+      L.mk_eq y v;
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -139,9 +140,9 @@ let test_unary_pred_one_sort_adeq_size () =
     C.cl_id = Prob.fresh_id prob;
     (* ~p(x), x = c, x = d *)
     C.cl_lits = [
-      T.neg_lit (T.Func (p, [| x |]));
-      T.mk_eq x (T.Func (c, [| |]));
-      T.mk_eq x (T.Func (d, [| |]));
+      L.neg (L.Lit (Sh.Pos, p, [| x |]));
+      L.mk_eq x (T.Func (c, [| |]));
+      L.mk_eq x (T.Func (d, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -224,9 +225,9 @@ let test_unary_pred_one_sort_adeq_size2 () =
     C.cl_id = Prob.fresh_id prob;
     (* ~p(x), x <> c, x <> d *)
     C.cl_lits = [
-      T.neg_lit (T.Func (p, [| x |]));
-      T.mk_ineq x (T.Func (c, [| |]));
-      T.mk_ineq x (T.Func (d, [| |]));
+      L.neg (L.Lit (Sh.Pos, p, [| x |]));
+      L.mk_ineq x (T.Func (c, [| |]));
+      L.mk_ineq x (T.Func (d, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -286,8 +287,8 @@ let test_binary_func_two_sorts_one_adeq_size () =
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = y, x = c *)
     C.cl_lits = [
-      T.mk_eq (T.Func (f, [| x; y |])) y;
-      T.mk_eq x (T.Func (c, [| |]));
+      L.mk_eq (T.Func (f, [| x; y |])) y;
+      L.mk_eq x (T.Func (c, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -370,8 +371,8 @@ let test_binary_func_two_sorts_one_adeq_size2 () =
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = x, y = c *)
     C.cl_lits = [
-      T.mk_eq (T.Func (f, [| x; y |])) x;
-      T.mk_eq y (T.Func (c, [| |]));
+      L.mk_eq (T.Func (f, [| x; y |])) x;
+      L.mk_eq y (T.Func (c, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -456,12 +457,12 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = z, x <> c1, x <> c2, y = d1, y = d2, z <> e *)
     C.cl_lits = [
-      T.mk_eq (T.Func (f, [| x; y |])) z;
-      T.mk_ineq x (T.Func (c1, [| |]));
-      T.mk_ineq x (T.Func (c2, [| |]));
-      T.mk_eq y (T.Func (d1, [| |]));
-      T.mk_eq y (T.Func (d2, [| |]));
-      T.mk_ineq z (T.Func (e, [| |]));
+      L.mk_eq (T.Func (f, [| x; y |])) z;
+      L.mk_ineq x (T.Func (c1, [| |]));
+      L.mk_ineq x (T.Func (c2, [| |]));
+      L.mk_eq y (T.Func (d1, [| |]));
+      L.mk_eq y (T.Func (d2, [| |]));
+      L.mk_ineq z (T.Func (e, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -601,9 +602,9 @@ let test_comm_func_two_sorts_one_adeq_size () =
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = z, x = c, z <> d *)
     C.cl_lits = [
-      T.mk_eq (T.Func (f, [| x; y |])) z;
-      T.mk_eq x (T.Func (c, [| |]));
-      T.mk_ineq z (T.Func (d, [| |]));
+      L.mk_eq (T.Func (f, [| x; y |])) z;
+      L.mk_eq x (T.Func (c, [| |]));
+      L.mk_ineq z (T.Func (d, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;

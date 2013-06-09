@@ -23,6 +23,7 @@ FILES[] =
     sh
     symb
     term
+    lit
     clause
     clause2
     prob

@@ -3,6 +3,7 @@
 open BatPervasives
 
 module T = Term
+module L = Lit
 module C = Clause2
 
 
@@ -49,7 +50,7 @@ let update_inferred
     (symdb : 's Symb.db)
     (sorts : 's inferred)
     (clause_id : C.id)
-    (lit : 's T.lit)
+    (lit : 's Lit.t)
     : unit =
 
   let get_arg_sort = function
@@ -60,9 +61,6 @@ let update_inferred
           Hashtbl.add sorts.inf_var_sorts var var_sort
         end;
         Hashtbl.find sorts.inf_var_sorts var
-    (* s is a function symbol since it is used as an argument
-       of a predicate or function symbol.
-    *)
     | T.Func (s, args) ->
         assert (Symb.arity s = Array.length args);
 
@@ -83,23 +81,38 @@ let update_inferred
         let func_sorts = Hashtbl.find sorts.inf_symb_sorts s in
         assert (Array.length func_sorts = Array.length args + 1);
         (* Sort of the result. *)
-        func_sorts.(Array.length args)
-    | T.Neg _ -> failwith "get_arg_sort: negation" in
+        func_sorts.(Array.length args) in
 
   let each_subterm = function
     | T.Var _ -> ()
-    | T.Neg _ -> ()
-    | T.Func (s, [| l; r |]) when s = Symb.sym_eq ->
-        Equiv.union sorts.inf_equiv (get_arg_sort l) (get_arg_sort r)
     | T.Func (s, args) ->
         let param_sorts =
           assert (Symb.arity s = Array.length args);
-
-          (* no sorts are assigned to s.
-             This means that s is a predicate symbol since it is not used
-             as an argument of a predicate or function symbol
-             (otherwise sorts would have been assigned to s).
+          (* s is used as an argument of a predicate or function symbol
+             so sorts must be already assigned to s.
           *)
+          assert (Hashtbl.mem sorts.inf_symb_sorts s);
+
+          let symb_sorts = Hashtbl.find sorts.inf_symb_sorts s in
+          (* s is a function symbol - it has a result sort. *)
+          assert (Array.length symb_sorts = Array.length args + 1);
+          (* Omit result sort of a function symbol. *)
+          Array.sub symb_sorts 0 (Array.length args) in
+
+        let arg_sorts = Array.map get_arg_sort args in
+
+        BatArray.iter2 (Equiv.union sorts.inf_equiv) param_sorts arg_sorts in
+
+  begin match lit with
+    | L.Lit (_, s, [| l; r |]) when s = Symb.sym_eq ->
+        let lsort = get_arg_sort l in
+        let rsort = get_arg_sort r in
+        Equiv.union sorts.inf_equiv lsort rsort
+    | L.Lit (_, s, args) ->
+        let param_sorts =
+          assert (Symb.arity s = Array.length args);
+
+          (* no sorts are assigned to s. *)
           if not (Hashtbl.mem sorts.inf_symb_sorts s) then begin
             if Symb.commutative symdb s then
               let par_sort = Equiv.add_item sorts.inf_equiv in
@@ -111,19 +124,16 @@ let update_inferred
           end;
 
           let symb_sorts = Hashtbl.find sorts.inf_symb_sorts s in
-          assert (
-            (* s is a predicate symbol. *)
-            Array.length symb_sorts = Array.length args ||
-            (* s is a function symbol since it has a result sort. *)
-            Array.length symb_sorts = Array.length args + 1);
-          (* Omit potential result sort of a function symbol. *)
-          Array.sub symb_sorts 0 (Array.length args) in
+          (* s is a predicate symbol - no result sort. *)
+          assert (Array.length symb_sorts = Array.length args);
+          symb_sorts in
 
         let arg_sorts = Array.map get_arg_sort args in
 
-        BatArray.iter2 (Equiv.union sorts.inf_equiv) param_sorts arg_sorts in
+        BatArray.iter2 (Equiv.union sorts.inf_equiv) param_sorts arg_sorts
+  end;
+  L.iter each_subterm lit
 
-  Term.iter each_subterm lit
 
 (* [merge_sorts_of_constants symdb sorts consts] unites sorts of the given
    constants. Missing constants are added to the signature.
@@ -274,14 +284,13 @@ let compute_sort_sizes prob sorts =
      - and if there is a literal [x = f] where [x] has sort [A].
   *)
   let each_lit clause_id = function
-    | T.Var _ -> failwith "invalid literal"
     (* x = y *)
-    | T.Func (s, [| T.Var x; T.Var _ |]) when s = Symb.sym_eq ->
+    | L.Lit (Sh.Pos, s, [| T.Var x; T.Var _ |]) when s = Symb.sym_eq ->
         let var_sort = Hashtbl.find sorts.var_sorts (clause_id, x) in
         var_eq.(var_sort) <- true
     (* x = f *)
-    | T.Func (s, [| T.Var x; T.Func (_, _) |])
-    | T.Func (s, [| T.Func (_, _); T.Var x |]) when s = Symb.sym_eq ->
+    | L.Lit (Sh.Pos, s, [| T.Var x; T.Func _ |])
+    | L.Lit (Sh.Pos, s, [| T.Func _; T.Var x |]) when s = Symb.sym_eq ->
         let var_sort = Hashtbl.find sorts.var_sorts (clause_id, x) in
         var_func_eq.(var_sort) <- true
     | _ -> () in

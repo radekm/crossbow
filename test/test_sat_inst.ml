@@ -118,6 +118,7 @@ let lit v = Solver.to_lit Sh.Pos v
 let lit' v = Solver.to_lit Sh.Neg v
 
 module T = Term
+module L = Lit
 module C = Clause2
 
 let test_no_symbols_only_clause () =
@@ -127,7 +128,7 @@ let test_no_symbols_only_clause () =
   let z = T.Var 2 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
-    C.cl_lits = [ T.mk_eq x y; T.mk_eq x z ];
+    C.cl_lits = [ L.mk_eq x y; L.mk_eq x z ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
   let sorts = Sorts.of_problem prob in
@@ -205,18 +206,18 @@ let test_no_symbols_only_clause () =
 let test_nullary_preds () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
-  let p = T.Func (Symb.add_pred db 0, [| |]) in
-  let q = T.Func (Symb.add_pred db 0, [| |]) in
-  let r = T.Func (Symb.add_pred db 0, [| |]) in
+  let p = L.Lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
+  let q = L.Lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
+  let r = L.Lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
   let x = T.Var 0 in
   let y = T.Var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
-    C.cl_lits = [ p; T.mk_eq x y; T.neg_lit q ];
+    C.cl_lits = [ p; L.mk_eq x y; L.neg q ];
   } in
   let clause2 = {
     C.cl_id = Prob.fresh_id prob;
-    C.cl_lits = [ T.neg_lit r; q ];
+    C.cl_lits = [ L.neg r; q ];
   } in
   List.iter
     (BatDynArray.add prob.Prob.clauses)
@@ -282,7 +283,7 @@ let test_constants () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* c <> d *)
-    C.cl_lits = [ T.mk_ineq c x; T.mk_ineq x d ];
+    C.cl_lits = [ L.mk_ineq c x; L.mk_ineq x d ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
   let sorts = Sorts.of_problem prob in
@@ -371,12 +372,12 @@ let test_distinct_consts () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* c = x, x <> d *)
-    C.cl_lits = [ T.mk_eq c x; T.mk_ineq x d ];
+    C.cl_lits = [ L.mk_eq c x; L.mk_ineq x d ];
   } in
   let clause2 = {
     C.cl_id = Prob.fresh_id prob;
     (* c2 <> y, d2 = x *)
-    C.cl_lits = [ T.mk_ineq c2 y; T.mk_eq d2 x ];
+    C.cl_lits = [ L.mk_ineq c2 y; L.mk_eq d2 x ];
   } in
   List.iter
     (BatDynArray.add prob.Prob.clauses)
@@ -500,7 +501,7 @@ let test_unary_func () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x) = y *)
-    C.cl_lits = [ T.mk_eq (f x) y ];
+    C.cl_lits = [ L.mk_eq (f x) y ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
   let sorts = Sorts.of_problem prob in
@@ -563,12 +564,12 @@ let test_unary_pred () =
   let c = T.Func (Symb.add_func db 0, [| |]) in
   let p =
     let s = Symb.add_pred db 1 in
-    fun a -> T.Func (s, [| a |]) in
+    fun a -> L.Lit (Sh.Pos, s, [| a |]) in
   let x = T.Var 0 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* ~p(x), x = c *)
-    C.cl_lits = [ T.neg_lit (p x); T.mk_eq x c  ];
+    C.cl_lits = [ L.neg (p x); L.mk_eq x c  ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
   let sorts = Sorts.of_problem prob in
@@ -635,7 +636,7 @@ let test_commutative_func () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* f(x, y) = y *)
-    C.cl_lits = [ T.mk_eq (f x y) y ];
+    C.cl_lits = [ L.mk_eq (f x y) y ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
   let sorts = Sorts.of_problem prob in
@@ -760,13 +761,13 @@ let test_symmetric_pred () =
   let p =
     let s = Symb.add_pred db 2 in
     Symb.set_commutative db s true;
-    fun a b -> T.Func (s, [| a; b |]) in
+    fun a b -> L.Lit (Sh.Pos, s, [| a; b |]) in
   let x = T.Var 0 in
   let y = T.Var 1 in
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     (* p(x, y), x = y *)
-    C.cl_lits = [ p x y; T.mk_eq x y ];
+    C.cl_lits = [ p x y; L.mk_eq x y ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
   let sorts = Sorts.of_problem prob in

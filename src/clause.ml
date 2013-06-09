@@ -2,8 +2,9 @@
 
 module S = Symb
 module T = Term
+module L = Lit
 
-type 's t = 's T.lit list
+type 's t = 's L.t list
 
 let (|>) = BatPervasives.(|>)
 let (|-) = BatPervasives.(|-)
@@ -13,7 +14,7 @@ let (|-) = BatPervasives.(|-)
 *)
 let remove_var_ineqs lits =
   let var_ineq = function
-    | T.Neg (T.Func (s, [| (T.Var _) as x; (T.Var _) as y |]))
+    | L.Lit (Sh.Neg, s, [| (T.Var _) as x; (T.Var _) as y |])
       when s = S.sym_eq ->
         Some (x, y)
     | _ -> None in
@@ -22,7 +23,7 @@ let remove_var_ineqs lits =
       | None, _ -> lits
       | Some (x, y), lits ->
           lits
-          |> BatList.map (T.replace x y)
+          |> BatList.map (L.replace x y)
           |> loop in
   loop lits
 
@@ -30,12 +31,12 @@ let simplify symdb lits =
   let lits =
     lits
     |> remove_var_ineqs
-    |> BatList.map (T.normalize_comm symdb)
+    |> BatList.map (L.normalize_comm symdb)
     |> BatList.unique
-    |> BatList.filter (T.false_lit |- not) in
+    |> BatList.filter (L.is_false |- not) in
   let taut =
     List.exists
-      (fun l -> T.true_lit l || Elist.contains (T.neg_lit l) lits)
+      (fun l -> L.is_true l || Elist.contains (L.neg l) lits)
       lits in
   if taut then None else Some lits
 
@@ -48,11 +49,11 @@ let normalize_vars lits =
       let y = Hashtbl.length vars in
       let _ = Hashtbl.add vars x y in
       y in
-  let rec norm_vars_in_term = function
+  let rec norm_vars_t = function
     | T.Var x -> T.Var (norm_var x)
-    | T.Func (s, args) -> T.Func (s, Array.map norm_vars_in_term args)
-    | T.Neg a -> T.Neg (norm_vars_in_term a) in
-  let lits2 = BatList.map norm_vars_in_term lits in
+    | T.Func (s, args) -> T.Func (s, Array.map norm_vars_t args) in
+  let norm_vars_l = L.lift norm_vars_t in
+  let lits2 = BatList.map norm_vars_l lits in
   lits2, Hashtbl.length vars
 
 (* Note: a flat clause is simplified and its variables are normalized. *)
@@ -64,27 +65,42 @@ let flatten symdb lits =
     incr nvars;
     x in
 
+  let pick_func ts =
+    Earray.pick
+      (function
+      | T.Var _ -> None
+      | T.Func _ as t -> Some t)
+      ts in
+
   let var_func_ineq lits i = function
-    | T.Neg (T.Func (s, [| (T.Var _) as x; (T.Func _) as f |]))
-    | T.Neg (T.Func (s, [| (T.Func _) as f; (T.Var _) as x |]))
+    | L.Lit (Sh.Neg, s, [| (T.Var _) as x; (T.Func _) as f |])
+    | L.Lit (Sh.Neg, s, [| (T.Func _) as f; (T.Var _) as x |])
       when s = S.sym_eq ->
-        if Elist.existsi (fun j l -> j <> i && Term.contains f l) lits
+        if Elist.existsi (fun j l -> j <> i && L.contains f l) lits
         then Some (i, (x, f))
         else None
     | _ -> None in
 
-  let nested_func p t =
-    match p, t with
-      (* f(..) != g(..) *)
-      | Some (T.Neg _), T.Func (s, [| (T.Func _) as t; T.Func _ |])
-        when s = S.sym_eq -> Some t
-      (* g(..,f(..),..) or ?p(..,f(..),..) *)
-      | Some (T.Func (s, _)), T.Func _
-        when s <> S.sym_eq -> Some t
-      | _ -> None in
+  let nested_func = function
+    (* f(..) != g(..) *)
+    | L.Lit (Sh.Neg, s, [| (T.Func _) as t; T.Func _ |])
+      when s = S.sym_eq ->
+        Some t
+    (* g(..,f(..),..) ?= t *)
+    | L.Lit (_, s, [| l; r |])
+      when s = S.sym_eq ->
+        begin match pick_func (T.get_args l) with
+          | None -> pick_func (T.get_args r)
+          | t -> t
+        end
+    (* ?p(..,f(..),..) *)
+    | L.Lit (_, s, args)
+      when s <> S.sym_eq ->
+        pick_func args
+    | _ -> None in
 
   let func_eq = function
-    | T.Func (s, [| (T.Func (_, _)) as l; (T.Func (_, _)) as r |])
+    | L.Lit (Sh.Pos, s, [| (T.Func _) as l; (T.Func _) as r |])
       when s = S.sym_eq ->
         Some (l, r)
     | _ -> None in
@@ -96,16 +112,16 @@ let flatten symdb lits =
       *)
       match Elist.picki (var_func_ineq lits) lits with
         | Some (i, (x, f)) ->
-            let replace_func j l = if j <> i then Term.replace f x l else l in
+            let replace_func j l = if j <> i then L.replace f x l else l in
             Some (BatList.mapi replace_func lits)
         | None ->
       (* Find [f(..)] in [f(..) != g(..)] or [g(..,f(..),..)] or
          [?p(..,f(..),..)] and add a new literal [x != f(..)]
          where [x] is a fresh variable.
       *)
-      match Elist.pick (Term.pickp nested_func) lits with
+      match Elist.pick nested_func lits with
         | Some f ->
-            let ineq = Term.mk_ineq (fresh_var ()) f in
+            let ineq = L.mk_ineq (fresh_var ()) f in
             Some (ineq :: lits)
         | None ->
       (* Find all literals [fi(..) = gi(..)] and compute their vertex cover.
@@ -115,7 +131,8 @@ let flatten symdb lits =
       match BatList.filter_map func_eq lits with
         | (_ :: _) as xs ->
             let cover = Algo.min_vertex_cover (Array.of_list xs) in
-            let ineqs = BatList.map (fun f -> Term.mk_ineq (fresh_var ()) f) cover in
+            let ineqs =
+              BatList.map (fun f -> L.mk_ineq (fresh_var ()) f) cover in
             Some (List.rev_append ineqs lits)
         | [] -> None in
     match lits' with
@@ -135,9 +152,9 @@ let flatten symdb lits =
 
 let unflatten symdb lits =
   let var_func_ineq = function
-    | T.Neg (T.Func (s, [| (T.Var _) as x; (T.Func _) as f |]))
-    | T.Neg (T.Func (s, [| (T.Func _) as f; (T.Var _) as x |]))
-      when s = S.sym_eq && not (Term.contains x f) ->
+    | L.Lit (Sh.Neg, s, [| (T.Var _) as x; (T.Func _) as f |])
+    | L.Lit (Sh.Neg, s, [| (T.Func _) as f; (T.Var _) as x |])
+      when s = S.sym_eq && not (T.contains x f) ->
         Some (x, f)
     | _ -> None in
 
@@ -148,7 +165,7 @@ let unflatten symdb lits =
     match Elist.pick_and_remove var_func_ineq lits with
       | None, _ -> Some lits
       | Some (x, f), lits ->
-          let lits2 = BatList.map (Term.replace x f) lits in
+          let lits2 = BatList.map (L.replace x f) lits in
           match simplify symdb lits2 with
             | None -> None
             | Some lits3 -> loop lits3 in
@@ -159,15 +176,12 @@ let unflatten symdb lits =
 
 module IntSet = BatSet.IntSet
 
-let vars terms =
-  List.fold_left
-    (fun xs t -> IntSet.union xs (T.vars t))
-    IntSet.empty
-    terms
+let vars lits =
+  List.fold_left (fun xs -> L.vars |- IntSet.union xs) IntSet.empty lits
 
 let show lits =
   let lits_str =
     lits
-    |> BatList.map T.show
-    |> String.concat "; " in
+    |> BatList.map L.show
+    |> String.concat " | " in
   Printf.sprintf "[%s]" lits_str

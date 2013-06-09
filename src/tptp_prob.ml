@@ -2,6 +2,8 @@
 
 open BatPervasives
 
+module S = Symb
+module L = Lit
 module Ast = Tptp_ast
 
 type tptp_symbol =
@@ -80,12 +82,17 @@ let add_clause p (Ast.Clause lits) =
             id in
         Term.Func (id, [| |]) in
 
-  let transl_atom = function
-    | Ast.Equals (l, r) ->
+  let transl_sign = function
+    | Ast.Pos -> Sh.Pos
+    | Ast.Neg -> Sh.Neg in
+
+  let transl_lit = function
+    | Ast.Lit (sign, Ast.Equals (l, r)) ->
         let l = transl_term l in
         let r = transl_term r in
-        Term.mk_eq l r
-    | Ast.Pred (pred, args) ->
+        L.Lit (transl_sign sign, S.sym_eq, [| l; r |])
+    | Ast.Lit (sign, Ast.Pred (pred, args)) ->
+        let sign = transl_sign sign in
         let arity = List.length args in
         let s = Atomic_word (pred, arity) in
         let id =
@@ -100,11 +107,7 @@ let add_clause p (Ast.Clause lits) =
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = Hashtbl.add p.preds s true in
             id in
-        Term.Func (id, Array.of_list (BatList.map transl_term args)) in
-
-  let transl_lit = function
-    | Ast.Lit (Ast.Pos, atom) -> transl_atom atom
-    | Ast.Lit (Ast.Neg, atom) -> Term.neg_lit (transl_atom atom) in
+        L.Lit (sign, id, Array.of_list (BatList.map transl_term args)) in
 
   let clause = {
     Clause2.cl_id = Prob.fresh_id p.prob;

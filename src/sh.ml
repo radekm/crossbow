@@ -3,3 +3,7 @@
 type sign =
   | Pos
   | Neg
+
+let neg = function
+  | Pos -> Neg
+  | Neg -> Pos

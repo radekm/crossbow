@@ -37,6 +37,8 @@ end
 module Make (Solv : Solver) :
   Inst_sig with type solver = Solv.t =
 struct
+  module L = Lit
+
   type pvar = Solv.var
   type plit = Solv.lit
 
@@ -182,65 +184,55 @@ struct
       let nullary_pred_lits = BatDynArray.create () in
       let var_eqs = BatDynArray.create () in
       let lits = BatDynArray.create () in
-      let each_lit lit =
-        let sign = ref Sh.Pos in
-        let get_var = function
-          | Term.Var x -> x
-          | _ -> failwith "expected variable" in
-        let each_atom = function
-          | Term.Var _ -> failwith "invalid atom"
-          | Term.Func (s, [| l; r |]) when s = Symb.sym_eq ->
-              begin match l, r with
-                | Term.Var x, Term.Var y ->
-                    if !sign <> Sh.Pos then
-                      failwith "literal is not flat";
-                    BatDynArray.add var_eqs (x, y)
-                | Term.Func (f, args), Term.Var res
-                | Term.Var res, Term.Func (f, args) ->
-                    BatDynArray.add lits
-                      {
-                        l_sign = !sign;
-                        l_pvars = Hashtbl.find pvars f;
-                        l_vars =
-                          Array.init
-                            (Array.length args + 1)
-                            (fun i ->
-                              if i < Array.length args
-                              then get_var args.(i)
-                              else res);
-                        l_commutative = Symb.commutative prob.Prob.symbols f;
-                        l_adeq_sizes =
-                          Array.map
-                            (fun sort -> sorts.Sorts.adeq_sizes.(sort))
-                            (Hashtbl.find sorts.Sorts.symb_sorts f);
-                      }
-                | _, _ -> failwith "literal is not flat"
-              end
-          | Term.Func (p, args) ->
-              (* Nullary predicate. *)
-              if args = [| |] then
-                let pvar = Hashtbl.find nullary_pred_pvars p in
-                let plit = Solv.to_lit !sign pvar in
-                BatDynArray.add nullary_pred_lits plit
-              else
-                BatDynArray.add lits
-                  {
-                    l_sign = !sign;
-                    l_pvars = Hashtbl.find pvars p;
-                    l_vars = Array.map get_var args;
-                    l_commutative = Symb.commutative prob.Prob.symbols p;
-                    l_adeq_sizes =
-                      Array.map
-                        (fun sort -> sorts.Sorts.adeq_sizes.(sort))
-                        (Hashtbl.find sorts.Sorts.symb_sorts p);
-                  }
-          | Term.Neg _ -> failwith "invalid atom" in
-        match lit with
-          | Term.Var _ -> failwith "invalid literal"
-          | Term.Neg atom ->
-              sign := Sh.Neg;
-              each_atom atom
-          | atom -> each_atom atom in
+      let get_var = function
+        | Term.Var x -> x
+        | _ -> failwith "expected variable" in
+      let each_lit = function
+        | L.Lit (sign, s, [| l; r |]) when s = Symb.sym_eq ->
+            begin match l, r with
+              | Term.Var x, Term.Var y ->
+                  if sign <> Sh.Pos then
+                    failwith "literal is not flat";
+                  BatDynArray.add var_eqs (x, y)
+              | Term.Func (f, args), Term.Var res
+              | Term.Var res, Term.Func (f, args) ->
+                  BatDynArray.add lits
+                    {
+                      l_sign = sign;
+                      l_pvars = Hashtbl.find pvars f;
+                      l_vars =
+                        Array.init
+                          (Array.length args + 1)
+                          (fun i ->
+                            if i < Array.length args
+                            then get_var args.(i)
+                            else res);
+                      l_commutative = Symb.commutative prob.Prob.symbols f;
+                      l_adeq_sizes =
+                        Array.map
+                          (fun sort -> sorts.Sorts.adeq_sizes.(sort))
+                          (Hashtbl.find sorts.Sorts.symb_sorts f);
+                    }
+              | _, _ -> failwith "literal is not flat"
+            end
+        | L.Lit (sign, p, args) ->
+            (* Nullary predicate. *)
+            if args = [| |] then
+              let pvar = Hashtbl.find nullary_pred_pvars p in
+              let plit = Solv.to_lit sign pvar in
+              BatDynArray.add nullary_pred_lits plit
+            else
+              BatDynArray.add lits
+                {
+                  l_sign = sign;
+                  l_pvars = Hashtbl.find pvars p;
+                  l_vars = Array.map get_var args;
+                  l_commutative = Symb.commutative prob.Prob.symbols p;
+                  l_adeq_sizes =
+                    Array.map
+                      (fun sort -> sorts.Sorts.adeq_sizes.(sort))
+                      (Hashtbl.find sorts.Sorts.symb_sorts p);
+                } in
       List.iter each_lit cl.Clause2.cl_lits;
       let _, nvars = Clause.normalize_vars cl.Clause2.cl_lits in
       {

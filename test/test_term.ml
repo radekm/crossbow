@@ -5,51 +5,6 @@ open OUnit
 module S = Symb
 module T = Term
 
-let test_mk_eq () =
-  let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add_func db 2 in
-  let l = T.Func (f, [| T.Var 1; T.Var 2 |]) in
-  let r = T.Var 0 in
-  assert_equal
-    (T.Func (Symb.sym_eq, [| l; r |]))
-    (T.mk_eq l r)
-
-let test_mk_ineq () =
-  let Symb.Wr db = Symb.create_db () in
-  let c = Symb.add_func db 0 in
-  let d = Symb.add_func db 0 in
-  let c = T.Func (c, [| |]) in
-  let d = T.Func (d, [| |]) in
-  assert_equal
-    (T.Neg (T.Func (Symb.sym_eq, [| c; d |]) ))
-    (T.mk_ineq c d)
-
-let test_neg_lit1 () =
-  assert_equal
-    (T.mk_eq (T.Var 0) (T.Var 1))
-    (T.neg_lit (T.mk_ineq (T.Var 0) (T.Var 1)))
-
-let test_neg_lit2 () =
-  let S.Wr db = S.create_db () in
-  let p = S.add_pred db 1 in
-  let term = T.Func (p, [| T.Var 2 |]) in
-  assert_equal
-    (T.Neg term)
-    (T.neg_lit term)
-
-let test_true_lit_false_lit () =
-  let S.Wr db = S.create_db () in
-  let f = S.add_func db 1 in
-  let mk_term v = T.Func (f, [| T.Var v |]) in
-  (* true_lit *)
-  assert_bool "" (T.true_lit (T.mk_eq (mk_term 1) (mk_term 1)));
-  assert_bool "" (not (T.true_lit (T.mk_eq (mk_term 2) (mk_term 1))));
-  assert_bool "" (not (T.true_lit (T.mk_ineq (mk_term 1) (mk_term 1))));
-  (* false_lit *)
-  assert_bool "" (T.false_lit (T.mk_ineq (mk_term 1) (mk_term 1)));
-  assert_bool "" (not (T.false_lit (T.mk_ineq (mk_term 2) (mk_term 1))));
-  assert_bool "" (not (T.false_lit (T.mk_eq (mk_term 1) (mk_term 1))))
-
 let test_contains1 () =
   let Symb.Wr db = Symb.create_db () in
   let f = Symb.add_func db 2 in
@@ -97,27 +52,6 @@ let test_iter () =
   T.iter each_subterm term;
   assert_equal [] !subterms
 
-let test_pickp1 () =
-  let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add_func db 1 in
-  let cond p t = match p, t with
-    | Some _, T.Func (s, [| (T.Var _) as x |]) when s = f -> Some x
-    | _, _ -> None in
-  let term = T.Func (f, [| T.Var 42 |]) in
-  assert_equal None (T.pickp cond term)
-
-let test_pickp2 () =
-  let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add_func db 1 in
-  let cond p t = match p, t with
-    | Some _, T.Func (s, [| (T.Var _) as x |]) when s = f -> Some x
-    | _, _ -> None in
-  let term =
-    T.Func (f,
-            [| T.Func (f, [| T.Var 42 |]) |]
-    ) in
-  assert_equal (Some (T.Var 42)) (T.pickp cond term)
-
 let test_normalize_comm () =
   let Symb.Wr db = Symb.create_db () in
   let f = Symb.add_func db 2 in
@@ -151,28 +85,6 @@ let test_normalize_comm () =
     ) in
   assert_equal normalized (T.normalize_comm db orig)
 
-let test_replace () =
-  let Symb.Wr db = Symb.create_db () in
-  let f = Symb.add_func db 2 in
-  let g = Symb.add_func db 1 in
-  let c = Symb.add_func db 0 in
-  let sub_old = T.Func (f, [| T.Func (c, [| |]); T.Var 0 |]) in
-  let sub_new = T.Func (g, [| T.Func (c, [| |]) |]) in
-  let mk_term sub =
-    Term.mk_ineq
-      (T.Func (g,
-               [|
-                 T.Func (f,
-                         [|
-                           sub;
-                           T.Func (f, [| T.Func (c, [| |]); T.Var 1 |]);
-                         |]
-                 );
-               |]))
-      (T.Func (g, [| sub |])) in
-  assert_equal
-    (mk_term sub_new)
-    (Term.replace sub_old sub_new (mk_term sub_old))
 
 module IntSet = BatSet.IntSet
 
@@ -192,17 +104,9 @@ let test_vars () =
 let suite =
   "Term suite" >:::
     [
-      "mk_eq" >:: test_mk_eq;
-      "mk_ineq" >:: test_mk_ineq;
-      "neg_lit 1" >:: test_neg_lit1;
-      "neg_lit 2" >:: test_neg_lit2;
-      "true_lit, false_lit" >:: test_true_lit_false_lit;
       "contains 1" >:: test_contains1;
       "contains 2" >:: test_contains2;
       "iter" >:: test_iter;
-      "pickp 1" >:: test_pickp1;
-      "pickp 2" >:: test_pickp2;
       "normalize_comm" >:: test_normalize_comm;
-      "replace" >:: test_replace;
       "vars" >:: test_vars;
     ]

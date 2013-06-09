@@ -4,6 +4,7 @@ open OUnit
 
 module S = Symb
 module T = Term
+module L = Lit
 module C = Clause2
 
 
@@ -27,9 +28,9 @@ let test_one_sort_adeq_size () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      T.mk_eq x (T.Func (c1, [| |]));
-      T.mk_eq x (T.Func (c2, [| |]));
-      T.mk_eq x (T.Func (c3, [| |]));
+      L.mk_eq x (T.Func (c1, [| |]));
+      L.mk_eq x (T.Func (c2, [| |]));
+      L.mk_eq x (T.Func (c3, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -70,9 +71,9 @@ let test_one_sort_no_adeq_size () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      T.mk_eq x y;
-      T.mk_eq y z;
-      T.mk_eq x z;
+      L.mk_eq x y;
+      L.mk_eq y z;
+      L.mk_eq x z;
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -112,8 +113,8 @@ let test_no_adeq_size_both_reasons () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      T.mk_eq x y;
-      T.mk_ineq (T.Func (f, [| x |])) (T.Func (f, [| y |]));
+      L.mk_eq x y;
+      L.mk_ineq (T.Func (f, [| x |])) (T.Func (f, [| y |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -157,16 +158,16 @@ let test_more_clauses () =
   let clause1 = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      T.mk_ineq (T.Func (c1, [| |])) (T.Func (c2, [| |]));
+      L.mk_ineq (T.Func (c1, [| |])) (T.Func (c2, [| |]));
     ];
   } in
   (* x = c1, x = c2, c3 = c4 *)
   let clause2 = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      T.mk_eq x (T.Func (c1, [| |]));
-      T.mk_eq x (T.Func (c2, [| |]));
-      T.mk_eq (T.Func (c3, [| |])) (T.Func (c4, [| |]));
+      L.mk_eq x (T.Func (c1, [| |]));
+      L.mk_eq x (T.Func (c2, [| |]));
+      L.mk_eq (T.Func (c3, [| |])) (T.Func (c4, [| |]));
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause1;
@@ -215,9 +216,9 @@ let test_predicate () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      T.neg_lit (T.Func (le, [| T.Func (succ, [| x |]); two |]));
-      T.mk_eq x (T.Func (zero, [| |]));
-      T.mk_eq (T.Func (succ, [| T.Func (zero, [| |]) |])) x;
+      L.Lit (Sh.Neg, le, [| T.Func (succ, [| x |]); two |]);
+      L.mk_eq x (T.Func (zero, [| |]));
+      L.mk_eq (T.Func (succ, [| T.Func (zero, [| |]) |])) x;
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
@@ -266,7 +267,7 @@ let test_func_high_arity () =
   let clause = {
     C.cl_id = Prob.fresh_id prob;
     C.cl_lits = [
-      T.mk_eq (T.Func (f, [| x; y; T.Func (g, [| z |]); T.Func (c, [| |]) |])) y;
+      L.mk_eq (T.Func (f, [| x; y; T.Func (g, [| z |]); T.Func (c, [| |]) |])) y;
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;

@@ -2,7 +2,7 @@
 
 (** Clauses. *)
 
-type 's t = 's Term.lit list
+type 's t = 's Lit.t list
 
 (** Simplifies the clause. Here is a list of performed simplifications:
 

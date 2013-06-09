@@ -4,6 +4,7 @@ open OUnit
 
 module C = Clause2
 module T = Term
+module L = Lit
 
 let test_lnh_one_sort () =
   let Prob.Wr prob = Prob.create () in
@@ -12,7 +13,7 @@ let test_lnh_one_sort () =
   let x = T.Var 0 in
   let cl = {
     C.cl_id = 1;
-    C.cl_lits = [ T.mk_eq (T.Func (f, [| x; x; |])) x ];
+    C.cl_lits = [ L.mk_eq (T.Func (f, [| x; x; |])) x ];
   } in
   BatDynArray.add prob.Prob.clauses cl;
   let sorts = Sorts.of_problem prob in
@@ -44,7 +45,7 @@ let test_lnh_more_sorts () =
   let y = T.Var 1 in
   let cl = {
     C.cl_id = 1;
-    C.cl_lits = [ T.mk_eq (T.Func (f, [| x; y |])) y ];
+    C.cl_lits = [ L.mk_eq (T.Func (f, [| x; y |])) y ];
   } in
   BatDynArray.add prob.Prob.clauses cl;
   let sorts = Sorts.of_problem prob in

@@ -8,25 +8,8 @@ type var = int
 type 's t =
   | Var of var
   | Func of 's Symb.id * 's t array
-  | Neg of 's t
 
-(** A literal is an atomic formula or its negation. *)
-type 's lit = 's t
-
-(** Constructs an equality. *)
-val mk_eq : 's t -> 's t -> 's t
-
-(** Constructs an inequality. *)
-val mk_ineq : 's t -> 's t -> 's t
-
-(** [neg_lit l] negates the literal [l]. *)
-val neg_lit : 's lit -> 's lit
-
-(** Returns [true] iff the literal is an equality of two identical terms. *)
-val true_lit : 's lit -> bool
-
-(** Returns [true] iff the literal is an inequality of two identical terms. *)
-val false_lit : 's lit -> bool
+val get_args : 's t -> 's t array
 
 (** [contains sub t] tests whether the term [t] contains [sub] as a subterm. *)
 val contains : 's t -> 's t -> bool
@@ -35,14 +18,6 @@ val contains : 's t -> 's t -> bool
    [f] is always applied to a parent term before it is applied to its child terms.
 *)
 val iter : ('s t -> unit) -> 's t -> unit
-
-(** [pickp f t] successively applies [f] to all subterms of [t] until [f]
-   succeeds. The result of [f] is returned if [f] succeeded, [None] otherwise.
-
-   [pickp] traverses [t] in the preorder. [f] takes two arguments [p] and [sub]
-   where [sub] is a subterm of [t] and [p] is the parent of [sub].
- *)
-val pickp : ('s t option -> 's t -> 'a option) -> 's t -> 'a option
 
 (** Reorders arguments of commutative symbols in a such way that
     the first one is not smaller than the second one.

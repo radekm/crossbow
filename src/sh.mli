@@ -5,3 +5,5 @@
 type sign =
   | Pos
   | Neg
+
+val neg : sign -> sign

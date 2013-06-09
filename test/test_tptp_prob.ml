@@ -5,6 +5,7 @@ open OUnit
 module Ast = Tptp_ast
 module TP = Tptp_prob
 module T = Term
+module L = Lit
 module C = Clause2
 
 let base_dir = "test/data/tptp_prob/"
@@ -77,8 +78,8 @@ let test_basic () =
     (BatDynArray.to_list p.TP.prob.Prob.distinct_consts);
 
   (* Clauses. *)
-  let q2 a b = T.Func (q2', [| a; b |]) in
-  let q1 a = T.Func (q1', [| a |]) in
+  let q2 a b = L.Lit (Sh.Pos, q2', [| a; b |]) in
+  let q1 a = L.Lit (Sh.Pos, q1', [| a |]) in
   let c0 = T.Func (c0', [| |]) in
   let d0 = T.Func (d0', [| |]) in
   let f2 a b = T.Func (f2', [| a; b |]) in
@@ -90,13 +91,13 @@ let test_basic () =
     };
     {
       C.cl_id = 1;
-      C.cl_lits = [ T.neg_lit (q2 c0 d0) ];
+      C.cl_lits = [ L.neg (q2 c0 d0) ];
     };
     {
       C.cl_id = 2;
       C.cl_lits = [
-        T.mk_eq (T.Var 0) (T.Var 1);
-        T.mk_ineq
+        L.mk_eq (T.Var 0) (T.Var 1);
+        L.mk_ineq
           (f2 (T.Var 0) (T.Var 1))
           (f2 (T.Var 1) (T.Var 0));
       ];
@@ -104,7 +105,7 @@ let test_basic () =
     {
       C.cl_id = 3;
       C.cl_lits = [
-        T.neg_lit
+        L.neg
           (q2
              (T.Func (str_hi', [| |]))
              (T.Func (num_twelve_point_five', [| |])));
@@ -114,7 +115,7 @@ let test_basic () =
       C.cl_id = 4;
       C.cl_lits = [
         q1 (T.Func (num_seven', [| |]));
-        T.mk_eq
+        L.mk_eq
           (f1 (T.Var 0))
           (T.Func (str_hello_world', [| |]));
       ];
@@ -177,7 +178,7 @@ let test_include () =
     (BatDynArray.to_list p.TP.prob.Prob.distinct_consts);
 
   (* Clauses. *)
-  let q1 a = T.Func (q1', [| a |]) in
+  let q1 a = L.Lit (Sh.Pos, q1', [| a |]) in
   let c0 = T.Func (c0', [| |]) in
   let d0 = T.Func (d0', [| |]) in
   let g1 a = T.Func (g1', [| a |]) in
@@ -186,11 +187,11 @@ let test_include () =
   let exp_clauses = [
     {
       C.cl_id = 0;
-      C.cl_lits = [ T.mk_eq (g1 c0) num_zero ];
+      C.cl_lits = [ L.mk_eq (g1 c0) num_zero ];
     };
     {
       C.cl_id = 1;
-      C.cl_lits = [ T.mk_eq c0 (g1 (g1 c0)) ];
+      C.cl_lits = [ L.mk_eq c0 (g1 (g1 c0)) ];
     };
     {
       C.cl_id = 2;
@@ -198,11 +199,11 @@ let test_include () =
     };
     {
       C.cl_id = 3;
-      C.cl_lits = [ T.mk_ineq d0 c0 ];
+      C.cl_lits = [ L.mk_ineq d0 c0 ];
     };
     {
       C.cl_id = 4;
-      C.cl_lits = [ T.mk_eq d0 num_one ];
+      C.cl_lits = [ L.mk_eq d0 num_one ];
     };
     {
       C.cl_id = 5;
@@ -255,7 +256,10 @@ let test_nested_include () =
   let exp_clauses = [
     {
       C.cl_id = 0;
-      C.cl_lits = [ T.Func (r0', [| |]); T.neg_lit (T.Func (s0', [| |])) ];
+      C.cl_lits = [
+        L.Lit (Sh.Pos, r0', [| |]);
+        L.neg (L.Lit (Sh.Pos, s0', [| |]))
+      ];
     };
   ] in
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
@@ -307,7 +311,7 @@ let test_nested_include_with_sel () =
 
   (* Clauses. *)
   let exp_clauses =
-    let p a = T.Func (p1', [| a |]) in
+    let p a = L.Lit (Sh.Pos, p1', [| a |]) in
     let const s = T.Func (s, [| |]) in
     [
       {

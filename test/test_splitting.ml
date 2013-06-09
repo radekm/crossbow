@@ -3,6 +3,7 @@
 open OUnit
 
 module T = Term
+module L = Lit
 module C = Clause
 
 let (|>) = BatPervasives.(|>)
@@ -40,7 +41,7 @@ let test_paradox_mod_splitting_empty_cl () =
 type wrap_cl =
   | Wr_cl :
       's Symb.db * 's C.t *
-      ('s T.t -> 's T.t -> 's T.t) *
+      ('s T.t -> 's T.t -> 's Lit.t) *
       ('s T.t -> 's T.t -> 's T.t -> 's T.t -> 's T.t -> 's T.t) *
       (T.var -> 's T.t) ->
       wrap_cl
@@ -48,19 +49,19 @@ type wrap_cl =
 let make_cl () =
   let Symb.Wr db = Symb.create_db () in
   let p = Symb.add_pred db 2 in
-  let p a b = T.Func (p, [| a; b |]) in
+  let p a b = L.Lit (Sh.Pos, p, [| a; b |]) in
   let f = Symb.add_func db 5 in
   let f a b c d e = T.Func (f, [| a; b; c; d; e |]) in
   let x i = T.Var i in
   let cl = [
-    T.neg_lit (p (x 0) (x 1));
-    T.neg_lit (p (x 2) (x 3));
-    T.neg_lit (p (x 4) (x 5));
-    T.neg_lit (p (x 6) (x 7));
-    T.neg_lit (p (x 8) (x 9));
+    L.neg (p (x 0) (x 1));
+    L.neg (p (x 2) (x 3));
+    L.neg (p (x 4) (x 5));
+    L.neg (p (x 6) (x 7));
+    L.neg (p (x 8) (x 9));
     p (x 10) (x 11);
-    T.mk_ineq (x 10) (f (x 0) (x 2) (x 4) (x 6) (x 8));
-    T.mk_ineq (x 11) (f (x 1) (x 3) (x 5) (x 7) (x 9));
+    L.mk_ineq (x 10) (f (x 0) (x 2) (x 4) (x 6) (x 8));
+    L.mk_ineq (x 11) (f (x 1) (x 3) (x 5) (x 7) (x 9));
   ] in
   Wr_cl (db, cl, p, f, x)
 
@@ -79,34 +80,34 @@ let check_splitting_cl (split : split) =
   let normalize cl = fst (C.normalize_vars cl) in
   let exp_clauses = [
     normalize [
-      T.Func (q1, [| x 1; x 2; x 4; x 6; x 8; x 10 |]);
-      T.neg_lit (p (x 0) (x 1));
-      T.mk_ineq (x 10) (f (x 0) (x 2) (x 4) (x 6) (x 8));
+      L.Lit (Sh.Pos, q1, [| x 1; x 2; x 4; x 6; x 8; x 10 |]);
+      L.neg (p (x 0) (x 1));
+      L.mk_ineq (x 10) (f (x 0) (x 2) (x 4) (x 6) (x 8));
     ];
     normalize [
-      T.Func (q2, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-      T.neg_lit (T.Func (q1, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
-      T.neg_lit (p (x 1) (x 6));
+      L.Lit (Sh.Pos, q2, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
+      L.neg (L.Lit (Sh.Pos, q1, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+      L.neg (p (x 1) (x 6));
     ];
     normalize [
-      T.Func (q3, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-      T.neg_lit (T.Func (q2, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
-      T.neg_lit (p (x 1) (x 6));
+      L.Lit (Sh.Pos, q3, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
+      L.neg (L.Lit (Sh.Pos, q2, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+      L.neg (p (x 1) (x 6));
     ];
     normalize [
-      T.Func (q4, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-      T.neg_lit (T.Func (q3, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
-      T.neg_lit (p (x 1) (x 6));
+      L.Lit (Sh.Pos, q4, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
+      L.neg (L.Lit (Sh.Pos, q3, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+      L.neg (p (x 1) (x 6));
     ];
     normalize [
-      T.Func (q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
-      T.neg_lit (T.Func (q4, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
-      T.neg_lit (p (x 1) (x 6));
+      L.Lit (Sh.Pos, q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]);
+      L.neg (L.Lit (Sh.Pos, q4, [| x 0; x 1; x 2; x 3; x 4; x 5 |]));
+      L.neg (p (x 1) (x 6));
     ];
     normalize [
-      T.neg_lit (T.Func (q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]));
+      L.neg (L.Lit (Sh.Pos, q5, [| x 0; x 2; x 3; x 4; x 5; x 6 |]));
       p (x 2) (x 7);
-      T.mk_ineq (x 7) (f (x 0) (x 3) (x 4) (x 5) (x 6));
+      L.mk_ineq (x 7) (f (x 0) (x 3) (x 4) (x 5) (x 6));
     ];
   ] in
   assert_equal ~printer:show_clauses exp_clauses clauses
@@ -124,20 +125,20 @@ let test_paradox_mod_splitting () =
 type wrap_cl2 =
   | Wr_cl2 :
       's Symb.db * 's C.t *
-      ('s T.t -> 's T.t -> 's T.t) *
-      ('s T.t -> 's T.t -> 's T.t -> 's T.t -> 's T.t) *
-      's T.t *
+      ('s T.t -> 's T.t -> 's L.t) *
+      ('s T.t -> 's T.t -> 's T.t -> 's T.t -> 's L.t) *
+      's L.t *
       (T.var -> 's T.t) ->
       wrap_cl2
 
 let make_cl2 () =
   let Symb.Wr db = Symb.create_db () in
   let p = Symb.add_pred db 2 in
-  let p a b = T.Func (p, [| a; b |]) in
+  let p a b = L.Lit (Sh.Pos, p, [| a; b |]) in
   let q = Symb.add_pred db 4 in
-  let q a b c d = T.Func (q, [| a; b; c; d |]) in
+  let q a b c d = L.Lit (Sh.Pos, q, [| a; b; c; d |]) in
   let r = Symb.add_pred db 0 in
-  let r = T.Func (r, [| |]) in
+  let r = L.Lit (Sh.Pos, r, [| |]) in
   let x i = T.Var i in
   let cl = [
     p (x 0) (x 1);
@@ -158,17 +159,17 @@ let test_paradox_splitting2 () =
   let normalize cl = fst (C.normalize_vars cl) in
   let exp_clauses = [
     normalize [
-      T.Func (q1, [| x 1; x 2 |]);
+      L.Lit (Sh.Pos, q1, [| x 1; x 2 |]);
       p (x 0) (x 1);
       p (x 0) (x 2);
     ];
     normalize [
-      T.Func (q2, [| |]);
-      T.neg_lit (T.Func (q1, [| x 0; x 1 |]));
+      L.Lit (Sh.Pos, q2, [| |]);
+      L.neg (L.Lit (Sh.Pos, q1, [| x 0; x 1 |]));
       p (x 0) (x 1);
     ];
     normalize [
-      T.neg_lit (T.Func (q2, [| |]));
+      L.neg (L.Lit (Sh.Pos, q2, [| |]));
       r;
       q (x 2) (x 3) (x 4) (x 5);
     ];
@@ -186,14 +187,14 @@ let test_paradox_mod_splitting2 () =
   let normalize cl = fst (C.normalize_vars cl) in
   let exp_clauses = [
     normalize [
-      T.Func (q1, [| |]);
+      L.Lit (Sh.Pos, q1, [| |]);
       p (x 0) (x 1);
       p (x 0) (x 2);
       p (x 1) (x 2);
       r;
     ];
     normalize [
-      T.neg_lit (T.Func (q1, [| |]));
+      L.neg (L.Lit (Sh.Pos, q1, [| |]));
       q (x 3) (x 4) (x 5) (x 6);
     ];
   ] in

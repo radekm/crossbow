@@ -3,6 +3,7 @@
 open OUnit
 
 module T = Term
+module L = Lit
 module C = Clause2
 
 module Make (Inst : Sat_inst.Inst_sig) : sig
@@ -25,12 +26,12 @@ end = struct
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* f(x) <> z, z <> f(y), x = y *)
-      C.cl_lits = [ T.mk_ineq (f x) z; T.mk_ineq z (f y); T.mk_eq x y ];
+      C.cl_lits = [ L.mk_ineq (f x) z; L.mk_ineq z (f y); L.mk_eq x y ];
     } in
     let clause2 = {
       C.cl_id = Prob.fresh_id prob;
       (* f(x) <> y, y <> c *)
-      C.cl_lits = [ T.mk_ineq (f x) y; T.mk_ineq y c ];
+      C.cl_lits = [ L.mk_ineq (f x) y; L.mk_ineq y c ];
     } in
     List.iter
       (BatDynArray.add prob.Prob.clauses)
@@ -49,39 +50,39 @@ end = struct
     let psymb = Symb.add_pred db 0 in
     let qsymb = Symb.add_pred db 0 in
     let rsymb = Symb.add_pred db 0 in
-    let p = T.Func (psymb, [| |]) in
-    let q = T.Func (qsymb, [| |]) in
-    let r = T.Func (rsymb, [| |]) in
+    let p = L.Lit (Sh.Pos, psymb, [| |]) in
+    let q = L.Lit (Sh.Pos, qsymb, [| |]) in
+    let r = L.Lit (Sh.Pos, rsymb, [| |]) in
     (* Only satisfying assignment is: ~p, q, ~r. *)
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p, ~q, ~r *)
-      C.cl_lits = [ T.neg_lit p; T.neg_lit q; T.neg_lit r ];
+      C.cl_lits = [ L.neg p; L.neg q; L.neg r ];
     } in
     let clause2 = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p, ~q, r *)
-      C.cl_lits = [ T.neg_lit p; T.neg_lit q; r ];
+      C.cl_lits = [ L.neg p; L.neg q; r ];
     } in
     let clause3 = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p, q, ~r *)
-      C.cl_lits = [ T.neg_lit p; q; T.neg_lit r ];
+      C.cl_lits = [ L.neg p; q; L.neg r ];
     } in
     let clause4 = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p, q, r *)
-      C.cl_lits = [ T.neg_lit p; q; r ];
+      C.cl_lits = [ L.neg p; q; r ];
     } in
     let clause5 = {
       C.cl_id = Prob.fresh_id prob;
       (* p, ~q, ~r *)
-      C.cl_lits = [ p; T.neg_lit q; T.neg_lit r ];
+      C.cl_lits = [ p; L.neg q; L.neg r ];
     } in
     let clause6 = {
       C.cl_id = Prob.fresh_id prob;
       (* p, q, ~r *)
-      C.cl_lits = [ p; q; T.neg_lit r ];
+      C.cl_lits = [ p; q; L.neg r ];
     } in
     let clause7 = {
       C.cl_id = Prob.fresh_id prob;
@@ -124,7 +125,7 @@ end = struct
     let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let psymb = Symb.add_pred db 2 in
-    let p a b = T.Func (psymb, [| a; b |]) in
+    let p a b = L.Lit (Sh.Pos, psymb, [| a; b |]) in
     Symb.set_commutative db psymb true;
     let c1symb = Symb.add_func db 0 in
     let c1 = T.Func (c1symb, [| |]) in
@@ -141,17 +142,17 @@ end = struct
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* ~p(c1, c2) *)
-      C.cl_lits = [ T.neg_lit (p x y); T.mk_ineq c1 x; T.mk_ineq c2 y ];
+      C.cl_lits = [ L.neg (p x y); L.mk_ineq c1 x; L.mk_ineq c2 y ];
     } in
     let clause2 = {
       C.cl_id = Prob.fresh_id prob;
       (* p(c1, c3) *)
-      C.cl_lits = [ p x y; T.mk_ineq c1 x; T.mk_ineq c3 y ];
+      C.cl_lits = [ p x y; L.mk_ineq c1 x; L.mk_ineq c3 y ];
     } in
     let clause3 = {
       C.cl_id = Prob.fresh_id prob;
       (* p(c2, c3) *)
-      C.cl_lits = [ p x y; T.mk_ineq c2 x; T.mk_ineq c3 y ];
+      C.cl_lits = [ p x y; L.mk_ineq c2 x; L.mk_ineq c3 y ];
     } in
     List.iter
       (BatDynArray.add prob.Prob.clauses)
@@ -209,9 +210,9 @@ end = struct
       C.cl_id = Prob.fresh_id prob;
       (* row1 = row2, f(row1, col) != x, x != f(row2, col) *)
       C.cl_lits = [
-        T.mk_eq row1 row2;
-        T.mk_ineq (f row1 col) x;
-        T.mk_ineq x (f row2 col) ];
+        L.mk_eq row1 row2;
+        L.mk_ineq (f row1 col) x;
+        L.mk_ineq x (f row2 col) ];
     } in
     let row = T.Var 1 in
     let col1 = T.Var 2 in
@@ -220,9 +221,9 @@ end = struct
       C.cl_id = Prob.fresh_id prob;
       (* col1 = col2, f(row, col1) != x, x != f(row, col2) *)
       C.cl_lits = [
-        T.mk_eq col1 col2;
-        T.mk_ineq (f row col1) x;
-        T.mk_ineq x (f row col2) ];
+        L.mk_eq col1 col2;
+        L.mk_ineq (f row col1) x;
+        L.mk_ineq x (f row col2) ];
     } in
     List.iter
       (BatDynArray.add prob.Prob.clauses)
@@ -275,12 +276,12 @@ end = struct
     let clause = {
       C.cl_id = Prob.fresh_id prob;
       (* f(x) <> x *)
-      C.cl_lits = [ T.mk_ineq (f x) x ];
+      C.cl_lits = [ L.mk_ineq (f x) x ];
     } in
     let clause2 = {
       C.cl_id = Prob.fresh_id prob;
       (* f(x) <> y, f(y) = x *)
-      C.cl_lits = [ T.mk_ineq (f x) y; T.mk_eq (f y) x ];
+      C.cl_lits = [ L.mk_ineq (f x) y; L.mk_eq (f y) x ];
     } in
     List.iter
       (BatDynArray.add prob.Prob.clauses)
