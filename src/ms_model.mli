@@ -17,5 +17,5 @@ type table = {
 
 type 's t = {
   max_size : int;
-  symbs : ('s Symb.id, table) Hashtbl.t;
+  symbs : ('s, table) Symb.Map.t;
 }

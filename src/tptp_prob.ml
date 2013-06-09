@@ -208,11 +208,11 @@ let model_to_tptp
           match tptp_symb with
             | Atomic_word (_, _) -> ()
             | Number n ->
-                let v = (Hashtbl.find model.M.symbs s).M.values.(0) in
+                let v = (Symb.Map.find s model.M.symbs).M.values.(0) in
                 dom_to_tptp.(v) <- Some tptp_symb;
                 Hashtbl.add used_nums n ()
             | String _ ->
-                let v = (Hashtbl.find model.M.symbs s).M.values.(0) in
+                let v = (Symb.Map.find s model.M.symbs).M.values.(0) in
                 dom_to_tptp.(v) <- Some tptp_symb
         with
           | Not_found -> failwith "distinct constant not in model")
@@ -268,7 +268,7 @@ let model_to_tptp
         | Atomic_word (w, arity) ->
             let role, atoms =
               let param_sizes = Array.make arity model.M.max_size in
-              let values = (Hashtbl.find model.M.symbs s).M.values in
+              let values = (Symb.Map.find s model.M.symbs).M.values in
               let a = Array.make arity ~-1 in
               let i = ref 0 in
               let atoms = BatDynArray.make (Array.length values) in

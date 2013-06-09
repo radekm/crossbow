@@ -8,24 +8,21 @@ module L = Lit
 module Ms = Ms_model
 module M = Model
 
-let hashtbl_of_list xs = BatHashtbl.of_enum (BatList.enum xs)
-
-let hashtbl_to_list h =
-  BatList.sort (BatList.of_enum (BatHashtbl.enum h))
+let map_of_list xs = Symb.Map.of_enum (BatList.enum xs)
 
 let model_eq m1 m2 =
   m1.M.max_size = m2.M.max_size &&
-  hashtbl_to_list m1.M.symbs = hashtbl_to_list m2.M.symbs
+  Symb.Map.equal (=) m1.M.symbs m2.M.symbs
 
 let show_model m =
   let b = Buffer.create 128 in
   Printf.bprintf b "Max size: %d\n" m.M.max_size;
-  List.iter
-    (fun (symb, table) ->
+  Symb.Map.iter
+    (fun symb table ->
       Printf.bprintf b "Symbol %2d: [" (Symb.id_to_int symb);
       Array.iter (Printf.bprintf b " %2d") table.M.values;
       Printf.bprintf b " ]\n")
-    (hashtbl_to_list m.M.symbs);
+    m.M.symbs;
   Buffer.contents b
 
 let build_and_check_model prob ms_model exp_model =
@@ -47,7 +44,7 @@ let test_nullary_pred () =
   let ms_model = {
     Ms.max_size = 1;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { Ms.param_sizes = [| |]; Ms.values = [| 1 |] };
         ];
@@ -55,7 +52,7 @@ let test_nullary_pred () =
   let exp_model = {
     M.max_size = 1;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { M.values = [| 1 |] };
         ];
@@ -77,7 +74,7 @@ let test_unary_func_one_sort_no_adeq_size () =
   let ms_model = {
     Ms.max_size = 3;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { Ms.param_sizes = [| 3 |]; Ms.values = [| 1; 2; 1 |] };
         ];
@@ -85,7 +82,7 @@ let test_unary_func_one_sort_no_adeq_size () =
   let exp_model = {
     M.max_size = 3;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 1; 2; 1 |] };
         ];
@@ -114,7 +111,7 @@ let test_binary_pred_two_sorts_no_adeq_size () =
   let ms_model = {
     Ms.max_size = 2;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { Ms.param_sizes = [| 2; 2 |]; Ms.values = [| 1; 1; 1; 1 |] };
         ];
@@ -122,7 +119,7 @@ let test_binary_pred_two_sorts_no_adeq_size () =
   let exp_model = {
     M.max_size = 2;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { M.values = [| 1; 1; 1; 1 |] };
         ];
@@ -150,7 +147,7 @@ let test_unary_pred_one_sort_adeq_size () =
   let ms_model2 = {
     Ms.max_size = 2;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { Ms.param_sizes = [| 2 |]; Ms.values = [| 0; 1 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 1 |] };
@@ -160,7 +157,7 @@ let test_unary_pred_one_sort_adeq_size () =
   let exp_model2 = {
     M.max_size = 2;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { M.values = [| 0; 1 |] };
           c, { M.values = [| 1 |] };
@@ -172,7 +169,7 @@ let test_unary_pred_one_sort_adeq_size () =
   let ms_model3 = {
     Ms.max_size = 3;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { Ms.param_sizes = [| 3 |]; Ms.values = [| 0; 1; 1 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 1 |] };
@@ -182,7 +179,7 @@ let test_unary_pred_one_sort_adeq_size () =
   let exp_model3 = {
     M.max_size = 3;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { M.values = [| 0; 1; 1 |] };
           c, { M.values = [| 1 |] };
@@ -194,7 +191,7 @@ let test_unary_pred_one_sort_adeq_size () =
   let ms_model4 = {
     Ms.max_size = 4;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { Ms.param_sizes = [| 3 |]; Ms.values = [| 0; 1; 1 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 1 |] };
@@ -204,7 +201,7 @@ let test_unary_pred_one_sort_adeq_size () =
   let exp_model4 = {
     M.max_size = 4;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { M.values = [| 0; 1; 1; 0 |] };
           c, { M.values = [| 1 |] };
@@ -235,7 +232,7 @@ let test_unary_pred_one_sort_adeq_size2 () =
   let ms_model2 = {
     Ms.max_size = 2;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { Ms.param_sizes = [| 2 |]; Ms.values = [| 1; 0 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 1 |] };
@@ -245,7 +242,7 @@ let test_unary_pred_one_sort_adeq_size2 () =
   let exp_model2 = {
     M.max_size = 2;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { M.values = [| 1; 0 |] };
           c, { M.values = [| 1 |] };
@@ -257,7 +254,7 @@ let test_unary_pred_one_sort_adeq_size2 () =
   let ms_model3 = {
     Ms.max_size = 3;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { Ms.param_sizes = [| 2 |]; Ms.values = [| 1; 0 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 1 |] };
@@ -267,7 +264,7 @@ let test_unary_pred_one_sort_adeq_size2 () =
   let exp_model3 = {
     M.max_size = 3;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           p, { M.values = [| 1; 0; 1 |] };
           c, { M.values = [| 1 |] };
@@ -296,7 +293,7 @@ let test_binary_func_two_sorts_one_adeq_size () =
   let ms_model1 = {
     Ms.max_size = 1;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { Ms.param_sizes = [| 1; 1 |]; Ms.values = [| 0 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 0 |] };
@@ -305,7 +302,7 @@ let test_binary_func_two_sorts_one_adeq_size () =
   let exp_model1 = {
     M.max_size = 1;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 0 |] };
           c, { M.values = [| 0 |] };
@@ -316,7 +313,7 @@ let test_binary_func_two_sorts_one_adeq_size () =
   let ms_model2 = {
     Ms.max_size = 2;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { Ms.param_sizes = [| 2; 2 |]; Ms.values = [| 1; 0; 0; 1 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 0 |] };
@@ -325,7 +322,7 @@ let test_binary_func_two_sorts_one_adeq_size () =
   let exp_model2 = {
     M.max_size = 2;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 1; 0; 0; 1 |] };
           c, { M.values = [| 0 |] };
@@ -336,7 +333,7 @@ let test_binary_func_two_sorts_one_adeq_size () =
   let ms_model3 = {
     Ms.max_size = 3;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f,
           {
@@ -349,7 +346,7 @@ let test_binary_func_two_sorts_one_adeq_size () =
   let exp_model3 = {
     M.max_size = 3;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 1; 0; 0; 0; 1; 2; 0; 1; 2 |] };
           c, { M.values = [| 0 |] };
@@ -380,7 +377,7 @@ let test_binary_func_two_sorts_one_adeq_size2 () =
   let ms_model1 = {
     Ms.max_size = 1;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { Ms.param_sizes = [| 1; 1 |]; Ms.values = [| 0 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 0 |] };
@@ -389,7 +386,7 @@ let test_binary_func_two_sorts_one_adeq_size2 () =
   let exp_model1 = {
     M.max_size = 1;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 0 |] };
           c, { M.values = [| 0 |] };
@@ -400,7 +397,7 @@ let test_binary_func_two_sorts_one_adeq_size2 () =
   let ms_model2 = {
     Ms.max_size = 2;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { Ms.param_sizes = [| 2; 2 |]; Ms.values = [| 1; 0; 0; 1 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 0 |] };
@@ -409,7 +406,7 @@ let test_binary_func_two_sorts_one_adeq_size2 () =
   let exp_model2 = {
     M.max_size = 2;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 1; 0; 0; 1 |] };
           c, { M.values = [| 0 |] };
@@ -420,7 +417,7 @@ let test_binary_func_two_sorts_one_adeq_size2 () =
   let ms_model3 = {
     Ms.max_size = 3;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f,
           {
@@ -433,7 +430,7 @@ let test_binary_func_two_sorts_one_adeq_size2 () =
   let exp_model3 = {
     M.max_size = 3;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 2; 0; 0; 2; 1; 1; 1; 2; 2 |] };
           c, { M.values = [| 0 |] };
@@ -470,7 +467,7 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   let ms_model1 = {
     Ms.max_size = 1;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { Ms.param_sizes = [| 1; 1 |]; Ms.values = [| 0 |] };
           c1, { Ms.param_sizes = [| |]; Ms.values = [| 0 |] };
@@ -483,7 +480,7 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   let exp_model1 = {
     M.max_size = 1;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 0 |] };
           c1, { M.values = [| 0 |] };
@@ -498,7 +495,7 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   let ms_model2 = {
     Ms.max_size = 2;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { Ms.param_sizes = [| 2; 2 |]; Ms.values = [| 0; 0; 0; 1 |] };
           c1, { Ms.param_sizes = [| |]; Ms.values = [| 0 |] };
@@ -511,7 +508,7 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   let exp_model2 = {
     M.max_size = 2;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 0; 0; 0; 1 |] };
           c1, { M.values = [| 0 |] };
@@ -526,7 +523,7 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   let ms_model3 = {
     Ms.max_size = 3;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f,
           {
@@ -543,7 +540,7 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   let exp_model3 = {
     M.max_size = 3;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 1; 1; 1; 0; 2; 0; 1; 1; 1 |] };
           c1, { M.values = [| 1 |] };
@@ -558,7 +555,7 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   let ms_model4 = {
     Ms.max_size = 4;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f,
           {
@@ -575,7 +572,7 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   let exp_model4 = {
     M.max_size = 4;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f,
           { M.values = [| 2; 1; 0; 1; 0; 3; 0; 3; 2; 1; 0; 1; 2; 1; 0; 1 |] };
@@ -612,7 +609,7 @@ let test_comm_func_two_sorts_one_adeq_size () =
   let ms_model2 = {
     Ms.max_size = 2;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { Ms.param_sizes = [| 2; 2 |]; Ms.values = [| 0; 1; 1; 1 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 0 |] };
@@ -622,7 +619,7 @@ let test_comm_func_two_sorts_one_adeq_size () =
   let exp_model2 = {
     M.max_size = 2;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 0; 1; 1; 1 |] };
           c, { M.values = [| 0 |] };
@@ -634,7 +631,7 @@ let test_comm_func_two_sorts_one_adeq_size () =
   let ms_model3 = {
     Ms.max_size = 3;
     Ms.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { Ms.param_sizes = [| 2; 2 |]; Ms.values = [| 0; 2; 2; 2 |] };
           c, { Ms.param_sizes = [| |]; Ms.values = [| 0 |] };
@@ -644,7 +641,7 @@ let test_comm_func_two_sorts_one_adeq_size () =
   let exp_model3 = {
     M.max_size = 3;
     M.symbs =
-      hashtbl_of_list
+      map_of_list
         [
           f, { M.values = [| 0; 2; 2; 2; 2; 2; 2; 2; 2 |] };
           c, { M.values = [| 0 |] };

@@ -344,6 +344,8 @@ module M = Model
 
 let hashtbl_of_list xs = BatHashtbl.of_enum (BatList.enum xs)
 
+let map_of_list xs = Symb.Map.of_enum (BatList.enum xs)
+
 let test_model_to_tptp () =
   let Prob.Wr prob = Prob.create () in
   let db = prob.Prob.symbols in
@@ -356,7 +358,7 @@ let test_model_to_tptp () =
   let model = {
     M.max_size = 4;
     M.symbs =
-      hashtbl_of_list [
+      map_of_list [
         p, { M.values = [| 0; 1; 0; 0 |] };
         q, { M.values = [| 1 |] };
         c, { M.values = [| 2 |] };

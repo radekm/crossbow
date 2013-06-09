@@ -6,7 +6,7 @@ type table = {
 
 type 's t = {
   max_size : int;
-  symbs : ('s Symb.id, table) Hashtbl.t;
+  symbs : ('s, table) Symb.Map.t;
 }
 
 module Ms = Ms_model
@@ -33,7 +33,7 @@ let of_ms_model ms_model sorts =
             *)
             Array.iter
               (fun c ->
-                let v = (Hashtbl.find ms_model.Ms.symbs c).Ms.values.(0) in
+                let v = (Symb.Map.find c ms_model.Ms.symbs).Ms.values.(0) in
                 used.(v) <- used.(v) + 1)
               consts;
             (* Find an unused value. *)
@@ -53,8 +53,8 @@ let of_ms_model ms_model sorts =
     done;
     !r in
 
-  let model = { max_size; symbs = Hashtbl.create 20 } in
-  Hashtbl.iter
+  let symbs = ref Symb.Map.empty in
+  Symb.Map.iter
     (fun symb table ->
       let symb_sorts = Hashtbl.find sorts.Sorts.symb_sorts symb in
       let old_param_sizes = table.Ms.param_sizes in
@@ -83,7 +83,7 @@ let of_ms_model ms_model sorts =
           let r = rank old_args old_param_sizes in
           new_values.(!i) <- old_values.(r);
           incr i);
-      Hashtbl.add model.symbs symb { values = new_values })
+      symbs := Symb.Map.add symb { values = new_values } !symbs)
     ms_model.Ms.symbs;
 
-  model
+  { max_size; symbs = !symbs }

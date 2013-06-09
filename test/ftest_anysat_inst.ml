@@ -106,19 +106,19 @@ end = struct
           Ms_model.param_sizes = [| |];
           Ms_model.values = [| 0 |];
         }
-        (Hashtbl.find ms_model.Ms_model.symbs psymb);
+        (Symb.Map.find psymb ms_model.Ms_model.symbs);
       assert_equal
         {
           Ms_model.param_sizes = [| |];
           Ms_model.values = [| 1 |];
         }
-        (Hashtbl.find ms_model.Ms_model.symbs qsymb);
+        (Symb.Map.find qsymb ms_model.Ms_model.symbs);
       assert_equal
         {
           Ms_model.param_sizes = [| |];
           Ms_model.values = [| 0 |];
         }
-        (Hashtbl.find ms_model.Ms_model.symbs rsymb)
+        (Symb.Map.find rsymb ms_model.Ms_model.symbs)
     done
 
   let test_symmetric_pred () =
@@ -169,7 +169,7 @@ end = struct
       (* Check model. *)
       let ms_model = Inst.construct_model i in
       assert_equal max_size ms_model.Ms_model.max_size;
-      let ptable = Hashtbl.find ms_model.Ms_model.symbs psymb in
+      let ptable = Symb.Map.find psymb ms_model.Ms_model.symbs in
       assert_equal [| nconsts; nconsts |] ptable.Ms_model.param_sizes;
       let get_val x y = ptable.Ms_model.values.(x * nconsts + y) in
       (* Check symmetry of the predicate. *)
@@ -180,11 +180,11 @@ end = struct
         done
       done;
       (* Check constants. *)
-      let c1table = Hashtbl.find ms_model.Ms_model.symbs c1symb in
+      let c1table = Symb.Map.find c1symb ms_model.Ms_model.symbs in
       assert_equal [| |] c1table.Ms_model.param_sizes;
-      let c2table = Hashtbl.find ms_model.Ms_model.symbs c2symb in
+      let c2table = Symb.Map.find c2symb ms_model.Ms_model.symbs in
       assert_equal [| |] c2table.Ms_model.param_sizes;
-      let c3table = Hashtbl.find ms_model.Ms_model.symbs c3symb in
+      let c3table = Symb.Map.find c3symb ms_model.Ms_model.symbs in
       assert_equal [| |] c3table.Ms_model.param_sizes;
       let const_values = [
         c1table.Ms_model.values.(0);
@@ -237,7 +237,7 @@ end = struct
       (* Check model. *)
       let ms_model = Inst.construct_model i in
       assert_equal max_size ms_model.Ms_model.max_size;
-      let ftable = Hashtbl.find ms_model.Ms_model.symbs fsymb in
+      let ftable = Symb.Map.find fsymb ms_model.Ms_model.symbs in
       assert_equal [| max_size; max_size |] ftable.Ms_model.param_sizes;
       let get_val row col = ftable.Ms_model.values.(row * max_size + col) in
       (* Check range. *)
@@ -296,7 +296,7 @@ end = struct
         (* Check model. *)
         let ms_model = Inst.construct_model i in
         assert_equal max_size ms_model.Ms_model.max_size;
-        let ftable = Hashtbl.find ms_model.Ms_model.symbs fsymb in
+        let ftable = Symb.Map.find fsymb ms_model.Ms_model.symbs in
         assert_equal [| max_size |] ftable.Ms_model.param_sizes;
         let fvalues = ftable.Ms_model.values in
         for x = 0 to max_size - 1 do

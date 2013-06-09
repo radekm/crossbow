@@ -619,20 +619,19 @@ struct
         | Sat_solver.Lundef ->
             failwith "construct_model: unassigned propositional variable" in
 
-    let model = {
-      Ms_model.max_size = inst.max_size;
-      Ms_model.symbs = Hashtbl.create 10;
-    } in
+    let symbs = ref Symb.Map.empty in
 
     (* Nullary predicates. *)
     Hashtbl.iter
       (fun s pvar ->
         if not (Symb.auxiliary inst.symbols s) then
-          Hashtbl.add model.Ms_model.symbs s
-            {
-              Ms_model.param_sizes = [| |];
-              Ms_model.values = [| get_val pvar |];
-            })
+          symbs :=
+            Symb.Map.add s
+              {
+                Ms_model.param_sizes = [| |];
+                Ms_model.values = [| get_val pvar |];
+              }
+              !symbs)
       inst.nullary_pred_pvars;
 
     (* Functions, constants, non-nullary predicates. *)
@@ -651,11 +650,13 @@ struct
             Array.make
               (Assignment.count 0 arity adeq_sizes inst.max_size)
               ~-1 in
-          Hashtbl.add model.Ms_model.symbs s
-            {
-              Ms_model.param_sizes = Array.init arity dsize;
-              Ms_model.values;
-            };
+          symbs :=
+            Symb.Map.add s
+              {
+                Ms_model.param_sizes = Array.init arity dsize;
+                Ms_model.values;
+              }
+              !symbs;
           let pvars = Hashtbl.find inst.pvars s in
           let a = Array.copy adeq_sizes in
           let rank =
@@ -696,7 +697,10 @@ struct
         end)
       inst.adeq_sizes;
 
-    model
+    {
+      Ms_model.max_size = inst.max_size;
+      Ms_model.symbs = !symbs;
+    }
 
   let get_solver inst = inst.solver
 
