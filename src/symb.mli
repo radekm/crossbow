@@ -21,6 +21,10 @@ type arity = int
 
 val max_arity : int
 
+type kind =
+  | Func
+  | Pred
+
 (** Creates a new symbol database containing only the predefined symbols. *)
 val create_db : unit -> wdb
 
@@ -51,6 +55,8 @@ val id_to_int : 's id -> int
 
 (** Returns the arity. *)
 val arity : 's id -> arity
+
+val kind : 's id -> kind
 
 (** Returns whether the symbol is commutative. *)
 val commutative : 's db -> 's id -> bool

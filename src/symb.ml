@@ -4,7 +4,7 @@ type 's id = int
 
 type arity = int
 
-type role =
+type kind =
   | Func
   | Pred
 
@@ -24,29 +24,29 @@ type wdb =
 let max_arity = 255
 
 module Id : sig
-  val make : int -> arity -> role -> 's id
+  val make : int -> arity -> kind -> 's id
   val to_idx : 's id -> int
   val to_arity : 's id -> arity
-  val to_role : 's id -> role
+  val to_kind : 's id -> kind
 end = struct
   let bits_arity = 8
 
-  let bits_role = 1
+  let bits_kind = 1
 
-  let bits_total = bits_arity + bits_role
+  let bits_total = bits_arity + bits_kind
 
-  let make n arity role =
+  let make n arity kind =
     let r =
-      match role with
+      match kind with
         | Func -> 0
         | Pred -> 1 in
-    (n lsl bits_total) lor (arity lsl bits_role) lor r
+    (n lsl bits_total) lor (arity lsl bits_kind) lor r
 
   let to_idx id = id lsr bits_total
 
-  let to_arity id = (id lsr bits_role) land max_arity
+  let to_arity id = (id lsr bits_kind) land max_arity
 
-  let to_role id =
+  let to_kind id =
     match id land 1 with
       | 0 -> Func
       | _ -> Pred
@@ -98,6 +98,8 @@ let get db sym =
   BatDynArray.get db.by_id n
 
 let arity = Id.to_arity
+
+let kind = Id.to_kind
 
 let commutative db sym = (get db sym).s_commutative
 
