@@ -195,6 +195,13 @@ let model_to_tptp
     interp_name
     f =
 
+  (* Sort symbols to make model generation deterministic. *)
+  let sorted_symbs =
+    p.smap.of_tptp
+    |> BatHashtbl.enum
+    |> BatList.of_enum
+    |> BatList.sort in
+
   (* Maps doamin elements to TPTP symbols. *)
   let dom_to_tptp =
     let dom_to_tptp = Array.make model.M.max_size None in
@@ -202,8 +209,8 @@ let model_to_tptp
     let used_nums = Hashtbl.create 20 in
 
     (* Assure that distinct constants are interpreted as themselves. *)
-    Hashtbl.iter
-      (fun tptp_symb s ->
+    List.iter
+      (fun (tptp_symb, s) ->
         try
           match tptp_symb with
             | Atomic_word (_, _) -> ()
@@ -216,7 +223,7 @@ let model_to_tptp
                 dom_to_tptp.(v) <- Some tptp_symb
         with
           | Not_found -> failwith "distinct constant not in model")
-      p.smap.of_tptp;
+      sorted_symbs;
 
     (* Assign unused numbers to remaining domain elements. *)
     let last_num = ref ~-1 in
@@ -262,8 +269,8 @@ let model_to_tptp
       }) in
 
   (* Interpretation of symbols - one formula for each symbol. *)
-  Hashtbl.iter
-    (fun tptp_symb s ->
+  List.iter
+    (fun (tptp_symb, s) ->
       match tptp_symb with
         | Atomic_word (w, arity) ->
             let role, atoms =
@@ -312,4 +319,4 @@ let model_to_tptp
               })
         (* Skip distinct constants - they are interpreted as themselves. *)
         | Number _ | String _ -> ())
-    p.smap.of_tptp
+    sorted_symbs
