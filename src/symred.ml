@@ -40,6 +40,8 @@ type 's t = {
   (* Cells already assigned by symmetry reduction. *)
 }
 
+let (|-) = BatPervasives.(|-)
+
 let create prob sorts =
   let nsorts = Array.length sorts.Sorts.adeq_sizes in
   let funcs_by_sorts () =
@@ -55,7 +57,7 @@ let create prob sorts =
         let symb = s, Symb.commutative prob.Prob.symbols s in
         arr.(res_sort) <- symb :: arr.(res_sort) in
     Hashtbl.iter each_symb sorts.Sorts.symb_sorts;
-    Array.map Array.of_list arr in
+    Array.map (BatList.sort |- Array.of_list) arr in
   {
     symb_sorts = sorts.Sorts.symb_sorts;
     adeq_sizes = sorts.Sorts.adeq_sizes;
