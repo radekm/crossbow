@@ -6,6 +6,8 @@ src/doc
 test/test_runner
 test/test_runner.opt
 
+/coverage
+
 scripts/run_crossbow
 scripts/run_crossbow.opt
 scripts/run_paradox
@@ -29,6 +31,10 @@ scripts/run_mace4.opt
 .omakedb.lock
 OMakefile.omc
 OMakeroot.omc
+
+# Bisect
+/bisect*.out
+*.cmp
 
 # Backup files
 *.*~

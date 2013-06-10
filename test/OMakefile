@@ -12,6 +12,10 @@ OCAMLPACKS[] =
     oclock
     oUnit
 
+if $(defined coverage)
+    OCAMLPACKS[] += bisect
+    export OCAMLPACKS
+
 OCAMLINCLUDES += ../src
 
 OCAML_LIBS[] +=

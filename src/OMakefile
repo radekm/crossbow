@@ -14,6 +14,12 @@ OCAMLPACKS[] =
     oclock
     cmdliner
 
+if $(defined coverage)
+    OCAMLPACKS[] += bisect
+    OCAMLFLAGS += -syntax camlp4o
+    export OCAMLPACKS
+    export OCAMLFLAGS
+
 FILES[] =
     earray
     elist
