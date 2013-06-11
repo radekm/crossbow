@@ -826,6 +826,150 @@ let test_symmetric_pred () =
       Solver.Esolve [| lit' 8 |];
     ]
 
+let test_block_model () =
+  let Prob.Wr prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  let c = Symb.add_func db 0 in
+  let p = Symb.add_pred db 1 in
+  let q = Symb.add_pred db 0 in
+  let f = Symb.add_func db 2 in
+  Symb.set_commutative db f true;
+  let r = Symb.add_pred db 0 in
+  let clause =
+    let x = T.var 0 in
+    let y = T.var 1 in
+    let z = T.var 2 in
+    {
+      C.cl_id = Prob.fresh_id prob;
+      (* c = x, f(x, x) <> y, ~p(y), ~q, r, p(z) *)
+      C.cl_lits = [
+        L.mk_eq (T.func (c, [| |])) x;
+        L.mk_ineq (T.func (f, [| x; x |])) y;
+        L.lit (Sh.Neg, p, [| y |]);
+        L.lit (Sh.Neg, q, [| |]);
+        L.lit (Sh.Pos, r, [| |]);
+        L.lit (Sh.Pos, p, [| z |]);
+      ];
+    } in
+  BatDynArray.add prob.Prob.clauses clause;
+  let sorts = Sorts.of_problem prob in
+  BatDynArray.clear prob.Prob.clauses;
+
+  let i = Inst.create prob sorts in
+  let var_q = 0 in
+  let var_r = 1 in
+  assert_log i
+    [
+      Solver.Enew_var var_q;
+      Solver.Enew_var var_r;
+    ];
+  assert_equal 0 (Inst.get_max_size i);
+
+  Inst.incr_max_size i;
+  let var_c0 = 2 in (* c = 0 *)
+  let var_p0 = 3 in (* p(0) *)
+  let var_f000 = 4 in (* f(0, 0) = 0 *)
+  assert_log i
+    [
+      Solver.Enew_var var_c0;
+      Solver.Enew_var var_p0;
+      Solver.Enew_var var_f000;
+      Solver.Eadd_symmetry_clause [| lit var_c0 |];
+      Solver.Eadd_symmetry_clause [| lit var_f000 |];
+    ];
+
+  Inst.incr_max_size i;
+  let var_c1 = 5 in (* c = 1 *)
+  let var_p1 = 6 in (* p(1) *)
+  let var_f010 = 7 in (* f(0, 1) = 0 *)
+  let var_f011 = 8 in (* f(0, 1) = 1 *)
+  let var_f110 = 9 in (* f(1, 1) = 0 *)
+  let var_f111 = 10 in (* f(1, 1) = 1 *)
+  let var_f001 = 11 in (* f(0, 0) = 1 *)
+  assert_log i
+    [
+      Solver.Enew_var var_c1;
+      Solver.Enew_var var_p1;
+      Solver.Enew_var var_f010;
+      Solver.Enew_var var_f011;
+      Solver.Enew_var var_f110;
+      Solver.Enew_var var_f111;
+      Solver.Enew_var var_f001;
+      Solver.Eadd_symmetry_clause [| lit var_f010; lit var_f011 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_c1; lit' var_c0 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_f001; lit' var_f000 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_f010; lit' var_f011 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_f110; lit' var_f111 |];
+    ];
+
+  Inst.incr_max_size i;
+  let var_p2 = 12 in
+  let var_f002 = 13 in
+  let var_f012 = 14 in
+  let var_f112 = 15 in
+  assert_log i
+    [
+      Solver.Enew_var var_p2;
+      Solver.Enew_var var_f002;
+      Solver.Enew_var var_f012;
+      Solver.Enew_var var_f112;
+      Solver.Eadd_symmetry_clause
+        [|
+          lit var_f110;
+          lit var_f111;
+          lit var_f112;
+        |];
+      (* LNH clause. *)
+      Solver.Eadd_clause [| lit var_f011; lit' var_f112 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_f002; lit' var_f000 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_f002; lit' var_f001 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_f012; lit' var_f010 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_f012; lit' var_f011 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_f112; lit' var_f110 |];
+      Solver.Eadd_at_most_one_val_clause [| lit' var_f112; lit' var_f111 |];
+    ];
+
+  let map_of_list xs = Symb.Map.of_enum (BatList.enum xs) in
+  let model = {
+    Ms_model.max_size = 3;
+    Ms_model.symbs =
+      map_of_list [
+        c, {
+          Ms_model.param_sizes = [| |];
+          Ms_model.values = [| 0 |];
+        };
+        p, {
+          Ms_model.param_sizes = [| 3 |];
+          Ms_model.values = [| 1; 1; 0 |];
+        };
+        q, {
+          Ms_model.param_sizes = [| |];
+          Ms_model.values = [| 1 |];
+        };
+        f, {
+          Ms_model.param_sizes = [| 2; 2 |];
+          Ms_model.values = [| 0; 1; 1; 2 |];
+        };
+        r, {
+          Ms_model.param_sizes = [| |];
+          Ms_model.values = [| 0 |];
+        };
+      ];
+  } in
+
+  Inst.block_model i model;
+  assert_log i
+    [
+      Solver.Eadd_clause
+        [|
+          lit' var_c0;
+          lit' var_p0; lit' var_p1; lit var_p2;
+          lit' var_q;
+          lit' var_f000; lit' var_f011; lit' var_f011; lit' var_f112;
+          lit var_r;
+        |];
+    ]
+
 let suite =
   "Sat_inst suite" >:::
     [
@@ -837,4 +981,5 @@ let suite =
       "unary pred" >:: test_unary_pred;
       "commutative_func" >:: test_commutative_func;
       "symmetric_pred" >:: test_symmetric_pred;
+      "block_model" >:: test_block_model;
     ]

@@ -29,6 +29,8 @@ module type Inst_sig = sig
 
   val construct_model : 's t -> 's Ms_model.t
 
+  val block_model : 's t -> 's Ms_model.t -> unit
+
   val get_solver : 's t -> solver
 
   val get_max_size : 's t -> int
@@ -315,6 +317,11 @@ struct
           done
         end)
       inst.adeq_sizes
+
+  let assig_to_pvar a len adeq_sizes rank pvars =
+    let r, max_el_idx = rank a 0 len adeq_sizes in
+    let pvar = r + BatDynArray.get pvars a.(max_el_idx) in
+    pvar
 
   let symmetry_reduction inst pclause =
     let assigned_cells = Symred.incr_max_size inst.symred in
@@ -701,6 +708,69 @@ struct
       Ms_model.max_size = inst.max_size;
       Ms_model.symbs = !symbs;
     }
+
+  let block_model inst model =
+    if model.Ms_model.max_size > inst.max_size then
+      (* Some propositional variables may not exist. *)
+      failwith "block_model: max_size";
+
+    let pclause = BatDynArray.create () in
+
+    (* Construct clause which blocks current model. *)
+    Symb.Map.iter
+      (fun s table ->
+        match Symb.arity s, Symb.kind s with
+          (* Nullary predicate. *)
+          | 0, Symb.Pred ->
+              let pvar = Hashtbl.find inst.nullary_pred_pvars s in
+              let sign =
+                if table.Ms_model.values.(0) = 0
+                then Sh.Pos
+                else Sh.Neg in
+              let plit = Solv.to_lit sign pvar in
+              BatDynArray.add pclause plit
+          (* Function or non-nullary predicate. *)
+          | arity, kind ->
+              let adeq_sizes, commutative = BatMap.find s inst.adeq_sizes in
+              let pvars = Hashtbl.find inst.pvars s in
+              let rank =
+                if commutative
+                then Assignment.rank_comm_me
+                else Assignment.rank_me in
+              let a = Array.copy adeq_sizes in
+              let i = ref 0 in
+              (* Note: Commutative symbols are not treated specially
+                 when generating argument vectors. The consequence
+                 is that pclause may contain duplicate literals.
+              *)
+              begin match kind with
+                | Symb.Pred ->
+                    Assignment.each a 0 arity adeq_sizes inst.max_size
+                      (fun a ->
+                        let pvar =
+                          assig_to_pvar a arity adeq_sizes rank pvars in
+                        let sign =
+                          if table.Ms_model.values.(!i) = 0
+                          then Sh.Pos
+                          else Sh.Neg in
+                        let plit = Solv.to_lit sign pvar in
+                        BatDynArray.add pclause plit;
+                        incr i)
+                | Symb.Func ->
+                    Assignment.each a 0 arity adeq_sizes inst.max_size
+                      (fun a ->
+                        (* Fetch value from the model. *)
+                        a.(arity) <- table.Ms_model.values.(!i);
+                        let pvar =
+                          assig_to_pvar a (arity+1) adeq_sizes rank pvars in
+                        let plit = Solv.to_lit Sh.Neg pvar in
+                        BatDynArray.add pclause plit;
+                        incr i)
+              end)
+      model.Ms_model.symbs;
+
+    let pclause = BatDynArray.to_array pclause in
+    ignore (Solv.add_clause inst.solver pclause (Array.length pclause))
 
   let get_solver inst = inst.solver
 

@@ -79,6 +79,9 @@ module type Inst_sig = sig
   *)
   val construct_model : 's t -> 's Ms_model.t
 
+  (** Blocks every model which is an extension of the given model. *)
+  val block_model : 's t -> 's Ms_model.t -> unit
+
   (** Returns the solver instance. *)
   val get_solver : 's t -> solver
 
