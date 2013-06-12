@@ -1,3 +1,7 @@
+bliss in the directory bliss/ is distributed under the terms
+of the GNU General Public License version 3.0
+(included in the file bliss/COPYING.txt).
+
 CryptoMiniSat in the directory cmsat/ is distributed under the terms
 of the GNU Lesser General Public License version 3.0
 (included in the file cmsat/LICENSE-LGPL).

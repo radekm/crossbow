@@ -21,6 +21,7 @@ let suite =
       Test_sinterp.suite;
       Test_minisat.suite;
       Test_cmsat.suite;
+      Test_bliss.suite;
       Test_symred.suite;
       Test_lnh.suite;
       Test_model.suite;
