@@ -129,6 +129,7 @@ module Map = struct
   let find = IntMap.find
   let mem = IntMap.mem
   let iter = IntMap.iter
+  let mapi = IntMap.mapi
   let compare = IntMap.compare
   let equal = IntMap.equal
   let enum = IntMap.enum

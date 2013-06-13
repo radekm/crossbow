@@ -93,6 +93,7 @@ module Map : sig
   val find : 's id -> ('s, 'a) t -> 'a
   val mem : 's id -> ('s, 'a) t -> bool
   val iter : ('s id -> 'a -> unit) -> ('s, 'a) t -> unit
+  val mapi : ('s id -> 'a -> 'b) -> ('s, 'a) t -> ('s, 'b) t
   val compare : ('a -> 'a -> int) -> ('s, 'a) t -> ('s, 'a) t -> int
   val equal : ('a -> 'a -> bool) -> ('s, 'a) t -> ('s, 'a) t -> bool
   val enum : ('s, 'a) t -> ('s id * 'a) BatEnum.t
