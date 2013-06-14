@@ -43,6 +43,7 @@ FILES[] =
     test_bliss
     test_symred
     test_lnh
+    test_ms_model
     test_model
     test_sat_inst
     ftest_anysat_inst

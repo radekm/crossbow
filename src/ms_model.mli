@@ -19,3 +19,7 @@ type 's t = {
   max_size : int;
   symbs : ('s, table) Symb.Map.t;
 }
+
+val equal : 's t -> 's t -> bool
+
+val canonize : 's t -> 's Sorts.t -> 's t
