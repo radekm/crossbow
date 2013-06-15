@@ -10,10 +10,6 @@ module M = Model
 
 let map_of_list xs = Symb.Map.of_enum (BatList.enum xs)
 
-let model_eq m1 m2 =
-  m1.M.max_size = m2.M.max_size &&
-  Symb.Map.equal (=) m1.M.symbs m2.M.symbs
-
 let show_model m =
   let b = Buffer.create 128 in
   Printf.bprintf b "Max size: %d\n" m.M.max_size;
@@ -28,7 +24,7 @@ let show_model m =
 let build_and_check_model prob ms_model exp_model =
   let sorts = Sorts.of_problem prob in
   let model = M.of_ms_model ms_model sorts in
-  assert_equal ~cmp:model_eq ~printer:show_model exp_model model
+  assert_equal ~cmp:M.equal ~printer:show_model exp_model model
 
 let test_nullary_pred () =
   let Prob.Wr prob = Prob.create () in
@@ -650,6 +646,85 @@ let test_comm_func_two_sorts_one_adeq_size () =
   } in
   build_and_check_model prob ms_model3 exp_model3
 
+let test_canonize () =
+  let Symb.Wr db = Symb.create_db () in
+  let c = Symb.add_func db 0 in
+  let f = Symb.add_func db 2 in
+  let p = Symb.add_pred db 0 in
+  let q = Symb.add_pred db 1 in
+
+  let model = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      c, { M.values = [| 2 |] };
+      f, { M.values = [| 1; 2; 2; 0; 1; 0; 0; 0; 2 |] };
+      p, { M.values = [| 1 |] };
+      q, { M.values = [| 0; 1; 1 |] };
+    ];
+  } in
+
+  (* permutation: 0 2 1 *)
+  let model2 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      c, { M.values = [| 1 |] };
+      f, { M.values = [| 2; 1; 1; 0; 1; 0; 0; 0; 2 |] };
+      p, { M.values = [| 1 |] };
+      q, { M.values = [| 0; 1; 1 |] };
+    ];
+  } in
+
+  (* permutation: 1 0 2 *)
+  let model3 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      c, { M.values = [| 2 |] };
+      f, { M.values = [| 0; 1; 1; 2; 0; 2; 1; 1; 2 |] };
+      p, { M.values = [| 1 |] };
+      q, { M.values = [| 1; 0; 1 |] };
+    ];
+  } in
+
+  (* permutation: 1 2 0 *)
+  let model4 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      c, { M.values = [| 0 |] };
+      f, { M.values = [| 0; 1; 1; 0; 2; 0; 1; 1; 2 |] };
+      p, { M.values = [| 1 |] };
+      q, { M.values = [| 1; 0; 1 |] };
+    ];
+  } in
+
+  (* permutation: 2 0 1 *)
+  let model5 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      c, { M.values = [| 1 |] };
+      f, { M.values = [| 0; 2; 2; 2; 1; 2; 1; 1; 0 |] };
+      p, { M.values = [| 1 |] };
+      q, { M.values = [| 1; 1; 0 |] };
+    ];
+  } in
+
+  (* permutation: 2 1 0 *)
+  let model6 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      c, { M.values = [| 0 |] };
+      f, { M.values = [| 0; 2; 2; 2; 1; 2; 0; 0; 1 |] };
+      p, { M.values = [| 1 |] };
+      q, { M.values = [| 1; 1; 0 |] };
+    ];
+  } in
+
+  let all_models = [model; model2; model3; model4; model5; model6] in
+  let m = M.canonize model in
+  assert_bool "" (List.exists (M.equal m) all_models);
+  List.iter
+    (fun m' -> assert_equal ~cmp:M.equal m (M.canonize m'))
+    all_models
+
 let suite =
   "Model suite" >:::
     [
@@ -670,4 +745,5 @@ let suite =
         test_binary_func_three_sorts_two_adeq_sizes;
       "comm func, two sorts, one adeq size" >::
         test_comm_func_two_sorts_one_adeq_size;
+      "canonize" >:: test_canonize;
     ]

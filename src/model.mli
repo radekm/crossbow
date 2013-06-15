@@ -25,3 +25,7 @@ type 's t = {
    ([ms_model] must interpret all constants from these sorts).
  *)
 val of_ms_model : 's Ms_model.t -> 's Sorts.t -> 's t
+
+val equal : 's t -> 's t -> bool
+
+val canonize : 's t -> 's t

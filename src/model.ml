@@ -9,6 +9,7 @@ type 's t = {
   symbs : ('s, table) Symb.Map.t;
 }
 
+module S = Symb
 module Ms = Ms_model
 
 let of_ms_model ms_model sorts =
@@ -87,3 +88,128 @@ let of_ms_model ms_model sorts =
     ms_model.Ms.symbs;
 
   { max_size; symbs = !symbs }
+
+let equal a b =
+  a.max_size = b.max_size &&
+  Symb.Map.equal (=) a.symbs b.symbs
+
+let canonize model =
+  let max_size = model.max_size in
+  let g = Bliss.create_graph () in
+  let used_colors = ref 0 in
+
+  (* Create vertices for domain elements. *)
+  for i = 1 to max_size do
+    ignore (Bliss.add_vertex g !used_colors)
+  done;
+  incr used_colors;
+
+  Symb.Map.iter
+    (fun symb table ->
+      let arity = Symb.arity symb in
+      let kind = Symb.kind symb in
+      let param_sizes = Array.make arity max_size in
+      let i = ref 0 in
+      let len = if kind = S.Pred then arity else arity + 1 in
+      let a = Array.make len 0 in
+      (* Colors for the vertices of the symbol. *)
+      let colors =
+        Array.init
+          len
+          (fun _ -> let c = !used_colors in incr used_colors; c) in
+      (* For vertices for the symbol (for its parameters and result). *)
+      let vs = Array.make len 0 in
+      match arity, kind with
+        | 0, S.Pred -> ()
+        | _, S.Func ->
+            Assignment.each a 0 arity param_sizes max_size
+              (fun a ->
+                (* Add vertices for parameters and result. *)
+                Array.iteri
+                  (fun j _ -> vs.(j) <- Bliss.add_vertex g colors.(j))
+                  vs;
+                (* Connect parameters to values. *)
+                for j = 0 to arity - 1 do
+                  Bliss.add_edge g vs.(j) a.(j)
+                done;
+                (* Connect result to value *)
+                Bliss.add_edge
+                  g
+                  vs.(arity)
+                  table.values.(!i);
+                incr i;
+                (* Connect parameters and result together. *)
+                for j = 1 to arity do
+                  Bliss.add_edge g vs.(j-1) vs.(j)
+                done)
+        | _, S.Pred ->
+            Assignment.each a 0 arity param_sizes max_size
+              (fun a ->
+                if table.values.(!i) = 1 then begin
+                  (* Add vertices for parameters. *)
+                  Array.iteri
+                    (fun j _ -> vs.(j) <- Bliss.add_vertex g colors.(j))
+                    vs;
+                  (* Connect parameters to values. *)
+                  for j = 0 to arity - 1 do
+                    Bliss.add_edge g vs.(j) a.(j)
+                  done;
+                  (* Connect parameters together. *)
+                  for j = 1 to arity - 1 do
+                    Bliss.add_edge g vs.(j-1) vs.(j)
+                  done;
+                end;
+                incr i))
+    model.symbs;
+
+  let lab = Bliss.canonical_form g max_size in
+  (* Renaming to canonical form. *)
+  let renaming = lab in
+  (* Renaming from canonical form to original. *)
+  let inv_renaming =
+    let inv = Array.copy renaming in
+    for i = 0 to max_size - 1 do
+      inv.(renaming.(i)) <- i
+    done;
+    inv in
+
+  let rank args =
+    let r = ref 0 in
+    Array.iter
+      (fun arg -> r := !r * max_size + arg)
+      args;
+    !r in
+
+  let symbs' =
+    Symb.Map.mapi
+      (fun symb table ->
+        let arity = Symb.arity symb in
+        let kind = Symb.kind symb in
+        match arity, kind with
+          | 0, S.Pred -> table
+          | _, _ ->
+              let param_sizes = Array.make arity max_size in
+              let i = ref 0 in
+              let a = Array.make arity 0 in
+              let a2 = Array.make arity 0 in
+              let new_values = Array.copy table.values in
+              Assignment.each a 0 arity param_sizes max_size
+                (fun a ->
+                  (* Get original result. *)
+                  Array.iteri
+                    (fun j v -> a2.(j) <- inv_renaming.(v))
+                    a;
+                  let orig_result =
+                    table.values.(rank a2) in
+
+                  let result =
+                    if kind = S.Pred then
+                      orig_result
+                    else
+                      renaming.(orig_result) in
+                  new_values.(!i) <- result;
+                  incr i);
+              { values = new_values })
+      model.symbs in
+
+  { model with symbs = symbs' }
