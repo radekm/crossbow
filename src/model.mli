@@ -28,4 +28,15 @@ val of_ms_model : 's Ms_model.t -> 's Sorts.t -> 's t
 
 val equal : 's t -> 's t -> bool
 
+val compare : 's t -> 's t -> int
+
 val canonize : 's t -> 's t
+
+(** Constructs a set of non-isomorphic models with a single sort
+   from the given multi-sorted model by fixing the domain of one sort and
+   permuting the domains of the remaining sorts.
+
+   Note: All domain sizes in the multi-sorted model must be equal
+   to [max_size].
+*)
+val all_of_ms_model : 's Ms_model.t -> 's Sorts.t -> 's t BatSet.t

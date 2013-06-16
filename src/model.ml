@@ -93,6 +93,13 @@ let equal a b =
   a.max_size = b.max_size &&
   Symb.Map.equal (=) a.symbs b.symbs
 
+let compare a b =
+  let r = compare a.max_size b.max_size in
+  if r = 0 then
+    Symb.Map.compare compare a.symbs b.symbs
+  else
+    r
+
 let canonize model =
   let max_size = model.max_size in
   let g = Bliss.create_graph () in
@@ -213,3 +220,102 @@ let canonize model =
       model.symbs in
 
   { model with symbs = symbs' }
+
+(* Converts the given multi-sorted model to a model with a single sort.
+   Sorts are permuted before conversion.
+
+   Array [perms] contains permutation for each sort.
+
+   Note: All domains must have size equal to max_size.
+*)
+let of_ms_model_perm ms_model sorts perms =
+  let max_size = ms_model.Ms.max_size in
+
+  let inv_perms =
+    Array.init
+      (Array.length perms)
+      (fun p ->
+        let inv = Array.copy perms.(p) in
+        for i = 0 to Array.length inv - 1 do
+          inv.(perms.(p).(i)) <- i
+        done;
+        inv) in
+
+  let rank args =
+    let r = ref 0 in
+    Array.iter
+      (fun arg -> r := !r * max_size + arg)
+      args;
+    !r in
+
+  (* Permute sorts. *)
+  let symbs' =
+    Symb.Map.mapi
+      (fun symb table ->
+        let arity = Symb.arity symb in
+        let kind = Symb.kind symb in
+        match arity, kind with
+          | 0, S.Pred -> { values = table.Ms.values }
+          | _, _ ->
+              let sorts' = Hashtbl.find sorts.Sorts.symb_sorts symb in
+              let a = Array.copy table.Ms.param_sizes in
+              let a2 = Array.copy table.Ms.param_sizes in
+              let new_values = Array.copy table.Ms.values in
+              let i = ref 0 in
+              Assignment.each a 0 arity table.Ms.param_sizes max_size
+                (fun a ->
+                  (* Get the original result. *)
+                  Array.iteri
+                    (fun j v -> a2.(j) <- inv_perms.(sorts'.(j)).(v))
+                    a;
+                  let orig_result = table.Ms.values.(rank a2) in
+
+                  let result =
+                    if kind = S.Pred
+                    then orig_result
+                    else perms.(sorts'.(arity)).(orig_result) in
+                  new_values.(!i) <- result;
+                  incr i);
+              { values = new_values })
+      ms_model.Ms.symbs in
+
+  { max_size; symbs = symbs' }
+
+(* Permutes elements of the sorts [1..(nsorts-1)] in the given multi-sorted
+   model and for each permutation reconstructs a model with a single sort
+   and calls the given function with that model.
+
+   Note: All domain sizes in the multi-sorted model must be equal
+   to [max_size].
+*)
+let iter_all_of_ms_model f ms_model sorts =
+  let max_size = ms_model.Ms.max_size in
+  let nsorts = Array.length sorts.Sorts.adeq_sizes in
+
+  (* All domains must have size equal to max_size. *)
+  if
+    BatArray.exists
+      (fun size -> size <> 0 && size < max_size)
+      sorts.Sorts.adeq_sizes
+  then
+    failwith "iter_all_of_ms_model: domain sizes";
+
+  let identity = Array.init max_size (fun i -> i) in
+  let perms = Array.make nsorts identity in
+  let rec permute_sorts sort =
+    let each_perm p =
+      perms.(sort) <- p;
+      permute_sorts (sort + 1) in
+    if sort < nsorts then
+      Earray.iter_permutations each_perm (Array.init max_size (fun i -> i))
+    else
+      f (of_ms_model_perm ms_model sorts perms) in
+
+  permute_sorts 1
+
+let all_of_ms_model ms_model sorts =
+  let set = ref (BatSet.create compare) in
+  iter_all_of_ms_model
+    (fun m -> set := BatSet.add (canonize m) !set)
+    ms_model sorts;
+  !set

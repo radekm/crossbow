@@ -725,6 +725,115 @@ let test_canonize () =
     (fun m' -> assert_equal ~cmp:M.equal m (M.canonize m'))
     all_models
 
+let test_all_of_ms_model () =
+  let Prob.Wr prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  let p = Symb.add_pred db 1 in
+  let f = Symb.add_func db 2 in
+  let c = Symb.add_func db 0 in
+  let d = Symb.add_func db 0 in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let clause = {
+    C.cl_id = Prob.fresh_id prob;
+    (* f(x, x) = y, x = c, x <> d *)
+    C.cl_lits = [
+      L.mk_eq (T.func (f, [| x; x |])) y;
+      L.mk_eq x (T.func (c, [| |]));
+      L.mk_ineq x (T.func (d, [| |]));
+      L.lit (Sh.Neg, p, [| y |]);
+    ];
+  } in
+  BatDynArray.add prob.Prob.clauses clause;
+  let sorts = Sorts.of_problem prob in
+
+  let ms_model = {
+    Ms.max_size = 3;
+    Ms.symbs = map_of_list [
+      p, { Ms.param_sizes = [| 3 |]; Ms.values = [| 1; 0; 0 |] };
+      f, {
+        Ms.param_sizes = [| 3; 3 |];
+        Ms.values = [| 2; 1; 0; 0; 1; 1; 1; 2; 0 |];
+      };
+      c, { Ms.param_sizes = [| |]; Ms.values = [| 2 |] };
+      d, { Ms.param_sizes = [| |]; Ms.values = [| 2 |] };
+    ];
+  } in
+
+  let model = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      p, { M.values = [| 1; 0; 0 |] };
+      f, { M.values = [| 2; 1; 0; 0; 1; 1; 1; 2; 0 |] };
+      c, { M.values = [| 2 |] };
+      d, { M.values = [| 2 |] };
+     ];
+  } in
+
+  (* permutation: 0 2 1 *)
+  let model2 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      p, { M.values = [| 1; 0; 0 |] };
+      f, { M.values = [| 1; 2; 0; 0; 2; 2; 2; 1; 0 |] };
+      c, { M.values = [| 2 |] };
+      d, { M.values = [| 2 |] };
+     ];
+  } in
+
+  (* permutation: 1 0 2 *)
+  let model3 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      p, { M.values = [| 0; 1; 0 |] };
+      f, { M.values = [| 2; 0; 1; 1; 0; 0; 0; 2; 1 |] };
+      c, { M.values = [| 2 |] };
+      d, { M.values = [| 2 |] };
+     ];
+  } in
+
+  (* permutation: 1 2 0 *)
+  let model4 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      p, { M.values = [| 0; 1; 0 |] };
+      f, { M.values = [| 0; 2; 1; 1; 2; 2; 2; 0; 1 |] };
+      c, { M.values = [| 2 |] };
+      d, { M.values = [| 2 |] };
+     ];
+  } in
+
+  (* permutation: 2 0 1 *)
+  let model5 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      p, { M.values = [| 0; 0; 1 |] };
+      f, { M.values = [| 1; 0; 2; 2; 0; 0; 0; 1; 2 |] };
+      c, { M.values = [| 2 |] };
+      d, { M.values = [| 2 |] };
+     ];
+  } in
+
+  (* permutation: 2 1 0 *)
+  let model6 = {
+    M.max_size = 3;
+    M.symbs = map_of_list [
+      p, { M.values = [| 0; 0; 1 |] };
+      f, { M.values = [| 0; 1; 2; 2; 1; 1; 1; 0; 2 |] };
+      c, { M.values = [| 2 |] };
+      d, { M.values = [| 2 |] };
+     ];
+  } in
+
+  let all_models = [model; model2; model3; model4; model5; model6] in
+  let canonized_models =
+    BatList.sort_unique M.compare (BatList.map M.canonize all_models) in
+  let models = M.all_of_ms_model ms_model sorts in
+
+  assert_equal 6 (List.length canonized_models);
+  assert_equal 6 (BatSet.cardinal models);
+  List.iter (fun m -> assert_bool "" (BatSet.mem m models)) canonized_models
+
 let suite =
   "Model suite" >:::
     [
@@ -746,4 +855,5 @@ let suite =
       "comm func, two sorts, one adeq size" >::
         test_comm_func_two_sorts_one_adeq_size;
       "canonize" >:: test_canonize;
+      "all_of_ms_model" >:: test_all_of_ms_model;
     ]
