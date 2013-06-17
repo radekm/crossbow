@@ -309,6 +309,142 @@ end = struct
         assert_equal Sat_solver.Lfalse (Inst.solve i)
     done
 
+  type wrapped_group =
+    | Group_wr :
+        's Prob.t * 's Symb.id * 's Symb.id * 's Symb.id -> wrapped_group
+
+  let make_group () =
+    let Prob.Wr prob = Prob.create () in
+    let db = prob.Prob.symbols in
+    let zero' = Symb.add_func db 0 in
+    let zero = T.func (zero', [| |]) in
+    let g' = Symb.add_func db 1 in
+    let g a = T.func (g', [| a |]) in
+    let f' = Symb.add_func db 2 in
+    let f a b = T.func (f', [| a; b |]) in
+    let x = T.var 0 in
+    let y = T.var 1 in
+    let z = T.var 2 in
+    let clause = {
+      C.cl_id = Prob.fresh_id prob;
+      (* g(0) = 0 *)
+      C.cl_lits = [ L.mk_eq (g x) x; L.mk_ineq x zero ];
+    } in
+    let clause2 = {
+      C.cl_id = Prob.fresh_id prob;
+      (* g(x) <> y, g(y) = x *)
+      C.cl_lits = [ L.mk_ineq (g x) y; L.mk_eq (g y) x ];
+    } in
+    let clause3 = {
+      C.cl_id = Prob.fresh_id prob;
+      (* f(x, 0) = x *)
+      C.cl_lits = [ L.mk_eq (f x y) x; L.mk_ineq y zero ];
+    } in
+    let clause4 = {
+      C.cl_id = Prob.fresh_id prob;
+      (* f(0, x) = x *)
+      C.cl_lits = [ L.mk_eq (f y x) x; L.mk_ineq y zero ];
+    } in
+    let clause5 = {
+      C.cl_id = Prob.fresh_id prob;
+      (* f(x, g(x)) = 0 *)
+      C.cl_lits = [ L.mk_eq (f x y) z; L.mk_ineq y (g x); L.mk_ineq z zero ];
+    } in
+    let clause6 = {
+      C.cl_id = Prob.fresh_id prob;
+      (* f(g(x), x) = 0 *)
+      C.cl_lits = [ L.mk_eq (f y x) z; L.mk_ineq y (g x); L.mk_ineq z zero ];
+    } in
+    let clause7 =
+      let u = T.var 3 in
+      let v = T.var 4 in
+      let w = T.var 5 in
+      {
+        C.cl_id = Prob.fresh_id prob;
+        (* f(f(x, y), z) = f(x, f(y, z)) *)
+        C.cl_lits = [
+          L.mk_eq (f u z) v;
+          L.mk_ineq u (f x y);
+          L.mk_ineq v (f x w);
+          L.mk_ineq w (f y z);
+        ];
+      } in
+    List.iter
+      (BatDynArray.add prob.Prob.clauses)
+      [clause; clause2; clause3; clause4; clause5; clause6; clause7];
+    Group_wr (prob, zero', g', f')
+
+  let count_models prob sorts max_size =
+    let i = Inst.create prob sorts in
+    for size = 1 to max_size do
+      Inst.incr_max_size i;
+    done;
+    let found = ref true in
+    let ms_models = ref (BatSet.create Ms_model.compare) in
+    let model_cnt = ref 0 in
+    while !found do
+      if Inst.solve i = Sat_solver.Ltrue then begin
+        let ms_model = Inst.construct_model i in
+        Inst.block_model i ms_model;
+        assert_equal max_size ms_model.Ms_model.max_size;
+        let cano_ms_model = Ms_model.canonize ms_model sorts in
+        if not (BatSet.mem cano_ms_model !ms_models) then begin
+          ms_models := BatSet.add cano_ms_model !ms_models;
+          let models = Model.all_of_ms_model ms_model sorts in
+          model_cnt := !model_cnt + BatSet.cardinal models
+        end
+      end else
+        found := false
+    done;
+    BatSet.cardinal !ms_models, !model_cnt
+
+  let test_abelian_groups () =
+    let Group_wr (prob, _, _, f) = make_group () in
+    Symb.set_commutative prob.Prob.symbols f true;
+    let sorts = Sorts.of_problem prob in
+
+    let exp_counts = (* up to max_size = 16 *)
+      [| -1; 1; 1; 1; 2; 1; 1; 1; 3; 2; 1; 1; 2; 1; 1; 1; 5 |] in
+    for max_size = 1 to 7 do
+      let ms_model_cnt, model_cnt = count_models prob sorts max_size in
+      assert_equal model_cnt ms_model_cnt;
+      assert_equal exp_counts.(max_size) model_cnt
+    done
+
+  let test_abelian_groups2 () =
+    let Group_wr (prob, _, _, f) = make_group () in
+    BatDynArray.add
+      prob.Prob.clauses
+      {
+        C.cl_id = Prob.fresh_id prob;
+        (* f(x, y) = f(y, x) *)
+        C.cl_lits = [
+          L.mk_eq (T.func (f, [| T.var 0; T.var 1 |])) (T.var 2);
+          L.mk_ineq (T.var 2) (T.func (f, [| T.var 1; T.var 0 |]));
+        ];
+      };
+    let sorts = Sorts.of_problem prob in
+
+    let exp_counts = (* up to max_size = 16 *)
+      [| -1; 1; 1; 1; 2; 1; 1; 1; 3; 2; 1; 1; 2; 1; 1; 1; 5 |] in
+    for max_size = 1 to 7 do
+      let ms_model_cnt, model_cnt = count_models prob sorts max_size in
+      assert_equal model_cnt ms_model_cnt;
+      assert_equal exp_counts.(max_size) model_cnt
+    done
+
+  let test_groups () =
+    let Group_wr (prob, _, _, _) = make_group () in
+    let sorts = Sorts.of_problem prob in
+
+    let exp_counts = (* up to max_size = 16 *)
+      [| -1; 1; 1; 1; 2; 1; 2; 1; 5; 2; 2; 1; 5; 1; 2; 1; 14 |] in
+    for max_size = 1 to 7 do
+      let ms_model_cnt, model_cnt = count_models prob sorts max_size in
+      assert_equal model_cnt ms_model_cnt;
+      assert_equal exp_counts.(max_size) model_cnt
+    done
+
   let suite name =
     (name ^ " suite") >:::
       [
@@ -317,6 +453,9 @@ end = struct
         "symmetric predicate" >:: test_symmetric_pred;
         "latin square" >:: test_latin_square;
         "finite models of even size" >:: test_fin_models_even_size;
+        "abelian groups" >:: test_abelian_groups;
+        "abelian groups 2" >:: test_abelian_groups2;
+        "groups" >:: test_groups;
       ]
 
 end
