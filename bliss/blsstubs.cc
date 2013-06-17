@@ -47,7 +47,8 @@ CAMLprim value bls_create_graph(value unit) {
   CAMLlocal1 (gv);
 
   Graph * g = new Graph();
-  g->set_splitting_heuristic(Graph::shs_fs);
+  // Heuristic shs_fs results in assertion failure.
+  g->set_splitting_heuristic(Graph::shs_fsm);
 
   gv = caml_alloc_custom(&bliss_ops, sizeof(Graph *), 0, 1);
   Graph_val(gv) = g;
