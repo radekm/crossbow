@@ -16,6 +16,13 @@ let equal a b =
   a.max_size = b.max_size &&
   Symb.Map.equal (=) a.symbs b.symbs
 
+let compare a b =
+  let r = compare a.max_size b.max_size in
+  if r = 0 then
+    Symb.Map.compare compare a.symbs b.symbs
+  else
+    r
+
 let canonize model sorts =
   let max_size = model.max_size in
   let nsorts = Array.length sorts.Sorts.adeq_sizes in

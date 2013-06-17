@@ -22,4 +22,6 @@ type 's t = {
 
 val equal : 's t -> 's t -> bool
 
+val compare : 's t -> 's t -> int
+
 val canonize : 's t -> 's Sorts.t -> 's t
