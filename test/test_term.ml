@@ -34,6 +34,31 @@ let test_contains2 () =
     ) in
   assert_bool "" (T.contains subterm term)
 
+let test_is_ground () =
+  let Symb.Wr db = Symb.create_db () in
+  let f = Symb.add_func db 1 in
+  let c = Symb.add_func db 0 in
+  let term =
+    T.func (f,
+            [|
+              T.func (f, [| T.func (c, [| |]) |]);
+            |]
+    ) in
+  assert_bool "" (T.is_ground term)
+
+let test_is_ground2 () =
+  let Symb.Wr db = Symb.create_db () in
+  let f = Symb.add_func db 2 in
+  let c = Symb.add_func db 0 in
+  let term =
+    T.func (f,
+            [|
+              T.func (f, [| T.func (c, [| |]); T.var 2 |]);
+	      T.func (c, [| |]);
+            |]
+    ) in
+  assert_bool "" (not (T.is_ground term))
+
 let test_iter () =
   let Symb.Wr db = Symb.create_db () in
   let f = Symb.add_func db 2 in
@@ -106,6 +131,8 @@ let suite =
     [
       "contains 1" >:: test_contains1;
       "contains 2" >:: test_contains2;
+      "is_ground" >:: test_is_ground;
+      "is_ground 2" >:: test_is_ground2;
       "iter" >:: test_iter;
       "normalize_comm" >:: test_normalize_comm;
       "vars" >:: test_vars;

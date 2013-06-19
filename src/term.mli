@@ -18,6 +18,8 @@ val get_args : 's t -> 's t array
 (** [contains sub t] tests whether the term [t] contains [sub] as a subterm. *)
 val contains : 's t -> 's t -> bool
 
+val is_ground : 's t -> bool
+
 (** [iter f t] successively applies [f] to all subterms of [t].
    [f] is always applied to a parent term before it is applied to its child terms.
 *)

@@ -40,6 +40,10 @@ let contains subterm term =
     | Func (_, args) -> BatArray.exists contains args in
   contains term
 
+let rec is_ground = function
+  | Var _ -> false
+  | Func (_, args) -> BatArray.for_all is_ground args
+
 let rec iter f term =
   f term;
   match term with
