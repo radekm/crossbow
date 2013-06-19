@@ -58,6 +58,45 @@ let test_simplify_tautology () =
       L.mk_ineq y z;
     ])
 
+let test_simplify_all_empty_clause () =
+  let S.Wr db = S.create_db () in
+  let f = S.add_func db 2 in
+  Symb.set_commutative db f true;
+  let f a b = T.func (f, [| a; b |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
+  let clauses =
+    BatDynArray.of_list
+      [
+        (* f(x, x) = x *)
+        [ L.mk_eq (f x x) x ];
+        (* f(y, z) <> f(z, x), x != y *)
+        [
+          L.mk_ineq (f y z) (f z x);
+          L.mk_ineq x y;
+        ];
+      ] in
+  assert_equal [[]] (BatDynArray.to_list (C.simplify_all db clauses))
+
+let test_simplify_all () =
+  let S.Wr db = S.create_db () in
+  let f = S.add_func db 2 in
+  Symb.set_commutative db f true;
+  let f a b = T.func (f, [| a; b |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let z = T.var 2 in
+  (* x = f(x, x) *)
+  let clause = [ L.mk_eq x (f x x) ] in
+  (* f(x, z) = f(z, x), y <> y *)
+  let clause2 = [
+    L.mk_eq (f x z) (f z x);
+    L.mk_ineq y y;
+  ] in
+  let clauses = BatDynArray.of_list [clause; clause2] in
+  assert_equal [clause] (BatDynArray.to_list (C.simplify_all db clauses))
+
 let test_normalize_vars () =
   let S.Wr db = S.create_db () in
   let f = S.add_func db 2 in
@@ -300,6 +339,8 @@ let suite =
     [
       "simplify" >:: test_simplify;
       "simplify tautology" >:: test_simplify_tautology;
+      "simplify_all - empty clause" >:: test_simplify_all_empty_clause;
+      "simplify_all" >:: test_simplify_all;
       "normalize_vars" >:: test_normalize_vars;
       "flatten" >:: test_flatten;
       "flatten - commutative symbol" >:: test_flatten_commutative_symb;

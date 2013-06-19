@@ -16,6 +16,12 @@ type 's t = 's Lit.t list
 *)
 val simplify : 's Symb.db -> 's t -> 's t option
 
+(** Uses {!Clause.simplify} to simplify the given clauses. Returns only
+   the empty clause if there is the empty clause among the simplified clauses.
+   Otherwise all simplified clauses are returned.
+*)
+val simplify_all : 's Symb.db -> 's t BatDynArray.t -> 's t BatDynArray.t
+
 (** Counts and renumbers the variables in the given clause.
    The variables are assigned numbers [0,..,n-1] where [n]
    is the count of the distinct variables in the clause.

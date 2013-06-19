@@ -40,6 +40,17 @@ let simplify symdb lits =
       lits in
   if taut then None else Some lits
 
+let simplify_all symdb clauses =
+  let clauses' = BatDynArray.filter_map (simplify symdb) clauses in
+  if
+    clauses'
+    |> BatDynArray.enum
+    |> BatEnum.exists ((=) [])
+  then
+    BatDynArray.of_array [| [] |]
+  else
+    clauses'
+
 let normalize_vars lits =
   let vars = Hashtbl.create 20 in
   let norm_var x =
