@@ -50,6 +50,15 @@ let rec iter f term =
     | Var _ -> ()
     | Func (_, args) -> Array.iter (iter f) args
 
+let count_symbs term =
+  let n = ref 0 in
+  iter
+    (function
+    | Var _ -> ()
+    | Func _ -> incr n)
+    term;
+  !n
+
 let rec normalize_comm symdb term = match term with
   | Var _ -> term
   | Func (s, [| l; r |]) when S.commutative symdb s ->

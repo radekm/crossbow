@@ -77,6 +77,21 @@ let test_iter () =
   T.iter each_subterm term;
   assert_equal [] !subterms
 
+let test_count_symbs () =
+  let Symb.Wr db = Symb.create_db () in
+  let f = Symb.add_func db 2 in
+  let g = Symb.add_func db 1 in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let t1 = T.func (f, [| x; y |]) in
+  let t2 = T.func (g, [| T.func (g, [| y |]) |]) in
+  let t3 = T.func (f, [| t1; t2 |]) in
+  let t4 = x in
+  assert_equal 1 (T.count_symbs t1);
+  assert_equal 2 (T.count_symbs t2);
+  assert_equal 4 (T.count_symbs t3);
+  assert_equal 0 (T.count_symbs t4)
+
 let test_normalize_comm () =
   let Symb.Wr db = Symb.create_db () in
   let f = Symb.add_func db 2 in
@@ -134,6 +149,7 @@ let suite =
       "is_ground" >:: test_is_ground;
       "is_ground 2" >:: test_is_ground2;
       "iter" >:: test_iter;
+      "count_symbs" >:: test_count_symbs;
       "normalize_comm" >:: test_normalize_comm;
       "vars" >:: test_vars;
     ]

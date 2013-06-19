@@ -25,6 +25,9 @@ val is_ground : 's t -> bool
 *)
 val iter : ('s t -> unit) -> 's t -> unit
 
+(** Counts the number of function symbols in the given term. *)
+val count_symbs : 's t -> int
+
 (** Reorders arguments of commutative symbols in a such way that
     the first one is not smaller than the second one.
 *)
