@@ -13,6 +13,10 @@ val var : var -> 's t
 
 val func : 's Symb.id * 's t array -> 's t
 
+val is_const : 's t -> bool
+
+val is_proper_func : 's t -> bool
+
 val get_args : 's t -> 's t array
 
 (** [contains sub t] tests whether the term [t] contains [sub] as a subterm. *)

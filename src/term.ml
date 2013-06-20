@@ -29,6 +29,16 @@ include Inner
 
 let (|>) = BatPervasives.(|>)
 
+let is_const = function
+  | Func (_, [| |]) -> true
+  | Var _
+  | Func _ -> false
+
+let is_proper_func = function
+  | Var _
+  | Func (_, [| |]) -> false
+  | Func _ -> true
+
 let get_args = function
   | Var _ -> [| |]
   | Func (_, args) -> args
