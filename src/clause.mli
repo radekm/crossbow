@@ -28,6 +28,16 @@ val simplify_all : 's Symb.db -> 's t BatDynArray.t -> 's t BatDynArray.t
 *)
 val normalize_vars : 's t -> 's t * int
 
+(** Uses equalities of ground terms to rewrite complex ground terms
+   to simpler ground terms. Ground terms are compared by the number
+   of function symbols and ties are resolved by comparing ground terms
+   themselves.
+
+   Inputs are not modified.
+*)
+val rewrite_ground_terms :
+  's Symb.db -> 's t BatDynArray.t -> 's t BatDynArray.t
+
 (** Returns a logically equivalent clause which is flat
    or [None] if the clause is a tautology.
 

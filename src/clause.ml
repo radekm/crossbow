@@ -67,6 +67,67 @@ let normalize_vars lits =
   let lits2 = BatList.map norm_vars_l lits in
   lits2, Hashtbl.length vars
 
+let rewrite_ground_terms symdb clauses =
+  let rec loop clauses =
+    (* Oriented equality of ground terms which can be used
+       for rewriting (i.e. right term has occurence
+       in another clause).
+    *)
+    let equality =
+      (* If the clause is ground equality orient it,
+         otherwise return None.
+      *)
+      let orient_ground_eq = function
+        | i, [L.Lit (Sh.Pos, s, [| l; r |])]
+          when s = Symb.sym_eq && T.is_ground l && T.is_ground r ->
+            let nl, nr = T.count_symbs l, T.count_symbs r in
+            let eq =
+              (* Simpler term to the left. *)
+              if nl < nr then (l, r)
+              else if nl > nr then (r, l)
+              (* Clauses are simplified so l <> r
+                 (l = r would cause non-termination).
+              *)
+              else if l <= r then (l, r)
+              else (r, l) in
+            Some (i, eq)
+        | _ -> None in
+      (* Right term has occurence in another clause. *)
+      let has_occurence (i, eq) =
+        let _, r = eq in
+        let cond (j, cl) =
+          j <> i && List.exists (L.contains r) cl in
+        clauses
+        |> BatDynArray.enum
+        |> BatEnum.mapi (fun j cl -> (j, cl))
+        |> BatEnum.exists cond in
+      clauses
+      |> BatDynArray.enum
+      |> BatEnum.mapi (fun i cl -> (i, cl))
+      |> BatEnum.filter_map orient_ground_eq
+      |> BatEnum.filter has_occurence
+      |> BatEnum.peek in
+
+    match equality with
+      | None -> clauses
+      | Some (i, (l, r)) ->
+          let replace j cl =
+            if j <> i && List.exists (L.contains r) cl then
+              (* Replace. Keep clauses simplified. *)
+              simplify symdb (BatList.map (L.replace r l) cl)
+            else
+              (* No change. *)
+              Some cl in
+          let j = ref ~-1 in
+          (* Replace more complex term r by simpler l. *)
+          let clauses' =
+            BatDynArray.filter_map
+              (fun cl -> incr j; replace !j cl)
+              clauses in
+          loop clauses' in
+
+  loop (simplify_all symdb clauses)
+
 (* Note: a flat clause is simplified and its variables are normalized. *)
 let flatten symdb lits =
 

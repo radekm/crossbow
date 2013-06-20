@@ -115,6 +115,43 @@ let test_normalize_vars () =
     (norm_clause, 5)
     (C.normalize_vars orig_clause)
 
+let test_rewrite_ground_terms () =
+  let S.Wr db = S.create_db () in
+  let f = S.add_func db 2 in
+  Symb.set_commutative db f true;
+  let f a b = T.func (f, [| a; b |]) in
+  let c = T.func (S.add_func db 0, [| |]) in
+  let d = T.func (S.add_func db 0, [| |]) in
+  let e = T.func (S.add_func db 0, [| |]) in
+  let g = S.add_func db 1 in
+  let g a = T.func (g, [| a |]) in
+  let x = T.var 0 in
+  let y = T.var 1 in
+  let clauses =
+    BatDynArray.of_list
+      [
+        [ L.mk_eq (f d c) (f c e) ];
+        [ L.mk_ineq c (g d) ];
+        [ L.mk_eq (f (g c) e) (g e) ];
+        [ L.mk_eq (g e) x; L.mk_eq y (g (f (g c) d)); L.mk_eq x (g d) ];
+        [ L.mk_eq (g (g d)) (g x) ];
+        [ L.mk_eq (g (g e)) (g c) ];
+        [ L.mk_eq (f e c) (f x x) ];
+        [ L.mk_eq e d; L.mk_ineq y x ];
+      ] in
+  let exp_clauses = [
+    [ L.mk_ineq c (g d) ];
+    [ L.mk_eq (f d (g c)) (g d) ];
+    [ L.mk_eq y (g c); L.mk_eq x (g d) ];
+    [ L.mk_eq (g x) (g c) ];
+    [ L.mk_eq (g c) (g (g d)) ];
+    [ L.mk_eq (f x x) (f c d) ];
+    [ L.mk_eq d e ];
+  ] in
+  assert_equal
+    exp_clauses
+    (BatDynArray.to_list (C.rewrite_ground_terms db clauses))
+
 let test_flatten () =
   let S.Wr db = S.create_db () in
   let f = S.add_func db 1 in
@@ -342,6 +379,7 @@ let suite =
       "simplify_all - empty clause" >:: test_simplify_all_empty_clause;
       "simplify_all" >:: test_simplify_all;
       "normalize_vars" >:: test_normalize_vars;
+      "rewrite_ground_terms" >:: test_rewrite_ground_terms;
       "flatten" >:: test_flatten;
       "flatten - commutative symbol" >:: test_flatten_commutative_symb;
       "flatten - deep nesting" >:: test_flatten_deep_nesting;
