@@ -32,6 +32,7 @@ FILES[] =
     test_term
     test_lit
     test_clause
+    test_term_def
     test_splitting
     test_tptp_prob
     test_sorts

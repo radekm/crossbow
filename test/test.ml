@@ -14,6 +14,7 @@ let suite =
       Test_term.suite;
       Test_lit.suite;
       Test_clause.suite;
+      Test_term_def.suite;
       Test_splitting.suite;
       Test_tptp_prob.suite;
       Test_sorts.suite;

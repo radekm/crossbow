@@ -34,6 +34,7 @@ FILES[] =
     clause
     clause2
     prob
+    term_def
     splitting
     tptp_prob
     sorts
