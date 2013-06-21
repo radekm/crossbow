@@ -22,6 +22,18 @@ type unflatten =
   | Unfl_no
   | Unfl_yes
 
+(* Transform clauses with ids. *)
+let transform_clauses f prob clauses =
+  let db = prob.Prob.symbols in
+  (* Remove ids. *)
+  let cs = BatDynArray.map (fun cl -> cl.Clause2.cl_lits) clauses in
+  let cs' = f db cs in
+  (* Add ids. *)
+  BatDynArray.map
+    (fun cl ->
+       { Clause2.cl_id = Prob.fresh_id prob; Clause2.cl_lits = cl })
+    cs'
+
 let find_model
     unflatten
     term_def
@@ -51,28 +63,23 @@ let find_model
   let p = tptp_prob.Tptp_prob.prob in
   let symb_db = p.Prob.symbols in
   (* Preprocessing. *)
-  let orig_clauses = BatDynArray.copy p.Prob.clauses in
+  let simpl_clauses =
+    transform_clauses Clause.rewrite_ground_terms p p.Prob.clauses in
   let unflat_clauses =
     match unflatten with
-      | Unfl_no -> orig_clauses
+      | Unfl_no -> simpl_clauses
       | Unfl_yes ->
           BatDynArray.filter_map
             (fun cl ->
               match Clause.unflatten symb_db cl.Clause2.cl_lits with
                 | None -> None
                 | Some cl_lits -> Some { cl with Clause2.cl_lits })
-            orig_clauses in
+            simpl_clauses in
   let term_def_clauses =
     match term_def with
       | Term_def_no -> unflat_clauses
       | Term_def_yes ->
-          let cs =
-            BatDynArray.map (fun cl -> cl.Clause2.cl_lits) unflat_clauses in
-          let cs' = Term_def.define_ground_terms symb_db cs in
-          BatDynArray.map
-            (fun cl ->
-              { Clause2.cl_id = Prob.fresh_id p; Clause2.cl_lits = cl })
-            cs' in
+          transform_clauses Term_def.define_ground_terms p unflat_clauses in
   let flat_clauses =
     BatDynArray.filter_map
       (fun cl ->
