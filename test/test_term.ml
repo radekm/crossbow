@@ -68,7 +68,7 @@ let test_is_ground2 () =
     T.func (f,
             [|
               T.func (f, [| T.func (c, [| |]); T.var 2 |]);
-	      T.func (c, [| |]);
+              T.func (c, [| |]);
             |]
     ) in
   assert_bool "" (not (T.is_ground term))
