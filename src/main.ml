@@ -118,10 +118,11 @@ let find_model
   let dsize = ref 0 in
   while not !found && not !interrupted && has_time () do
     incr dsize;
-    Printf.fprintf stderr "Instantiating - domain size %d\n" !dsize;
+    Printf.fprintf stderr "Instantiating - domain size %d (%d ms)\n"
+      !dsize (Timer.get_ms () - start_ms);
     flush stderr;
     Solver.incr_max_size inst;
-    Printf.fprintf stderr "Solving\n";
+    Printf.fprintf stderr "Solving (%d ms)\n" (Timer.get_ms () - start_ms);
     flush stderr;
     match remaining_ms () with
       | None ->
@@ -140,6 +141,8 @@ let find_model
                 failwith "unexpected result from SAT solver"
           end
   done;
+  Printf.fprintf stderr "Stop (%d ms)\n" (Timer.get_ms () - start_ms);
+  flush stderr;
   if !found then begin
     Printf.fprintf stderr "Constructing multi-sorted model\n";
     flush stderr;
