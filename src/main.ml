@@ -14,12 +14,17 @@ type splitting =
   | Spl_paradox
   | Spl_paradox_mod
 
+type term_def =
+  | Term_def_no
+  | Term_def_yes
+
 type unflatten =
   | Unfl_no
   | Unfl_yes
 
 let find_model
     unflatten
+    term_def
     splitting
     solver
     max_secs
@@ -57,13 +62,24 @@ let find_model
                 | None -> None
                 | Some cl_lits -> Some { cl with Clause2.cl_lits })
             orig_clauses in
+  let term_def_clauses =
+    match term_def with
+      | Term_def_no -> unflat_clauses
+      | Term_def_yes ->
+          let cs =
+            BatDynArray.map (fun cl -> cl.Clause2.cl_lits) unflat_clauses in
+          let cs' = Term_def.define_ground_terms symb_db cs in
+          BatDynArray.map
+            (fun cl ->
+              { Clause2.cl_id = Prob.fresh_id p; Clause2.cl_lits = cl })
+            cs' in
   let flat_clauses =
     BatDynArray.filter_map
       (fun cl ->
         match Clause.flatten symb_db cl.Clause2.cl_lits with
           | None -> None
           | Some cl_lits -> Some { cl with Clause2.cl_lits })
-      unflat_clauses in
+      term_def_clauses in
   let splitted_clauses =
     match splitting with
       | Spl_none -> flat_clauses
@@ -179,6 +195,15 @@ let splitting =
   Arg.(value & opt (enum values) Spl_paradox_mod &
          info ["splitting"] ~docv:"SPLITTING" ~doc)
 
+let term_def =
+  let doc = "$(docv) can be: yes, no." in
+  let values = [
+    "yes", Term_def_yes;
+    "no", Term_def_no;
+  ] in
+  Arg.(value & opt (enum values) Term_def_yes &
+         info ["term-def"] ~docv:"TERM-DEF" ~doc)
+
 let unflatten =
   let doc = "$(docv) can be: yes, no." in
   let values = [
@@ -189,7 +214,7 @@ let unflatten =
          info ["unflatten"] ~docv:"UNFLATTEN" ~doc)
 
 let find_model_t =
-  Term.(pure find_model $ unflatten $ splitting $ solver $
+  Term.(pure find_model $ unflatten $ term_def $ splitting $ solver $
           max_secs $ output_file $ base_dir $ in_file)
 
 let info =
