@@ -40,6 +40,12 @@ val add_clause : 's t -> Tptp_ast.cnf_formula -> unit
 *)
 val of_file : string -> string -> wt
 
+val prob_to_tptp :
+  's t ->
+  bool ->
+  (Tptp_ast.tptp_input -> unit) ->
+  unit
+
 (** [model_to_tptp p m interp_name f] converts the given model [m]
    to the TPTP format and calls [f] for each of its formulas.
    [interp_name] is used as a name for all formulas.

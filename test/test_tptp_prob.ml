@@ -340,9 +340,180 @@ let test_nested_include_with_sel () =
    - unsupported role
 *)
 
-module M = Model
-
 let hashtbl_of_list xs = BatHashtbl.of_enum (BatList.enum xs)
+
+let test_prob_to_tptp_vars () =
+  let Prob.Wr prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  let fs = Symb.add_func db 2 in
+  let f a b = T.func (fs, [| a; b |]) in
+  let fsymb = Ast.Plain_word (Ast.to_plain_word "f") in
+  let ftptp = TP.Atomic_word (fsymb, 2) in
+  let clause = {
+    C.cl_id = Prob.fresh_id prob;
+    C.cl_lits = [
+      L.mk_eq (f (T.var ~-2) (f (T.var 0) (T.var 5))) (T.var 29);
+    ];
+  } in
+  BatDynArray.add prob.Prob.clauses clause;
+  let tptp_prob = {
+    TP.prob;
+    TP.smap = {
+      TP.of_tptp = hashtbl_of_list [ftptp, fs];
+      TP.to_tptp = hashtbl_of_list [fs, ftptp];
+    };
+    TP.preds = hashtbl_of_list [ftptp, false];
+  } in
+  let exp = [
+    Ast.Cnf_anno {
+      Ast.af_name = Ast.N_word (Ast.to_plain_word "cl");
+      Ast.af_role = Ast.R_axiom;
+      Ast.af_formula = Ast.Clause [
+        let v s = Ast.Var (Ast.to_var s) in
+        let l =
+          Ast.Func (fsymb, [
+              v "Y2"; Ast.Func (fsymb, [v "A"; v "F"])
+            ]) in
+        let r = v "X29" in
+        Ast.Lit (Ast.Pos, Ast.Equals (l, r));
+      ];
+      Ast.af_annos = None;
+    };
+  ] in
+  let res = ref [] in
+  TP.prob_to_tptp tptp_prob true (fun cl -> res := cl :: !res);
+  assert_equal exp (List.rev !res)
+
+let test_prob_to_tptp_aux_symbs () =
+  let Prob.Wr prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  (* Auxiliary. *)
+  let fs = Symb.add_func db 2 in
+  let f a b = T.func (fs, [| a; b |]) in
+  let fsymb = Ast.Plain_word (Ast.to_plain_word "z1") in
+  (* Auxiliary. *)
+  let gs = Symb.add_func db 1 in
+  Symb.set_auxiliary db gs true;
+  let g a = T.func (gs, [| a |]) in
+  let gsymb = Ast.Plain_word (Ast.to_plain_word "z2") in
+  (* Auxiliary. *)
+  let hs = Symb.add_func db 1 in
+  let h a = T.func (hs, [| a |]) in
+  let hsymb = Ast.Plain_word (Ast.to_plain_word "z4") in
+  (* Not auxiliary. Different arity. *)
+  let z2s = Symb.add_pred db 3 in
+  let z2symb = Ast.Plain_word (Ast.to_plain_word "z2") in
+  let z2tptp = TP.Atomic_word (z2symb, 3) in
+  (* Not auxiliary. Same arity. *)
+  let z3s = Symb.add_func db 1 in
+  let z3symb = Ast.Plain_word (Ast.to_plain_word "z3") in
+  let z3tptp = TP.Atomic_word (z3symb, 1) in
+  let clause = {
+    C.cl_id = Prob.fresh_id prob;
+    C.cl_lits = [
+      L.mk_ineq (f (T.var 25) (g (T.var 26))) (h (T.var 24));
+    ];
+  } in
+  BatDynArray.add prob.Prob.clauses clause;
+  let tptp_prob = {
+    TP.prob;
+    TP.smap = {
+      TP.of_tptp = hashtbl_of_list [z2tptp, z2s; z3tptp, z3s];
+      TP.to_tptp = hashtbl_of_list [z2s, z2tptp; z3s, z3tptp];
+    };
+    TP.preds = hashtbl_of_list [ z2tptp, true; z3tptp, false ];
+  } in
+  let exp = [
+    Ast.Cnf_anno {
+      Ast.af_name = Ast.N_word (Ast.to_plain_word "cl");
+      Ast.af_role = Ast.R_axiom;
+      Ast.af_formula = Ast.Clause [
+        let v s = Ast.Var (Ast.to_var s) in
+        let l =
+          Ast.Func (fsymb, [
+              v "Z"; Ast.Func (gsymb, [v "X26"])
+            ]) in
+        let r =  Ast.Func (hsymb, [v "Y"]) in
+        Ast.Lit (Ast.Neg, Ast.Equals (l, r));
+      ];
+      Ast.af_annos = None;
+    };
+  ] in
+  let res = ref [] in
+  TP.prob_to_tptp tptp_prob true (fun cl -> res := cl :: !res);
+  assert_equal exp (List.rev !res)
+
+let test_prob_to_tptp_commutativity () =
+  let Prob.Wr prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  let fs = Symb.add_func db 2 in
+  Symb.set_commutative db fs true;
+  let f a b = T.func (fs, [| a; b |]) in
+  let fsymb = Ast.Plain_word (Ast.to_plain_word "f") in
+  let ftptp = TP.Atomic_word (fsymb, 2) in
+  let ps = Symb.add_pred db 0 in
+  let p = L.lit (Sh.Pos, ps, [| |]) in
+  let psymb = Ast.Plain_word (Ast.to_plain_word "p") in
+  let ptptp = TP.Atomic_word (psymb, 0) in
+  let cs = Symb.add_func db 0 in
+  let c = T.func (cs, [| |]) in
+  let csymb = Ast.String (Ast.to_tptp_string "const") in
+  let ctptp = TP.String (Ast.to_tptp_string "const") in
+  let clause = {
+    C.cl_id = Prob.fresh_id prob;
+    C.cl_lits = [
+      p;
+      L.mk_eq (f (T.var 1) c) c;
+    ];
+  } in
+  BatDynArray.add prob.Prob.clauses clause;
+  let tptp_prob = {
+    TP.prob;
+    TP.smap = {
+      TP.of_tptp = hashtbl_of_list [ftptp, fs; ptptp, ps; ctptp, cs];
+      TP.to_tptp = hashtbl_of_list [fs, ftptp; ps, ptptp; cs, ctptp];
+    };
+    TP.preds = hashtbl_of_list [ftptp, false; ptptp, true; ctptp, false];
+  } in
+  let v s = Ast.Var (Ast.to_var s) in
+  let exp_clause = Ast.Cnf_anno {
+    Ast.af_name = Ast.N_word (Ast.to_plain_word "cl");
+    Ast.af_role = Ast.R_axiom;
+    Ast.af_formula = Ast.Clause [
+      Ast.Lit (Ast.Pos, Ast.Pred (psymb, []));
+      let l = Ast.Func (fsymb, [v "B"; csymb]) in
+      let r = csymb in
+      Ast.Lit (Ast.Pos, Ast.Equals (l, r));
+    ];
+    Ast.af_annos = None;
+  } in
+  let l = Ast.Func (fsymb, [v "A"; v "B"]) in
+  let r = Ast.Func (fsymb, [v "B"; v "A"]) in
+  let exp_comm = Ast.Cnf_anno {
+    Ast.af_name = Ast.N_word (Ast.to_plain_word "cl");
+    Ast.af_role = Ast.R_axiom;
+    Ast.af_formula = Ast.Clause [
+      Ast.Lit (Ast.Pos, Ast.Equals (l, r));
+    ];
+    Ast.af_annos = None;
+  } in
+  let exp_flat_comm = Ast.Cnf_anno {
+    Ast.af_name = Ast.N_word (Ast.to_plain_word "cl");
+    Ast.af_role = Ast.R_axiom;
+    Ast.af_formula = Ast.Clause [
+      Ast.Lit (Ast.Pos, Ast.Equals (v "C", l));
+      Ast.Lit (Ast.Neg, Ast.Equals (v "C", r));
+    ];
+    Ast.af_annos = None;
+  } in
+  let res = ref [] in
+  TP.prob_to_tptp tptp_prob false (fun cl -> res := cl :: !res);
+  assert_equal [exp_clause; exp_comm] (List.rev !res);
+  let res_flat = ref [] in
+  TP.prob_to_tptp tptp_prob true (fun cl -> res_flat := cl :: !res_flat);
+  assert_equal [exp_clause; exp_flat_comm] (List.rev !res_flat)
+
+module M = Model
 
 let map_of_list xs = Symb.Map.of_enum (BatList.enum xs)
 
@@ -480,5 +651,8 @@ let suite =
       "of_file - nested include" >:: test_nested_include;
       "of_file - nested include with selection" >::
         test_nested_include_with_sel;
+      "prob_to_tptp - vars" >:: test_prob_to_tptp_vars;
+      "prob_to_tptp - aux symbs" >:: test_prob_to_tptp_aux_symbs;
+      "prob_to_tptp - commutativity" >:: test_prob_to_tptp_commutativity;
       "model_to_tptp" >:: test_model_to_tptp;
     ]

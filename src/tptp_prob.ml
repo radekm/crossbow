@@ -3,6 +3,7 @@
 open BatPervasives
 
 module S = Symb
+module T = Term
 module L = Lit
 module Ast = Tptp_ast
 
@@ -24,6 +25,8 @@ type 's t = {
 
 type wt =
   | Wr : 's t -> wt
+
+let (|>) = BatPervasives.(|>)
 
 let add_clause p (Ast.Clause lits) =
   let vars = Hashtbl.create 20 in
@@ -183,6 +186,140 @@ let of_file base_dir file =
 
   of_file file (fun _ -> true);
   Wr p
+
+let prob_to_tptp tp flat f =
+  let clauses = tp.prob.Prob.clauses in
+
+  (* Translate variable names. *)
+  let var =
+    let names =
+      BatChar.range ~until:'Z' 'A'
+      |> BatEnum.map BatPervasives.string_of_char
+      |> BatEnum.map Ast.to_var
+      |> BatArray.of_enum in
+    fun x ->
+      if x >= Array.length names then
+        Ast.to_var (Printf.sprintf "X%i" x)
+      else if x < 0 then
+        Ast.to_var (Printf.sprintf "Y%i" ~-x)
+      else
+        names.(x) in
+
+  (* Return name for auxiliary symbol. *)
+  let aux_symb =
+    let last = ref 0 in
+    let rec gen_symb s =
+      incr last;
+      let symb =
+        Ast.Plain_word (Ast.to_plain_word (Printf.sprintf "z%d" !last)) in
+      if Hashtbl.mem tp.smap.of_tptp (Atomic_word (symb, S.arity s))
+      then gen_symb s
+      else symb in
+    let symbs = Hashtbl.create 20 in
+    fun s ->
+      try Hashtbl.find symbs s
+      with Not_found ->
+        let symb = gen_symb s in
+        Hashtbl.add symbs s symb;
+        symb in
+
+  let seen_funcs = ref BatSet.empty in
+
+  let rec transl_term = function
+    | T.Var x -> Ast.Var (var x)
+    | T.Func (s, args) ->
+        seen_funcs := BatSet.add s !seen_funcs;
+        let args () =
+          args
+          |> Array.map transl_term
+          |> Array.to_list in
+        try
+          match Hashtbl.find tp.smap.to_tptp s with
+            | Atomic_word (symb, _) ->
+                Ast.Func (symb, args ())
+            | Number q -> Ast.Number q
+            | String s -> Ast.String s
+        with
+          | Not_found ->
+              let symb = aux_symb s in
+              Ast.Func (symb, args ()) in
+
+  let transl_lit (L.Lit (sign, s, args)) =
+    let atom =
+      match args with
+        | [| l; r |] when s = S.sym_eq ->
+            let l' = transl_term l in
+            let r' = transl_term r in
+            Ast.Equals (l', r')
+        | _ ->
+            let args () =
+              args
+              |> Array.map transl_term
+              |> Array.to_list in
+            try
+              match Hashtbl.find tp.smap.to_tptp s with
+                | Number _
+                | String _ -> failwith "problem_to_tptp"
+                | Atomic_word (symb, _) ->
+                    Ast.Pred (symb, args ())
+            with
+              | Not_found ->
+                  let symb = aux_symb s in
+                  Ast.Pred (symb, args ()) in
+    let sign =
+      match sign with
+        | Sh.Pos -> Ast.Pos
+        | Sh.Neg -> Ast.Neg in
+    Ast.Lit (sign, atom) in
+
+  let make_cnf lits =
+    Ast.Cnf_anno {
+      Ast.af_name = Ast.N_word (Ast.to_plain_word "cl");
+      Ast.af_role = Ast.R_axiom;
+      Ast.af_formula = Ast.Clause lits;
+      Ast.af_annos = None;
+    } in
+
+  let proc_clause cl =
+    let lits =
+      cl.Clause2.cl_lits
+      |> BatList.map transl_lit in
+    f (make_cnf lits) in
+
+  BatDynArray.iter proc_clause clauses;
+
+  (* Generate commutativity clauses for seen commutative function symbols. *)
+  BatSet.iter
+    (fun s ->
+      if S.commutative tp.prob.Prob.symbols s then begin
+        let arity = Symb.arity s in
+        let args = BatList.init arity (fun i -> Ast.Var (var i)) in
+        let args' =
+          (* Swap first two arguments. *)
+          match args with
+            | a :: b :: rest -> b :: a :: rest
+            | _ -> failwith "problem_to_tptp" in
+        let lits symb =
+          let l = Ast.Func (symb, args) in
+          let r = Ast.Func (symb, args') in
+          if flat then
+            [
+              Ast.Lit (Ast.Pos, Ast.Equals (Ast.Var (var arity), l));
+              Ast.Lit (Ast.Neg, Ast.Equals (Ast.Var (var arity), r));
+            ]
+          else
+            [ Ast.Lit (Ast.Pos, Ast.Equals (l, r)) ] in
+        let lits =
+          try
+            match Hashtbl.find tp.smap.to_tptp s with
+              | Number _
+              | String _ -> failwith "problem_to_tptp"
+              | Atomic_word (symb, _) -> lits symb
+          with
+            | Not_found -> lits (aux_symb s) in
+        f (make_cnf lits)
+       end)
+    !seen_funcs
 
 module M = Model
 

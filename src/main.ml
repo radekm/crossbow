@@ -22,6 +22,10 @@ type unflatten =
   | Unfl_no
   | Unfl_yes
 
+type only_preproc =
+  | Only_preproc_yes
+  | Only_preproc_no
+
 (* Transform clauses with ids. *)
 let transform_clauses f prob clauses =
   let db = prob.Prob.symbols in
@@ -35,6 +39,7 @@ let transform_clauses f prob clauses =
     cs'
 
 let find_model
+    only_preproc
     unflatten
     term_def
     splitting
@@ -109,63 +114,74 @@ let find_model
           cs in
   BatDynArray.clear p.Prob.clauses;
   BatDynArray.append splitted_clauses p.Prob.clauses;
-  Printf.fprintf stderr "Clauses: %d\n" (BatDynArray.length p.Prob.clauses);
-  let sorts = Sorts.of_problem p in
-  let inst = Solver.create p sorts in
-  (* Model search. *)
-  let found = ref false in
-  let interrupted = ref false in
-  let dsize = ref 0 in
-  while not !found && not !interrupted && has_time () do
-    incr dsize;
-    Printf.fprintf stderr "Instantiating - domain size %d (%d ms)\n"
-      !dsize (Timer.get_ms () - start_ms);
-    flush stderr;
-    Solver.incr_max_size inst;
-    Printf.fprintf stderr "Solving (%d ms)\n" (Timer.get_ms () - start_ms);
-    flush stderr;
-    match remaining_ms () with
-      | None ->
-          begin match Solver.solve inst with
-            | Sat_solver.Ltrue -> found := true
-            | Sat_solver.Lfalse -> ()
-            | Sat_solver.Lundef ->
-                failwith "unexpected result from SAT solver"
-          end
-      | Some ms ->
-          begin match Solver.solve_timed inst ms with
-            | _, true -> interrupted := true
-            | Sat_solver.Ltrue, _ -> found := true
-            | Sat_solver.Lfalse, _ -> ()
-            | Sat_solver.Lundef, _ ->
-                failwith "unexpected result from SAT solver"
-          end
-  done;
-  Printf.fprintf stderr "Stop (%d ms)\n" (Timer.get_ms () - start_ms);
-  flush stderr;
-  if !found then begin
-    Printf.fprintf stderr "Constructing multi-sorted model\n";
-    flush stderr;
-    let ms_model = Solver.construct_model inst in
-    Printf.fprintf stderr "Constructing model with single sort\n";
-    flush stderr;
-    let model = Model.of_ms_model ms_model sorts in
+  let with_output f =
+    match output_file with
+      | None -> f BatPervasives.stdout
+      | Some file -> BatFile.with_file_out file f in
+  if only_preproc = Only_preproc_yes then begin
     let b = Buffer.create 1024 in
-    let with_output f =
-      match output_file with
-        | None -> f BatPervasives.stdout
-        | Some file -> BatFile.with_file_out file f in
     with_output
       (fun out ->
-        Tptp_prob.model_to_tptp tptp_prob model
-          (Tptp_ast.N_word (Tptp_ast.to_plain_word "interp"))
+        Tptp_prob.prob_to_tptp tptp_prob true
           (fun f ->
             Tptp.write b f;
             BatBuffer.output_buffer out b;
             Buffer.clear b))
   end else begin
-    Printf.fprintf stderr "Time out\n";
+    Printf.fprintf stderr "Clauses: %d\n" (BatDynArray.length p.Prob.clauses);
+    let sorts = Sorts.of_problem p in
+    let inst = Solver.create p sorts in
+    (* Model search. *)
+    let found = ref false in
+    let interrupted = ref false in
+    let dsize = ref 0 in
+    while not !found && not !interrupted && has_time () do
+      incr dsize;
+      Printf.fprintf stderr "Instantiating - domain size %d (%d ms)\n"
+        !dsize (Timer.get_ms () - start_ms);
+      flush stderr;
+      Solver.incr_max_size inst;
+      Printf.fprintf stderr "Solving (%d ms)\n" (Timer.get_ms () - start_ms);
+      flush stderr;
+      match remaining_ms () with
+        | None ->
+            begin match Solver.solve inst with
+              | Sat_solver.Ltrue -> found := true
+              | Sat_solver.Lfalse -> ()
+              | Sat_solver.Lundef ->
+                  failwith "unexpected result from SAT solver"
+            end
+        | Some ms ->
+            begin match Solver.solve_timed inst ms with
+              | _, true -> interrupted := true
+              | Sat_solver.Ltrue, _ -> found := true
+              | Sat_solver.Lfalse, _ -> ()
+              | Sat_solver.Lundef, _ ->
+                  failwith "unexpected result from SAT solver"
+            end
+    done;
+    Printf.fprintf stderr "Stop (%d ms)\n" (Timer.get_ms () - start_ms);
     flush stderr;
+    if !found then begin
+      Printf.fprintf stderr "Constructing multi-sorted model\n";
+      flush stderr;
+      let ms_model = Solver.construct_model inst in
+      Printf.fprintf stderr "Constructing model with single sort\n";
+      flush stderr;
+      let model = Model.of_ms_model ms_model sorts in
+      let b = Buffer.create 1024 in
+      with_output
+        (fun out ->
+          Tptp_prob.model_to_tptp tptp_prob model
+            (Tptp_ast.N_word (Tptp_ast.to_plain_word "interp"))
+            (fun f ->
+              Tptp.write b f;
+              BatBuffer.output_buffer out b;
+              Buffer.clear b))
+    end else begin
+      Printf.fprintf stderr "Time out\n";
+      flush stderr;
+    end
   end
 
 let in_file =
@@ -223,9 +239,19 @@ let unflatten =
   Arg.(value & opt (enum values) Unfl_yes &
          info ["unflatten"] ~docv:"UNFLATTEN" ~doc)
 
+let only_preproc =
+  let doc = "$(docv) can be: yes, no." in
+  let values = [
+    "yes", Only_preproc_yes;
+    "no", Only_preproc_no;
+  ] in
+  Arg.(value & opt (enum values) Only_preproc_no &
+         info ["only-preproc"] ~docv:"ONLY-PREPROC" ~doc)
+
 let find_model_t =
-  Term.(pure find_model $ unflatten $ term_def $ splitting $ solver $
-          max_secs $ output_file $ base_dir $ in_file)
+  Term.(pure find_model $ only_preproc $ unflatten $ term_def $
+          splitting $ solver $ max_secs $
+          output_file $ base_dir $ in_file)
 
 let info =
   let doc = "finite model finder" in
