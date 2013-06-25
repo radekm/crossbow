@@ -5,13 +5,16 @@ open OUnit
 module S = Symb
 module T = Term
 
-let test_is_const_is_proper_func () =
+let test_is_var_is_const_is_proper_func () =
   let Symb.Wr db = Symb.create_db () in
   let f = Symb.add_func db 1 in
   let c = Symb.add_func db 0 in
   let t1 = T.var 2 in
   let t2 = T.func (c, [| |]) in
   let t3 = T.func (f, [| T.var 1 |]) in
+  assert_equal true (T.is_var t1);
+  assert_equal false (T.is_var t2);
+  assert_equal false (T.is_var t3);
   assert_equal false (T.is_const t1);
   assert_equal true (T.is_const t2);
   assert_equal false (T.is_const t3);
@@ -158,7 +161,8 @@ let test_vars () =
 let suite =
   "Term suite" >:::
     [
-      "is_const, is_proper_func" >:: test_is_const_is_proper_func;
+      "is_var, is_const, is_proper_func" >::
+        test_is_var_is_const_is_proper_func;
       "contains 1" >:: test_contains1;
       "contains 2" >:: test_contains2;
       "is_ground" >:: test_is_ground;
