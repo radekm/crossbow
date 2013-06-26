@@ -7,3 +7,8 @@ type sign =
 let neg = function
   | Pos -> Neg
   | Neg -> Pos
+
+type lbool =
+  | Ltrue
+  | Lfalse
+  | Lundef

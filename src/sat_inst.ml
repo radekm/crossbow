@@ -23,9 +23,9 @@ module type Inst_sig = sig
 
   val incr_max_size : 's t -> unit
 
-  val solve : 's t -> Sat_solver.lbool
+  val solve : 's t -> Sh.lbool
 
-  val solve_timed : 's t -> int -> Sat_solver.lbool * bool
+  val solve_timed : 's t -> int -> Sh.lbool * bool
 
   val construct_model : 's t -> 's Ms_model.t
 
@@ -607,7 +607,7 @@ struct
       | Some switch ->
           let result =
             Solv.solve inst.solver [| Solv.to_lit Sh.Neg switch |] in
-          inst.can_construct_model <- result = Sat_solver.Ltrue;
+          inst.can_construct_model <- result = Sh.Ltrue;
           result
 
   let solve_timed inst ms =
@@ -621,9 +621,9 @@ struct
 
     let get_val pvar =
       match Solv.model_value inst.solver pvar with
-        | Sat_solver.Ltrue -> 1
-        | Sat_solver.Lfalse -> 0
-        | Sat_solver.Lundef ->
+        | Sh.Ltrue -> 1
+        | Sh.Lfalse -> 0
+        | Sh.Lundef ->
             failwith "construct_model: unassigned propositional variable" in
 
     let symbs = ref Symb.Map.empty in

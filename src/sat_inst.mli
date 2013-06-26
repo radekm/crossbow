@@ -58,7 +58,7 @@ module type Inst_sig = sig
      Raises [Failure] when the maximum domain size is 0 or when it is
      lower than the number of the distinct constants.
   *)
-  val solve : 's t -> Sat_solver.lbool
+  val solve : 's t -> Sh.lbool
 
   (** Adds "at least one value" clauses and starts the solver.
      The solver is interrupted if it doesn't finish within
@@ -68,7 +68,7 @@ module type Inst_sig = sig
      Raises [Failure] when the maximum domain size is 0 or when it is
      lower than the number of the distinct constants.
   *)
-  val solve_timed : 's t -> int -> Sat_solver.lbool * bool
+  val solve_timed : 's t -> int -> Sh.lbool * bool
 
   (** Constructs a multi-sorted model for all constants, non-auxiliary
      functions and non-auxiliary predicates.

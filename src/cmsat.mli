@@ -23,9 +23,9 @@ external add_clause : t -> lit array -> int -> bool = "cmsat_add_clause"
 (** Starts the solver with the assumptions.
    All variables are assigned if the model is found.
 *)
-external solve : t -> lit array -> Sat_solver.lbool = "cmsat_solve"
+external solve : t -> lit array -> Sh.lbool = "cmsat_solve"
 
-external model_value : t -> var -> Sat_solver.lbool = "cmsat_model_value"
+external model_value : t -> var -> Sh.lbool = "cmsat_model_value"
 
 external interrupt : t -> unit = "cmsat_interrupt"
 

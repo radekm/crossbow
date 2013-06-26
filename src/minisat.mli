@@ -23,9 +23,9 @@ external add_clause : t -> lit array -> int -> bool = "minisat_add_clause"
 (** Starts the solver with the assumptions.
    All variables are assigned if the model is found.
 *)
-external solve : t -> lit array -> Sat_solver.lbool = "minisat_solve"
+external solve : t -> lit array -> Sh.lbool = "minisat_solve"
 
-external model_value : t -> var -> Sat_solver.lbool = "minisat_model_value"
+external model_value : t -> var -> Sh.lbool = "minisat_model_value"
 
 external interrupt : t -> unit = "minisat_interrupt"
 

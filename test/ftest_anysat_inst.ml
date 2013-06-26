@@ -41,7 +41,7 @@ end = struct
     let i = Inst.create prob sorts in
     for max_size = 1 to 15 do
       Inst.incr_max_size i;
-      assert_equal Sat_solver.Lfalse (Inst.solve i)
+      assert_equal Sh.Lfalse (Inst.solve i)
     done
 
   let test_only_nullary_preds () =
@@ -97,7 +97,7 @@ end = struct
     let i = Inst.create prob sorts in
     for max_size = 1 to 30 do
       Inst.incr_max_size i;
-      assert_equal Sat_solver.Ltrue (Inst.solve i);
+      assert_equal Sh.Ltrue (Inst.solve i);
       (* Check model. *)
       let ms_model = Inst.construct_model i in
       assert_equal max_size ms_model.Ms_model.max_size;
@@ -165,7 +165,7 @@ end = struct
     done;
     for max_size = nconsts to 15 do
       Inst.incr_max_size i;
-      assert_equal Sat_solver.Ltrue (Inst.solve i);
+      assert_equal Sh.Ltrue (Inst.solve i);
       (* Check model. *)
       let ms_model = Inst.construct_model i in
       assert_equal max_size ms_model.Ms_model.max_size;
@@ -233,7 +233,7 @@ end = struct
     let i = Inst.create prob sorts in
     for max_size = 1 to 15 do
       Inst.incr_max_size i;
-      assert_equal Sat_solver.Ltrue (Inst.solve i);
+      assert_equal Sh.Ltrue (Inst.solve i);
       (* Check model. *)
       let ms_model = Inst.construct_model i in
       assert_equal max_size ms_model.Ms_model.max_size;
@@ -292,7 +292,7 @@ end = struct
     for max_size = 1 to 15 do
       Inst.incr_max_size i;
       if max_size mod 2 = 0 then begin
-        assert_equal Sat_solver.Ltrue (Inst.solve i);
+        assert_equal Sh.Ltrue (Inst.solve i);
         (* Check model. *)
         let ms_model = Inst.construct_model i in
         assert_equal max_size ms_model.Ms_model.max_size;
@@ -306,7 +306,7 @@ end = struct
           assert_equal x fvalues.(fvalues.(x))
         done
       end else
-        assert_equal Sat_solver.Lfalse (Inst.solve i)
+        assert_equal Sh.Lfalse (Inst.solve i)
     done
 
   type wrapped_group =
@@ -383,7 +383,7 @@ end = struct
     let ms_models = ref (BatSet.create Ms_model.compare) in
     let model_cnt = ref 0 in
     while !found do
-      if Inst.solve i = Sat_solver.Ltrue then begin
+      if Inst.solve i = Sh.Ltrue then begin
         let ms_model = Inst.construct_model i in
         Inst.block_model i ms_model;
         assert_equal max_size ms_model.Ms_model.max_size;

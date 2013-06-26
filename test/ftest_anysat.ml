@@ -92,11 +92,11 @@ end = struct
   let test_all_vars_assigned_when_model_found () =
     let s = Solv.create () in
     let vars = Array.init 50 (fun _ -> Solv.new_var s) in
-    assert_equal Sat_solver.Ltrue (Solv.solve s [| |]);
+    assert_equal Sh.Ltrue (Solv.solve s [| |]);
     Array.iter
       (fun v ->
         let b = Solv.model_value s v in
-        assert_bool "" (b = Sat_solver.Ltrue || b = Sat_solver.Lfalse))
+        assert_bool "" (b = Sh.Ltrue || b = Sh.Lfalse))
       vars
 
   let test_unsat_empty_clause () =
@@ -106,7 +106,7 @@ end = struct
     assert_bool "" (Solv.add_clause s [| lit a; neg_lit a |] 2);
     (* empty clause *)
     assert_bool "" (not (Solv.add_clause s [| lit a |] 0));
-    assert_equal Sat_solver.Lfalse (Solv.solve s [| |])
+    assert_equal Sh.Lfalse (Solv.solve s [| |])
 
   let test_unsat_zero_dec_level () =
     let s = Solv.create () in
@@ -123,7 +123,7 @@ end = struct
     assert_bool "" (Solv.add_clause s [| neg_lit b |] 1);
     (* ~a *)
     assert_bool "" (not (Solv.add_clause s [| neg_lit a |] 1));
-    assert_equal Sat_solver.Lfalse (Solv.solve s [| |])
+    assert_equal Sh.Lfalse (Solv.solve s [| |])
 
   let generate_php s pigeons holes =
     (* phs.(p).(h) tells whether the pigeon p is in the hole h. *)
@@ -162,20 +162,20 @@ end = struct
   let test_unsat () =
     let s = Solv.create () in
     let _ = generate_php s 5 4 in
-    assert_equal Sat_solver.Lfalse (Solv.solve s [| |])
+    assert_equal Sh.Lfalse (Solv.solve s [| |])
 
   let test_sat () =
     let s = Solv.create () in
     let _ = generate_php s 5 5 in
-    assert_equal Sat_solver.Ltrue (Solv.solve s [| |])
+    assert_equal Sh.Ltrue (Solv.solve s [| |])
 
   let test_unsat_with_assumpts () =
     let s = Solv.create () in
     let phs = generate_php s 4 4  in
     (* No pigeon is in in the second hole. *)
     let assumpts = Array.map (fun ph -> neg_lit ph.(1)) phs in
-    assert_equal Sat_solver.Lfalse (Solv.solve s assumpts);
-    assert_equal Sat_solver.Ltrue (Solv.solve s [| |])
+    assert_equal Sh.Lfalse (Solv.solve s assumpts);
+    assert_equal Sh.Ltrue (Solv.solve s [| |])
 
   let test_sat_with_assumpts () =
     let s = Solv.create () in
@@ -184,7 +184,7 @@ end = struct
        is in the second hole.
     *)
     let assumpts = [| lit phs.(0).(2); lit phs.(1).(1) |] in
-    assert_equal Sat_solver.Ltrue (Solv.solve s assumpts)
+    assert_equal Sh.Ltrue (Solv.solve s assumpts)
 
   (* Hard problem which cannot be solved in such short time. *)
   let test_interrupt () =
@@ -193,7 +193,7 @@ end = struct
       Timer.with_timer 2000
         (fun () -> Solv.interrupt solver)
         (fun () -> Solv.solve solver [| |]) in
-    assert_equal Sat_solver.Lundef result;
+    assert_equal Sh.Lundef result;
     assert_bool "" interrupted
 
   let test_interrupt_sat () =
@@ -202,7 +202,7 @@ end = struct
       Timer.with_timer (10 * 1000)
         (fun () -> Solv.interrupt solver)
         (fun () -> Solv.solve solver [| |]) in
-    assert_equal Sat_solver.Ltrue result;
+    assert_equal Sh.Ltrue result;
     assert_bool "" (not interrupted)
 
   let test_interrupt_unsat () =
@@ -211,7 +211,7 @@ end = struct
       Timer.with_timer (10 * 1000)
         (fun () -> Solv.interrupt solver)
         (fun () -> Solv.solve solver [| |]) in
-    assert_equal Sat_solver.Lfalse result;
+    assert_equal Sh.Lfalse result;
     assert_bool "" (not interrupted)
 
   let suite name =

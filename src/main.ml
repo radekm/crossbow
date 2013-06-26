@@ -241,17 +241,17 @@ let find_model
       match remaining_ms () with
         | None ->
             begin match Solver.solve inst with
-              | Sat_solver.Ltrue -> found := true
-              | Sat_solver.Lfalse -> ()
-              | Sat_solver.Lundef ->
+              | Sh.Ltrue -> found := true
+              | Sh.Lfalse -> ()
+              | Sh.Lundef ->
                   failwith "unexpected result from SAT solver"
             end
         | Some ms ->
             begin match Solver.solve_timed inst ms with
               | _, true -> interrupted := true
-              | Sat_solver.Ltrue, _ -> found := true
-              | Sat_solver.Lfalse, _ -> ()
-              | Sat_solver.Lundef, _ ->
+              | Sh.Ltrue, _ -> found := true
+              | Sh.Lfalse, _ -> ()
+              | Sh.Lundef, _ ->
                   failwith "unexpected result from SAT solver"
             end
     done;

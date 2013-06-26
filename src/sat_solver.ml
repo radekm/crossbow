@@ -1,10 +1,5 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-type lbool =
-  | Ltrue
-  | Lfalse
-  | Lundef
-
 module type S = sig
   type t
 
@@ -18,9 +13,9 @@ module type S = sig
 
   val add_clause : t -> lit array -> int -> bool
 
-  val solve : t -> lit array -> lbool
+  val solve : t -> lit array -> Sh.lbool
 
-  val model_value : t -> var -> lbool
+  val model_value : t -> var -> Sh.lbool
 
   val interrupt : t -> unit
 

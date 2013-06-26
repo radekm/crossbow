@@ -7,3 +7,8 @@ type sign =
   | Neg
 
 val neg : sign -> sign
+
+type lbool =
+  | Ltrue
+  | Lfalse
+  | Lundef
