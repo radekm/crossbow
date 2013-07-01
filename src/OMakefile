@@ -43,6 +43,7 @@ FILES[] =
     sat_solver
     minisat
     cmsat
+    csp_solver
     bliss
     symred
     lnh
