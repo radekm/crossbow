@@ -54,6 +54,8 @@ FILES[] =
     sat_inst
     minisat_inst
     cmsat_inst
+    csp_inst
+    gecode_inst
 
 libcrossbow.cmxa libcrossbow$(EXT_LIB): \
     ../minisat/libminisat$(EXT_LIB) \

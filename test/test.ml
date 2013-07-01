@@ -31,6 +31,8 @@ let suite =
       Test_sat_inst.suite;
       Test_minisat_inst.suite;
       Test_cmsat_inst.suite;
+      Test_csp_inst.suite;
+      Test_gecode_inst.suite;
     ]
 
 let () = ignore (run_test_tt suite)

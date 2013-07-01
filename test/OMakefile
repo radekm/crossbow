@@ -52,6 +52,9 @@ FILES[] =
     ftest_anysat_inst
     test_minisat_inst
     test_cmsat_inst
+    test_csp_inst
+    ftest_anycsp_inst
+    test_gecode_inst
     test
 
 OCamlProgram(test_runner, $(FILES))
