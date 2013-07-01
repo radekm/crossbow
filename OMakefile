@@ -11,7 +11,7 @@ CLEAN = rm -f *.cmi *.cmo *.cma *.cmx *.cmxa *.run *.opt \
 
 .PHONY: program doc test clean
 
-.SUBDIRS: minisat cmsat bliss src test scripts
+.SUBDIRS: minisat cmsat gecode bliss src test scripts
 
 test:
     if $(defined coverage)

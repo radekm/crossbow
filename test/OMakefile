@@ -41,6 +41,8 @@ FILES[] =
     ftest_anysat
     test_minisat
     test_cmsat
+    ftest_anycsp
+    test_gecode
     test_bliss
     test_symred
     test_lnh

@@ -1,0 +1,15 @@
+# Copyright (c) 2013 Radek Micek
+
+INCLUDES += . $(OCAMLLIB)
+
+CXXFLAGS += -std=c++0x -pedantic -DNDEBUG -O3 -Wall -Wextra \
+    -Wsign-compare -Wtype-limits -Wuninitialized
+
+FILES[] =
+    all
+    gecodestubs
+
+StaticCXXLibrary(libgecode, $(FILES))
+
+clean:
+    $(CLEAN)

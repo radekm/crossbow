@@ -5,6 +5,7 @@ OCAMLFLAGS += -thread
 OCAML_LIB_FLAGS += \
     -ccopt -L../minisat -cclib -lminisat \
     -ccopt -L../cmsat -cclib -lcmsat \
+    -ccopt -L../gecode -cclib -lgecode \
     -ccopt -L../bliss -cclib -lbliss
 
 OCAMLPACKS[] =
@@ -44,6 +45,7 @@ FILES[] =
     minisat
     cmsat
     csp_solver
+    gecode
     bliss
     symred
     lnh
@@ -56,6 +58,7 @@ FILES[] =
 libcrossbow.cmxa libcrossbow$(EXT_LIB): \
     ../minisat/libminisat$(EXT_LIB) \
     ../cmsat/libcmsat$(EXT_LIB) \
+    ../gecode/libgecode$(EXT_LIB) \
     ../bliss/libbliss$(EXT_LIB)
 
 OCamlLibrary(libcrossbow, $(FILES))
