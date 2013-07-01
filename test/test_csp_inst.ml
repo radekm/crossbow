@@ -97,6 +97,8 @@ module Solver = struct
 
   let solve s = Sh.Lundef
 
+  let interrupt _ = failwith "Not implemented"
+
   let bool_value _ _ = failwith "Not implemented"
   let int_value _ _ = failwith "Not implemented"
 end

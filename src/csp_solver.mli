@@ -78,6 +78,8 @@ module type S = sig
   *)
   val solve : t -> Sh.lbool
 
+  val interrupt : t -> unit
+
   (** Returns the value of the given non-temporary boolean CSP variable.
 
      Can be used only when the last call to [solve] returned [Sh.Ltrue].

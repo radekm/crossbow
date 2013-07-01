@@ -48,6 +48,8 @@ external all_different : t -> int var array -> unit =
 
 external solve : t -> Sh.lbool = "gecode_solve"
 
+external interrupt : t -> unit = "gecode_interrupt"
+
 external bool_value : t -> bool var -> int = "gecode_bool_value"
 
 external int_value : t -> int var -> int = "gecode_int_value"

@@ -234,17 +234,31 @@ public:
 #define log_coefs(coefs)
 #endif
 
+struct Interrupt : public Search::Stop {
+  bool _stop;
+
+  Interrupt() {
+    _stop = false;
+  }
+
+  virtual bool stop(const Search::Statistics &, const Search::Options &) {
+    return _stop;
+  }
+};
+
 struct GecodeSolver {
   int nthreads;
   GecodeForCrossbow * g;
   GecodeForCrossbow * lastSolution;
   DFS<GecodeForCrossbow> * dfs;
+  Interrupt * stop;
 
   GecodeSolver(int symmetricalVals, int nthreads) {
     this->nthreads = nthreads;
     this->g = new GecodeForCrossbow(symmetricalVals);
     this->lastSolution = 0;
     this->dfs = 0;
+    this->stop = 0;
   }
 
   ~GecodeSolver() {
@@ -259,6 +273,10 @@ struct GecodeSolver {
     if (dfs) {
       delete dfs;
       dfs = 0;
+    }
+    if (stop) {
+      delete stop;
+      stop = 0;
     }
   }
 };
@@ -535,7 +553,13 @@ CAMLprim value gecode_solve(value gv) {
   if (!g->dfs) {
     g->g->endSpec();
 
-    DFS<GecodeForCrossbow> * dfs = new DFS<GecodeForCrossbow>(g->g);
+    Interrupt * interrupt = new Interrupt();
+    g->stop = interrupt;
+
+    Search::Options opts;
+    opts.stop = interrupt;
+
+    DFS<GecodeForCrossbow> * dfs = new DFS<GecodeForCrossbow>(g->g, opts);
     g->dfs = dfs;
 
     delete g->g;
@@ -547,6 +571,8 @@ CAMLprim value gecode_solve(value gv) {
     g->lastSolution = 0;
   }
 
+  g->stop->_stop = false;
+
   caml_release_runtime_system();
   g->lastSolution = g->dfs->next();
   caml_acquire_runtime_system();
@@ -554,12 +580,24 @@ CAMLprim value gecode_solve(value gv) {
   int result = 2;
   if (g->lastSolution)
     result = 0;
-  else
+  else if (!g->dfs->stopped())
     result = 1;
 
   log("gecode_solve(%p) = %d\n", (void *)g, result);
 
   CAMLreturn (Val_int(result));
+}
+
+CAMLprim value gecode_interrupt(value gv) {
+  CAMLparam1 (gv);
+
+  GecodeSolver * g = Solver_val(gv);
+
+  g->stop->_stop = true;
+
+  log("gecode_interrupt(%p)\n", (void *)g);
+
+  CAMLreturn (Val_unit);
 }
 
 CAMLprim value gecode_bool_value(value gv, value varv) {

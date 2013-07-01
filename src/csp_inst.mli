@@ -18,6 +18,8 @@ module type Inst_sig = sig
 
   val solve : 's t -> Sh.lbool
 
+  val solve_timed : 's t -> int -> Sh.lbool * bool
+
   val construct_model : 's t -> 's Model.t
 
   val get_solver : 's t -> solver

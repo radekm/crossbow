@@ -204,6 +204,36 @@ end = struct
       assert_equal exp_counts.(max_size) model_cnt
     done
 
+  (* injective: f(x) = f(y) -> x = y
+     not surjective: f(x) <> c
+  *)
+  let test_solve_timed () =
+    let Prob.Wr prob = Prob.create () in
+    let db = prob.Prob.symbols in
+    let f =
+      let s = Symb.add_func db 1 in
+      fun a -> T.func (s, [| a |]) in
+    let c = T.func (Symb.add_func db 0, [| |]) in
+    let x = T.var 0 in
+    let y = T.var 1 in
+    let clause = {
+      C2.cl_id = Prob.fresh_id prob;
+      (* f(x) <> f(y), x = y *)
+      C2.cl_lits = [ L.mk_ineq (f x) (f y); L.mk_eq x y ];
+    } in
+    let clause2 = {
+      C2.cl_id = Prob.fresh_id prob;
+      (* f(x) <> c *)
+      C2.cl_lits = [ L.mk_ineq (f x) c ];
+    } in
+    List.iter
+      (BatDynArray.add prob.Prob.clauses)
+      [clause; clause2];
+
+    let i = Inst.create prob 20 in (* 20 means large search space. *)
+    let max_ms = 1000 in
+    assert_equal (Sh.Lundef, true) (Inst.solve_timed i max_ms)
+
   let suite name =
     (name ^ " suite") >:::
       [
@@ -212,6 +242,7 @@ end = struct
         "abelian groups" >:: test_abelian_groups;
         "abelian groups 2" >:: test_abelian_groups2;
         "groups" >:: test_groups;
+        "solve_timed" >:: test_solve_timed;
       ]
 
 end

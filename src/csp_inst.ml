@@ -9,6 +9,8 @@ module type Inst_sig = sig
 
   val solve : 's t -> Sh.lbool
 
+  val solve_timed : 's t -> int -> Sh.lbool * bool
+
   val construct_model : 's t -> 's Model.t
 
   val get_solver : 's t -> solver
@@ -423,6 +425,11 @@ struct
     let result = Solv.solve inst.solver in
     inst.can_construct_model <- result = Sh.Ltrue;
     result
+
+  let solve_timed inst ms =
+    Timer.with_timer ms
+      (fun () -> Solv.interrupt inst.solver)
+      (fun () -> solve inst)
 
   let construct_model inst =
     if not inst.can_construct_model then

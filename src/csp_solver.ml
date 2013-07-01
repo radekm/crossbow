@@ -30,6 +30,8 @@ module type S = sig
 
   val solve : t -> Sh.lbool
 
+  val interrupt : t -> unit
+
   val bool_value : t -> bool var -> int
   val int_value : t -> int var -> int
 end
