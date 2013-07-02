@@ -308,6 +308,80 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp cfg =
     | 1 -> print_with_time cfg "1 model found"
     | n -> print_with_time cfg (Printf.sprintf "%d non-isomorphic models found" n)
 
+let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
+  let print_instantiating dsize =
+    print_with_time cfg (Printf.sprintf "Instantiating %d" dsize) in
+
+  let p = tp.Tptp_prob.prob in
+  let model_cnt = ref 0 in
+
+  Printf.fprintf stderr "Clauses: %d\n" (BatDynArray.length p.Prob.clauses);
+
+  if cfg.all_models then begin
+    let dsize = cfg.n_from in
+    if dsize < BatDynArray.length p.Prob.distinct_consts then
+      Printf.fprintf stderr "\n"
+    else begin
+      print_instantiating dsize;
+      let inst = Inst.create ~nthreads:cfg.nthreads p dsize in
+      let tot_model_cnt = ref 0 in
+      let models = ref (BatSet.create Model.compare) in
+      let rec loop () =
+        if not (has_time cfg) then
+          print_with_time cfg "\nTime out"
+        else begin
+          match call_solver cfg inst Inst.solve Inst.solve_timed with
+            | Sh.Ltrue ->
+                incr tot_model_cnt;
+                let model = Inst.construct_model inst in
+                let cano_model = Model.canonize model in
+                if not (BatSet.mem cano_model !models) then begin
+                  models := BatSet.add cano_model !models;
+                  with_output
+                    ~append:true
+                    cfg
+                    (write_model tp model (Some !model_cnt));
+                  incr model_cnt;
+                end;
+                loop ()
+            | Sh.Lfalse -> Printf.fprintf stderr "\n"
+            | Sh.Lundef -> print_with_time cfg "\nTime out"
+        end in
+      print_with_time cfg "Solving";
+      with_output cfg (fun _ -> ()); (* Truncate file. *)
+      loop ();
+      Printf.fprintf stderr "%d models found\n" !tot_model_cnt
+    end
+  end else begin
+    let rec loop dsize =
+      if dsize > cfg.n_to then
+        Printf.fprintf stderr "\n"
+      else if not (has_time cfg) then
+        print_with_time cfg "\nTime out"
+      else if dsize < BatDynArray.length p.Prob.distinct_consts then
+        loop (dsize + 1)
+      else begin
+        print_instantiating dsize;
+        let inst =
+          Inst.create  ~nthreads:cfg.nthreads p dsize in
+        print_with_time cfg "Solving";
+        match call_solver cfg inst Inst.solve Inst.solve_timed with
+          | Sh.Ltrue ->
+              let model = Inst.construct_model inst in
+              with_output cfg (write_model tp model None);
+              incr model_cnt;
+              Printf.fprintf stderr "\n"
+          | Sh.Lfalse -> loop (dsize + 1)
+          | Sh.Lundef -> print_with_time cfg "\nTime out"
+      end in
+    loop cfg.n_from
+  end;
+
+  match !model_cnt with
+    | 0 -> print_with_time cfg "No model found"
+    | 1 -> print_with_time cfg "1 model found"
+    | n -> print_with_time cfg (Printf.sprintf "%d non-isomorphic models found" n)
+
 let minisat_solver =
   let s_func tp cfg =
     sat_solve (module Minisat_inst.Inst : Sat_inst.Inst_sig) tp cfg in
@@ -332,6 +406,18 @@ let cmsat_solver =
     ];
   }
 
+let gecode_solver =
+  let s_func tp cfg =
+    csp_solve (module Gecode_inst.Inst : Csp_inst.Inst_sig) tp cfg in
+  {
+    s_func;
+    s_only_flat_clauses = false;
+    s_default_transforms = [
+      T_rewrite_ground_terms; T_unflatten; T_define_ground_terms;
+      T_flatten; T_paradox_mod_splitting; T_unflatten;
+    ];
+  }
+
 let only_preproc_solver =
   let s_func tp cfg =
     let b = Buffer.create 1024 in
@@ -351,12 +437,14 @@ let only_preproc_solver =
 type solver_id =
   | Solv_minisat
   | Solv_cmsat
+  | Solv_gecode
   | Solv_only_preproc
 
 let all_solvers =
   [
     Solv_minisat, minisat_solver;
     Solv_cmsat, cmsat_solver;
+    Solv_gecode, gecode_solver;
     Solv_only_preproc, only_preproc_solver;
   ]
 
@@ -440,10 +528,11 @@ let all_models =
   Arg.(value & flag & info ["all-models"] ~doc)
 
 let solver =
-  let doc = "$(docv) can be: cryptominisat, minisat, only-preproc." in
+  let doc = "$(docv) can be: cryptominisat, minisat, gecode, only-preproc." in
   let values = [
     "cryptominisat", Solv_cmsat;
     "minisat", Solv_minisat;
+    "gecode", Solv_gecode;
     "only-preproc", Solv_only_preproc;
   ] in
   Arg.(value & opt (enum values) Solv_cmsat &
