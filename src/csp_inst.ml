@@ -437,8 +437,9 @@ struct
     let symbs = ref Symb.Map.empty in
 
     let add_symb_model t_value s vars =
-      let values = Array.map t_value vars in
-      symbs := Symb.Map.add s { Model.values } !symbs in
+      if not (Symb.auxiliary inst.symbols s) then
+        let values = Array.map t_value vars in
+        symbs := Symb.Map.add s { Model.values } !symbs in
 
     (* Predicates. *)
     Hashtbl.iter
