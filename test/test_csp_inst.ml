@@ -31,7 +31,7 @@ module Solver = struct
     mutable last_int_var_array : int;
   }
 
-  let create _ _ =
+  let create _ =
     {
       log = BatDynArray.create ();
       last_bool_var = ~-1;

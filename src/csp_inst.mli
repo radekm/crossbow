@@ -7,14 +7,11 @@ module type Inst_sig = sig
   type solver
   type 's t
 
-  (** [create ~symmetric_vals ~nthreads prob n] instantiates
+  (** [create ~nthreads prob n] instantiates
      the problem [prob] for the domain size [n].
-     [symmetric_vals] bigger than zero means that values
-     [0..symmetric_vals-1] are symmetrical. [nthreads] is the number
-     of threads to use when solving.
+     [nthreads] is the number of threads to use when solving.
   *)
-  val create :
-    ?symmetric_vals:int -> ?nthreads:int -> 's Prob.t -> int -> 's t
+  val create : ?nthreads:int -> 's Prob.t -> int -> 's t
 
   val solve : 's t -> Sh.lbool
 

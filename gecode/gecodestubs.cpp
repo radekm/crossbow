@@ -33,8 +33,6 @@ struct int_var_array {
 class GecodeForCrossbow : public Space {
 
 private:
-  int symmetricalVals;
-
   BoolVarArgs boolVars;
   IntVarArgs intVars;
 
@@ -62,8 +60,7 @@ private:
   IntVarArray intValues;
 
 public:
-  GecodeForCrossbow(int symmetricalVals) {
-    this->symmetricalVals = symmetricalVals;
+  GecodeForCrossbow() {
   }
 
   GecodeForCrossbow(bool share, GecodeForCrossbow & g) : Space(share, g) {
@@ -191,12 +188,7 @@ public:
     boolValues = BoolVarArray(*this, boolVars);
     intValues = IntVarArray(*this, intVars);
 
-    Symmetries syms;
-    if (symmetricalVals > 0) {
-      syms << ValueSymmetry(IntArgs::create(symmetricalVals, 0));
-    }
-
-    branch(*this, intValues, INT_VAR_SIZE_MIN(), INT_VAL_MIN(), syms);
+    branch(*this, intValues, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
     branch(*this, boolValues, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
   }
 
@@ -253,9 +245,9 @@ struct GecodeSolver {
   DFS<GecodeForCrossbow> * dfs;
   Interrupt * stop;
 
-  GecodeSolver(int symmetricalVals, int nthreads) {
+  GecodeSolver(int nthreads) {
     this->nthreads = nthreads;
-    this->g = new GecodeForCrossbow(symmetricalVals);
+    this->g = new GecodeForCrossbow();
     this->lastSolution = 0;
     this->dfs = 0;
     this->stop = 0;
@@ -303,18 +295,17 @@ static struct custom_operations gecode_ops = {
 
 extern "C" {
 
-CAMLprim value gecode_create(value symmetrical_valsv, value nthreadsv) {
-  CAMLparam2 (symmetrical_valsv, nthreadsv);
+CAMLprim value gecode_create(value nthreadsv) {
+  CAMLparam1 (nthreadsv);
   CAMLlocal1 (gv);
 
-  int symmetricalVals = Int_val(symmetrical_valsv);
   int nthreads = Int_val(nthreadsv);
-  GecodeSolver * g = new GecodeSolver(symmetricalVals, nthreads);
+  GecodeSolver * g = new GecodeSolver(nthreads);
 
   gv = caml_alloc_custom(&gecode_ops, sizeof(GecodeSolver *), 0, 1);
   Solver_val(gv) = g;
 
-  log("gecode_create(%d, %d) = %p\n", symmetricalVals, nthreads, (void *)g);
+  log("gecode_create(%d) = %p\n", nthreads, (void *)g);
 
   CAMLreturn (gv);
 }

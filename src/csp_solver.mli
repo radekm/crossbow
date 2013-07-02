@@ -14,12 +14,10 @@ module type S = sig
   *)
   type 'a var_array = private int
 
-  (** [create symmetric_vals nthreads] initializes a solver.
-     [symmetric_vals] bigger than zero means that values
-     [0..symmetric_vals-1] are symmetrical. [nthreads] is the number
-     of threads to use when solving.
+  (** [create nthreads] initializes a solver.
+     [nthreads] is the number of threads to use when solving.
   *)
-  val create : int -> int -> t
+  val create : int -> t
 
   (** Creates a new boolean CSP variable. *)
   val new_bool_var : t -> bool var

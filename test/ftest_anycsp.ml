@@ -9,7 +9,7 @@ module Make (Solv : Csp_solver.S) : sig
 end = struct
 
   let test_linear () =
-    let s = Solv.create 0 1 in
+    let s = Solv.create 1 in
     let x = Solv.new_int_var s 6 in
     Solv.linear s [| x |] [| 3 |] 12;
     assert_equal Sh.Ltrue (Solv.solve s);
@@ -17,7 +17,7 @@ end = struct
     assert_equal Sh.Lfalse (Solv.solve s)
 
   let test_linear2 () =
-    let s = Solv.create 0 1 in
+    let s = Solv.create 1 in
     let x = Solv.new_int_var s 7 in
     let y = Solv.new_int_var s 7 in
     Solv.linear s [| x; y |] [| ~-1; 5 |] 13;
@@ -27,7 +27,7 @@ end = struct
     assert_equal Sh.Lfalse (Solv.solve s)
 
   let test_bool_element () =
-    let s = Solv.create 0 1 in
+    let s = Solv.create 1 in
     let x = Solv.new_bool_var s in
     let y1 = Solv.new_tmp_bool_var s in
     let y2 = Solv.new_tmp_bool_var s in
@@ -45,7 +45,7 @@ end = struct
     assert_equal Sh.Lfalse (Solv.solve s)
 
   let test_int_element () =
-    let s = Solv.create 0 1 in
+    let s = Solv.create 1 in
     let y1 = Solv.new_tmp_int_var s 7 in
     let y2 = Solv.new_tmp_int_var s 7 in
     let x1 = Solv.new_int_var s 5 in
@@ -71,7 +71,7 @@ end = struct
     assert_equal Sh.Lfalse (Solv.solve s)
 
   let test_eq_var_var_eq_var_const () =
-    let s = Solv.create 0 1 in
+    let s = Solv.create 1 in
     let yes = Solv.new_tmp_bool_var s in
     let no = Solv.new_tmp_bool_var s in
     Solv.clause s [| yes |] [| |];
@@ -97,13 +97,13 @@ end = struct
     assert_equal Sh.Lfalse (Solv.solve s)
 
   let test_clause_empty () =
-    let s = Solv.create 0 1 in
+    let s = Solv.create 1 in
     Solv.clause s [| |] [| |];
     assert_equal Sh.Lfalse (Solv.solve s);
     assert_equal Sh.Lfalse (Solv.solve s)
 
   let test_clause () =
-    let s = Solv.create 0 1 in
+    let s = Solv.create 1 in
     let p = Solv.new_bool_var s in
     let q = Solv.new_bool_var s in
     let r = Solv.new_bool_var s in
@@ -130,7 +130,7 @@ end = struct
     assert_bool "" (q1 <> r1)
 
   let test_all_different () =
-    let s = Solv.create 0 1 in
+    let s = Solv.create 1 in
     let y1 = Solv.new_tmp_int_var s 3 in
     let x1 = Solv.new_int_var s 2 in
     let x2 = Solv.new_int_var s 2 in
@@ -148,7 +148,7 @@ end = struct
     assert_equal Sh.Lfalse (Solv.solve s)
 
   let test_pythagorean_triples () =
-    let s = Solv.create 0 1 in
+    let s = Solv.create 1 in
     let yes = Solv.new_tmp_bool_var s in
     Solv.clause s [| yes |] [| |];
     let n = 10 in

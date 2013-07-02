@@ -9,7 +9,7 @@ type t
 type 'a var = private int
 type 'a var_array = private int
 
-external create : int -> int -> t = "gecode_create"
+external create : int -> t = "gecode_create"
 
 external new_bool_var : t -> bool var = "gecode_new_bool_var"
 

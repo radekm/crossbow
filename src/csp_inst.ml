@@ -4,8 +4,7 @@ module type Inst_sig = sig
   type solver
   type 's t
 
-  val create :
-    ?symmetric_vals:int -> ?nthreads:int -> 's Prob.t -> int -> 's t
+  val create : ?nthreads:int -> 's Prob.t -> int -> 's t
 
   val solve : 's t -> Sh.lbool
 
@@ -393,9 +392,9 @@ struct
       (BatDynArray.to_array pos_noneq_lits)
       (BatDynArray.to_array neg_noneq_lits)
 
-  let create ?(symmetric_vals = 0) ?(nthreads = 1) prob n =
+  let create ?(nthreads = 1) prob n =
     let inst = {
-      solver = Solv.create symmetric_vals nthreads;
+      solver = Solv.create nthreads;
       symbols = prob.Prob.symbols;
       n;
       pred_arrays = Hashtbl.create 20;
