@@ -165,7 +165,7 @@ let with_output ?(append = false) cfg f =
   match cfg.output_file with
     | None -> f BatPervasives.stdout; BatIO.flush BatPervasives.stdout
     | Some file ->
-        let mode = if append then [ `append] else [] in
+        let mode = if append then [`append] else [`create] in
         BatFile.with_file_out ~mode file (fun out -> f out; BatIO.flush out)
 
 let remaining_ms cfg =
