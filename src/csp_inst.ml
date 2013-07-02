@@ -312,13 +312,17 @@ struct
 
   let add_pred inst s =
     if not (Hashtbl.mem inst.preds s) then begin
+      let new_var =
+        if Symb.auxiliary inst.symbols s
+        then Solv.new_tmp_bool_var
+        else Solv.new_bool_var in
       let vars, arr =
         add_symb
           inst.solver
           inst.n
           (Symb.arity s)
           (Symb.commutative inst.symbols s)
-          Solv.new_bool_var
+          new_var
           Solv.new_bool_var_array in
       Hashtbl.add inst.pred_arrays s arr;
       Hashtbl.add inst.preds s vars
@@ -326,13 +330,17 @@ struct
 
   let add_func inst s =
     if not (Hashtbl.mem inst.funcs s) then begin
+      let new_var =
+        if Symb.auxiliary inst.symbols s
+        then Solv.new_tmp_int_var
+        else Solv.new_int_var in
       let vars, arr =
         add_symb
           inst.solver
           inst.n
           (Symb.arity s)
           (Symb.commutative inst.symbols s)
-          (fun solver -> Solv.new_int_var solver inst.n)
+          (fun solver -> new_var solver inst.n)
           Solv.new_int_var_array in
       Hashtbl.add inst.func_arrays s arr;
       Hashtbl.add inst.funcs s vars
