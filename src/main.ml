@@ -412,10 +412,7 @@ let gecode_solver =
   {
     s_func;
     s_only_flat_clauses = false;
-    s_default_transforms = [
-      T_rewrite_ground_terms; T_unflatten; T_define_ground_terms;
-      T_flatten; T_paradox_mod_splitting; T_unflatten;
-    ];
+    s_default_transforms = [ T_rewrite_ground_terms; T_unflatten ];
   }
 
 let only_preproc_solver =
