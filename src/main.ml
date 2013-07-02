@@ -10,6 +10,9 @@ let option_to_list = function
   | None -> []
   | Some a -> [a]
 
+(* ************************************************************************ *)
+(* Transforms *)
+
 type flattening =
   | F_not_preserves
   | F_preserves
@@ -145,62 +148,245 @@ let transforms_result_in_flat_clauses =
         | F_performs -> true)
     false
 
-type solver =
+(* ************************************************************************ *)
+(* Solvers *)
+
+type solver_config = {
+  nthreads : int;
+  all_models : bool;
+  n_from : int;
+  n_to : int;
+  output_file : string option;
+  start_ms : int;
+  max_ms : int option;
+}
+
+let with_output ?(append = false) cfg f =
+  match cfg.output_file with
+    | None -> f BatPervasives.stdout; BatIO.flush BatPervasives.stdout
+    | Some file ->
+        let mode = if append then [ `append] else [] in
+        BatFile.with_file_out ~mode file (fun out -> f out; BatIO.flush out)
+
+let remaining_ms cfg =
+  match cfg.max_ms with
+    | None -> None
+    | Some max_ms -> Some (cfg.start_ms + max_ms - Timer.get_ms ())
+
+let has_time cfg =
+  match remaining_ms cfg with
+    | None -> true
+    | Some ms -> ms > 0
+
+type solver = {
+  s_func : 's. 's Tptp_prob.t -> solver_config -> unit;
+  s_only_flat_clauses : bool;
+  s_default_transforms : transform_id list;
+}
+
+let write_model tp model number out =
+  let b = Buffer.create 1024 in
+  let formula_name =
+    match number with
+      | None -> "interp"
+      | Some n -> "interp" ^ string_of_int n in
+  Tptp_prob.model_to_tptp tp model
+    (Tptp_ast.N_word (Tptp_ast.to_plain_word formula_name))
+    (fun f ->
+      Tptp.write b f;
+      BatBuffer.output_buffer out b;
+      Buffer.clear b)
+
+let print_with_time cfg str =
+  Printf.fprintf stderr "%s (%d ms)\n" str (Timer.get_ms () - cfg.start_ms);
+  flush stderr
+
+let call_solver cfg inst solve solve_timed =
+  match remaining_ms cfg with
+    | None ->
+        begin match solve inst with
+          | Sh.Ltrue -> Sh.Ltrue
+          | Sh.Lfalse -> Sh.Lfalse
+          | Sh.Lundef ->
+              failwith "unexpected result from the solver"
+        end
+    | Some ms ->
+        begin match solve_timed inst ms with
+          | _, true -> Sh.Lundef
+          | Sh.Ltrue, _ -> Sh.Ltrue
+          | Sh.Lfalse, _ -> Sh.Lfalse
+          | Sh.Lundef, _ ->
+              failwith "unexpected result from the solver"
+        end
+
+let sat_solve (module Inst : Sat_inst.Inst_sig) tp cfg =
+  let print_instantiating dsize =
+    print_with_time cfg (Printf.sprintf "Instantiating %d" dsize) in
+
+  let p = tp.Tptp_prob.prob in
+  let sorts = Sorts.of_problem p in
+  let inst = Inst.create p sorts in
+  let model_cnt = ref 0 in
+
+  Printf.fprintf stderr "Clauses: %d\n" (BatDynArray.length p.Prob.clauses);
+
+  for dsize = 1 to cfg.n_from - 1 do
+    print_instantiating dsize;
+    Inst.incr_max_size inst
+  done;
+
+  if cfg.all_models then begin
+    let dsize = cfg.n_from in
+    print_instantiating dsize;
+    Inst.incr_max_size inst;
+    if dsize < BatDynArray.length p.Prob.distinct_consts then
+      Printf.fprintf stderr "\n"
+    else begin
+      let tot_ms_model_cnt = ref 0 in
+      let ms_models = ref (BatSet.create Ms_model.compare) in
+      let rec loop () =
+        if not (has_time cfg) then
+          print_with_time cfg "\nTime out"
+        else begin
+          match call_solver cfg inst Inst.solve Inst.solve_timed with
+            | Sh.Ltrue ->
+                incr tot_ms_model_cnt;
+                let ms_model = Inst.construct_model inst in
+                Inst.block_model inst ms_model;
+                let cano_ms_model = Ms_model.canonize ms_model sorts in
+                if not (BatSet.mem cano_ms_model !ms_models) then begin
+                  ms_models := BatSet.add cano_ms_model !ms_models;
+                  let models = Model.all_of_ms_model cano_ms_model sorts in
+                  BatSet.iter
+                    (fun model ->
+                      with_output
+                        ~append:true
+                        cfg
+                        (write_model tp model (Some !model_cnt));
+                      incr model_cnt)
+                    models
+                end;
+                loop ()
+            | Sh.Lfalse -> Printf.fprintf stderr "\n"
+            | Sh.Lundef -> print_with_time cfg "\nTime out"
+        end in
+      print_with_time cfg "Solving";
+      with_output cfg (fun _ -> ()); (* Truncate file. *)
+      loop ();
+      Printf.fprintf stderr "%d multi-sorted models found\n" !tot_ms_model_cnt
+    end
+  end else begin
+    let rec loop dsize =
+      if dsize > cfg.n_to then
+        Printf.fprintf stderr "\n"
+      else if not (has_time cfg) then
+        print_with_time cfg "\nTime out"
+      else begin
+        print_instantiating dsize;
+        Inst.incr_max_size inst;
+        let result =
+          if dsize < BatDynArray.length p.Prob.distinct_consts then
+            Sh.Lfalse
+          else
+            let _ = print_with_time cfg "Solving" in
+            call_solver cfg inst Inst.solve Inst.solve_timed in
+        match result with
+          | Sh.Ltrue ->
+              let ms_model = Inst.construct_model inst in
+              let model = Model.of_ms_model ms_model sorts in
+              with_output cfg (write_model tp model None);
+              incr model_cnt;
+              Printf.fprintf stderr "\n"
+          | Sh.Lfalse -> loop (dsize + 1)
+          | Sh.Lundef -> print_with_time cfg "\nTime out"
+      end in
+    loop cfg.n_from
+  end;
+
+  match !model_cnt with
+    | 0 -> print_with_time cfg "No model found"
+    | 1 -> print_with_time cfg "1 model found"
+    | n -> print_with_time cfg (Printf.sprintf "%d non-isomorphic models found" n)
+
+let minisat_solver =
+  let s_func tp cfg =
+    sat_solve (module Minisat_inst.Inst : Sat_inst.Inst_sig) tp cfg in
+  {
+    s_func;
+    s_only_flat_clauses = true;
+    s_default_transforms = [
+      T_rewrite_ground_terms; T_unflatten; T_define_ground_terms;
+      T_flatten; T_paradox_mod_splitting
+    ];
+  }
+
+let cmsat_solver =
+  let s_func tp cfg =
+    sat_solve (module Cmsat_inst.Inst : Sat_inst.Inst_sig) tp cfg in
+  {
+    s_func;
+    s_only_flat_clauses = true;
+    s_default_transforms = [
+      T_rewrite_ground_terms; T_unflatten; T_define_ground_terms;
+      T_flatten; T_paradox_mod_splitting
+    ];
+  }
+
+let only_preproc_solver =
+  let s_func tp cfg =
+    let b = Buffer.create 1024 in
+    with_output cfg
+      (fun out ->
+        Tptp_prob.prob_to_tptp tp true
+          (fun f ->
+            Tptp.write b f;
+            BatBuffer.output_buffer out b;
+            Buffer.clear b)) in
+  {
+    s_func;
+    s_only_flat_clauses = false;
+    s_default_transforms = [];
+  }
+
+type solver_id =
   | Solv_minisat
   | Solv_cmsat
+  | Solv_only_preproc
 
-type only_preproc =
-  | Only_preproc_yes
-  | Only_preproc_no
-
-(* Transform clauses with ids. *)
-let transform_clauses f prob clauses =
-  let db = prob.Prob.symbols in
-  (* Remove ids. *)
-  let cs = BatDynArray.map (fun cl -> cl.Clause2.cl_lits) clauses in
-  let cs' = f db cs in
-  (* Add ids. *)
-  BatDynArray.map
-    (fun cl ->
-       { Clause2.cl_id = Prob.fresh_id prob; Clause2.cl_lits = cl })
-    cs'
+let all_solvers =
+  [
+    Solv_minisat, minisat_solver;
+    Solv_cmsat, cmsat_solver;
+    Solv_only_preproc, only_preproc_solver;
+  ]
 
 let find_model
-    only_preproc
     transforms
     solver
+    n_from
+    n_to
+    all_models
     max_secs
     output_file
     base_dir
     in_file =
 
   let start_ms = Timer.get_ms () in
-  let remaining_ms () =
-    match max_secs with
-      | None -> None
-      | Some max_secs ->
-          Some (start_ms + max_secs * 1000 - Timer.get_ms ()) in
-  let has_time () =
-    match remaining_ms () with
-      | None -> true
-      | Some ms -> ms > 0 in
-  let solvers = [
-    Solv_minisat, (module Minisat_inst.Inst : Sat_inst.Inst_sig);
-    Solv_cmsat, (module Cmsat_inst.Inst : Sat_inst.Inst_sig);
-  ] in
-  let module Solver = (val List.assoc solver solvers) in
+  let n_to = BatOption.default max_int n_to in
+  if n_from < 1 || n_to < 1 then
+    failwith "Minimal domain size is 1.";
   let Tptp_prob.Wr tptp_prob = Tptp_prob.of_file base_dir in_file in
   let p = tptp_prob.Tptp_prob.prob in
+  let solver = List.assoc solver all_solvers in
   let transforms =
     match transforms with
-      | [] ->
-          [
-            T_rewrite_ground_terms; T_unflatten; T_define_ground_terms;
-            T_flatten; T_paradox_mod_splitting
-          ]
+      | [] -> solver.s_default_transforms
       | _ -> transforms in
-  if transforms_result_in_flat_clauses transforms |> not then
-    failwith "SAT solver needs flat clauses.";
+  if
+    solver.s_only_flat_clauses &&
+    not (transforms_result_in_flat_clauses transforms)
+  then
+    failwith "Solver needs flat clauses.";
   (* Preprocessing. *)
   List.iter
     (fun tname ->
@@ -209,75 +395,17 @@ let find_model
     transforms;
   (* Normalize variables. *)
   transform_each_clause p (fun cl -> [Clause.normalize_vars cl |> fst]);
-  let with_output f =
-    match output_file with
-      | None -> f BatPervasives.stdout
-      | Some file -> BatFile.with_file_out file f in
-  if only_preproc = Only_preproc_yes then begin
-    let b = Buffer.create 1024 in
-    with_output
-      (fun out ->
-        Tptp_prob.prob_to_tptp tptp_prob true
-          (fun f ->
-            Tptp.write b f;
-            BatBuffer.output_buffer out b;
-            Buffer.clear b))
-  end else begin
-    Printf.fprintf stderr "Clauses: %d\n" (BatDynArray.length p.Prob.clauses);
-    let sorts = Sorts.of_problem p in
-    let inst = Solver.create p sorts in
-    (* Model search. *)
-    let found = ref false in
-    let interrupted = ref false in
-    let dsize = ref 0 in
-    while not !found && not !interrupted && has_time () do
-      incr dsize;
-      Printf.fprintf stderr "Instantiating - domain size %d (%d ms)\n"
-        !dsize (Timer.get_ms () - start_ms);
-      flush stderr;
-      Solver.incr_max_size inst;
-      Printf.fprintf stderr "Solving (%d ms)\n" (Timer.get_ms () - start_ms);
-      flush stderr;
-      match remaining_ms () with
-        | None ->
-            begin match Solver.solve inst with
-              | Sh.Ltrue -> found := true
-              | Sh.Lfalse -> ()
-              | Sh.Lundef ->
-                  failwith "unexpected result from SAT solver"
-            end
-        | Some ms ->
-            begin match Solver.solve_timed inst ms with
-              | _, true -> interrupted := true
-              | Sh.Ltrue, _ -> found := true
-              | Sh.Lfalse, _ -> ()
-              | Sh.Lundef, _ ->
-                  failwith "unexpected result from SAT solver"
-            end
-    done;
-    Printf.fprintf stderr "Stop (%d ms)\n" (Timer.get_ms () - start_ms);
-    flush stderr;
-    if !found then begin
-      Printf.fprintf stderr "Constructing multi-sorted model\n";
-      flush stderr;
-      let ms_model = Solver.construct_model inst in
-      Printf.fprintf stderr "Constructing model with single sort\n";
-      flush stderr;
-      let model = Model.of_ms_model ms_model sorts in
-      let b = Buffer.create 1024 in
-      with_output
-        (fun out ->
-          Tptp_prob.model_to_tptp tptp_prob model
-            (Tptp_ast.N_word (Tptp_ast.to_plain_word "interp"))
-            (fun f ->
-              Tptp.write b f;
-              BatBuffer.output_buffer out b;
-              Buffer.clear b))
-    end else begin
-      Printf.fprintf stderr "Time out\n";
-      flush stderr;
-    end
-  end
+  (* Run selected solver. *)
+  let cfg = {
+    nthreads = 1;
+    all_models;
+    n_from;
+    n_to;
+    output_file;
+    start_ms;
+    max_ms = BatOption.map (fun secs -> secs * 1000) max_secs;
+  } in
+  solver.s_func tptp_prob cfg
 
 let in_file =
   let doc = "File with CNF clauses in TPTP format." in
@@ -297,11 +425,26 @@ let max_secs =
   Arg.(value & opt (some int) None &
          info ["max-secs"] ~docv:"N" ~doc)
 
+let n_from =
+  let doc = "Start search with domain size $(docv)." in
+  Arg.(value & opt int 1 &
+         info ["from"] ~docv:"N" ~doc)
+
+let n_to =
+  let doc = "Stop search with domain size $(docv)." in
+  Arg.(value & opt (some int) None &
+         info ["to"] ~docv:"N" ~doc)
+
+let all_models =
+  let doc = "Find all models." in
+  Arg.(value & flag & info ["all-models"] ~doc)
+
 let solver =
-  let doc = "$(docv) can be: cryptominisat, minisat." in
+  let doc = "$(docv) can be: cryptominisat, minisat, only-preproc." in
   let values = [
     "cryptominisat", Solv_cmsat;
     "minisat", Solv_minisat;
+    "only-preproc", Solv_only_preproc;
   ] in
   Arg.(value & opt (enum values) Solv_cmsat &
          info ["solver"] ~docv:"SOLVER" ~doc)
@@ -325,19 +468,10 @@ let transforms =
   ] in
   Arg.(value & vflag_all [] flags)
 
-let only_preproc =
-  let doc = "$(docv) can be: yes, no." in
-  let values = [
-    "yes", Only_preproc_yes;
-    "no", Only_preproc_no;
-  ] in
-  Arg.(value & opt (enum values) Only_preproc_no &
-         info ["only-preproc"] ~docv:"ONLY-PREPROC" ~doc)
-
 let find_model_t =
-  Term.(pure find_model $ only_preproc $ transforms $
-          solver $ max_secs $
-          output_file $ base_dir $ in_file)
+  Term.(pure find_model $ transforms $ solver $
+          n_from $ n_to $ all_models $
+          max_secs $ output_file $ base_dir $ in_file)
 
 let info =
   let doc = "finite model finder" in
