@@ -36,9 +36,8 @@ end = struct
       (BatDynArray.add prob.Prob.clauses)
       [clause; clause2];
 
-    for max_size = 1 to 15 do
-      (* Too slow without symmetry reduction. *)
-      let i = Inst.create ~symmetric_vals:max_size prob max_size in
+    for max_size = 1 to 8 do
+      let i = Inst.create prob max_size in
       assert_equal Sh.Lfalse (Inst.solve i)
     done
 
