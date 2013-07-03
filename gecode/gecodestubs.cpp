@@ -208,6 +208,9 @@ public:
 
     branch(*this, intValues, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
     branch(*this, boolValues, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
+
+    branch(*this, tmpIntVars, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
+    branch(*this, tmpBoolVars, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
   }
 
   int getBoolValue(bool_var v) {
