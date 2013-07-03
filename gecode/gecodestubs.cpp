@@ -160,6 +160,24 @@ public:
     rel(*this, intVar(x), IRT_EQ, c, boolVar(y));
   }
 
+  void lowerEq(int_var x, int c) {
+    rel(*this, intVar(x), IRT_LQ, c);
+  }
+
+  void precede(std::vector<int_var> & vars, std::vector<int> & consts) {
+    IntVarArgs xs(vars.size());
+    for (unsigned int i = 0; i < vars.size(); i++) {
+      xs[i] = intVar(vars[i]);
+    }
+
+    IntArgs cs(consts.size());
+    for (unsigned int i = 0; i < consts.size(); i++) {
+      cs[i] = consts[i];
+    }
+
+    Gecode::precede(*this, xs, cs);
+  }
+
   void clause(std::vector<bool_var> & pos, std::vector<bool_var> & neg) {
     BoolVarArgs p(pos.size());
     for (unsigned int i = 0; i < pos.size(); i++) {
@@ -493,6 +511,47 @@ CAMLprim value gecode_eq_var_const(value gv, value xv, value cv, value yv) {
   g->g->eqVarConst(x, c, y);
 
   log("gecode_eq_var_const(%p, %d, %d, %d)\n", (void *)g, x.id, c, y.id);
+
+  CAMLreturn (Val_unit);
+}
+
+CAMLprim value gecode_lower_eq(value gv, value xv, value cv) {
+  CAMLparam3 (gv, xv, cv);
+
+  GecodeSolver * g = Solver_val(gv);
+
+  int_var x;
+  x.id = Int_val(xv);
+
+  int c = Int_val(cv);
+
+  g->g->lowerEq(x, c);
+
+  log("gecode_lower_eq(%p, %d, %d)\n", (void *)g, x.id, c);
+
+  CAMLreturn (Val_unit);
+}
+
+CAMLprim value gecode_precede(value gv, value varsv, value constsv) {
+  CAMLparam3 (gv, varsv, constsv);
+
+  GecodeSolver * g = Solver_val(gv);
+
+  std::vector<int_var> vars;
+  int_var_vector_of_value(vars, varsv);
+
+  std::vector<int> consts;
+  for (unsigned int i = 0; i < Wosize_val(constsv); i++) {
+    consts.push_back(Int_val(Field(constsv, i)));
+  }
+
+  g->g->precede(vars, consts);
+
+  log("gecode_precede(%p, ", (void *)g);
+  log_vars(vars);
+  log(", ");
+  log_coefs(consts);
+  log(")\n");
 
   CAMLreturn (Val_unit);
 }

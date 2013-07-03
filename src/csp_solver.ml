@@ -24,6 +24,10 @@ module type S = sig
   val eq_var_var : t -> int var -> int var -> bool var -> unit
   val eq_var_const : t -> int var -> int -> bool var -> unit
 
+  val lower_eq : t -> int var -> int -> unit
+
+  val precede : t -> int var array -> int array -> unit
+
   val clause : t-> bool var array -> bool var array -> unit
 
   val all_different : t -> int var array -> unit

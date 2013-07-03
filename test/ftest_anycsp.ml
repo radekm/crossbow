@@ -96,6 +96,28 @@ end = struct
     assert_equal 4 (Solv.int_value s x5);
     assert_equal Sh.Lfalse (Solv.solve s)
 
+  let test_lower_eq () =
+    let s = Solv.create 1 in
+    let x = Solv.new_int_var s 5 in
+    let y = Solv.new_int_var s 5 in
+    Solv.lower_eq s y 3;
+    Solv.linear s [| x; y |] [| 1; 1 |] 7;
+    assert_equal Sh.Ltrue (Solv.solve s);
+    assert_equal 4 (Solv.int_value s x);
+    assert_equal 3 (Solv.int_value s y);
+    assert_equal Sh.Lfalse (Solv.solve s)
+
+  let test_precede () =
+    let s = Solv.create 1 in
+    let x = Solv.new_int_var s 4 in
+    let y = Solv.new_int_var s 4 in
+    Solv.precede s [| x; y |] [| 1; 2; 3 |];
+    Solv.linear s [| x; y |] [| 1; 1 |] 3;
+    assert_equal Sh.Ltrue (Solv.solve s);
+    assert_equal 1 (Solv.int_value s x);
+    assert_equal 2 (Solv.int_value s y);
+    assert_equal Sh.Lfalse (Solv.solve s)
+
   let test_clause_empty () =
     let s = Solv.create 1 in
     Solv.clause s [| |] [| |];
@@ -193,6 +215,8 @@ end = struct
         "bool_element" >:: test_bool_element;
         "int_element" >:: test_int_element;
         "eq_var_var, eq_var_const" >:: test_eq_var_var_eq_var_const;
+        "lower_eq" >:: test_lower_eq;
+        "precede" >:: test_precede;
         "clause - empty" >:: test_clause_empty;
         "clause" >:: test_clause;
         "all_different" >:: test_all_different;

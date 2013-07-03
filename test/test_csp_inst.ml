@@ -18,6 +18,8 @@ module Solver = struct
     | Elinear of int var array * int array * int
     | Eeq_var_var of int var * int var * bool var
     | Eeq_var_const of int var * int * bool var
+    | Elower_eq of int var * int
+    | Eprecede of int var array * int array
     | Eclause of bool var array * bool var array
     | Eall_different of int var array
 
@@ -89,6 +91,12 @@ module Solver = struct
   let eq_var_const s x c y =
     BatDynArray.add s.log (Eeq_var_const (x, c, y))
 
+  let lower_eq s x c =
+    BatDynArray.add s.log (Elower_eq (x, c))
+
+  let precede s vars consts =
+    BatDynArray.add s.log (Eprecede (vars, consts))
+
   let clause s pos_lits neg_lits =
     BatDynArray.add s.log (Eclause (Array.copy pos_lits, Array.copy neg_lits))
 
@@ -145,6 +153,11 @@ let print_log i =
         Printf.printf "eq_var_var: %d %d %d\n" x x' y
     | Solv.Eeq_var_const (x, c, y) ->
         Printf.printf "eq_var_var: %d %d %d\n" x c y
+    | Solv.Elower_eq (x, c) ->
+        Printf.printf "lower_eq: %d %d\n" x c
+    | Solv.Eprecede (vars, consts) ->
+        Printf.printf "precede: %s %s\n"
+          (int_arr_to_str vars) (int_arr_to_str consts)
     | Solv.Eclause (pos, neg) ->
         Printf.printf "clause: %s %s\n"
           (int_arr_to_str pos) (int_arr_to_str neg)
@@ -350,6 +363,7 @@ let test_flat_comm_func () =
     Solv.Enew_tmp_bool_var ~-9;
     Solv.Eeq_var_const (5, 2, ~-9); (* f(2, 2) = 2 *)
     Solv.Eclause ([| ~-9 |], [| |]);
+    Solv.Elower_eq (0, 1);
   ]
 
 let test_nested () =
@@ -440,6 +454,7 @@ let test_nested () =
     Solv.Enew_tmp_bool_var ~-2;
     Solv.Ebool_element (0, ~-9, ~-2);
     Solv.Eclause ([| |], [| ~-2 |]);
+    Solv.Elower_eq (4, 0);
   ]
 
 let test_nested_comm_func () =
@@ -519,6 +534,7 @@ let test_nested_comm_func () =
     Solv.Enew_tmp_bool_var ~-2;
     Solv.Ebool_element (0, ~-6, ~-2);
     Solv.Eclause ([| ~-2 |], [| |]);
+    Solv.Elower_eq (5, 0);
   ];
 
   let i3 = Inst.create prob 3 in
@@ -576,6 +592,9 @@ let test_nested_comm_func () =
     Solv.Enew_tmp_bool_var ~-3;
     Solv.Ebool_element (0, ~-9, ~-3);
     Solv.Eclause ([| ~-3 |], [| |]);
+    Solv.Elower_eq (9, 0);
+    Solv.Elower_eq (3, 1);
+    Solv.Eprecede ([| 9; 3; 0 |], [| 1; 2 |]);
   ]
 
 let test_var_eqs_and_ineqs () =
@@ -632,6 +651,8 @@ let test_var_eqs_and_ineqs () =
     Solv.Enew_tmp_bool_var ~-6;
     Solv.Eeq_var_var (7, 9, ~-6);
     Solv.Eclause ([| ~-6 |], [| |]);
+    Solv.Elower_eq (9, 0);
+    Solv.Elower_eq (0, 1);
   ]
 
 let test_shared_linear () =
@@ -745,6 +766,9 @@ let test_shared_linear () =
     Solv.Enew_tmp_bool_var ~-9;
     Solv.Eeq_var_var (~-9, ~-7, ~-9);
     Solv.Eclause ([| |], [| ~-9 |]);
+    Solv.Elower_eq (9, 0);
+    Solv.Elower_eq (10, 1);
+    Solv.Eprecede ([| 9; 10; 0 |], [| 1; 2 |]);
   ]
 
 let test_shared_bool_element () =
@@ -772,6 +796,7 @@ let test_shared_bool_element () =
     Solv.Enew_tmp_bool_var ~-1;
     Solv.Ebool_element (0, 0, ~-1);
     Solv.Eclause ([| ~-1 |], [| ~-1 |]);
+    Solv.Elower_eq (0, 0);
   ]
 
 let test_shared_int_element () =
@@ -809,6 +834,7 @@ let test_shared_int_element () =
     Solv.Enew_tmp_bool_var ~-1;
     Solv.Eeq_var_var (~-2, ~-1, ~-1);
     Solv.Eclause ([| |], [| ~-1 |]);
+    Solv.Elower_eq (2, 0);
   ]
 
 let test_shared_eq_var_var () =
@@ -856,6 +882,12 @@ let test_shared_eq_var_var () =
     Solv.Enew_tmp_bool_var ~-5;
     Solv.Eeq_var_var (1, 5, ~-5);
     Solv.Eclause ([| ~-1; ~-5 |], [| |]);
+    Solv.Elower_eq (0, 0);
+    Solv.Elower_eq (1, 1);
+    Solv.Eprecede ([| 0; 1 |], [| 0; 1 |]);
+    Solv.Elower_eq (2, 2);
+    Solv.Eprecede ([| 0; 1; 2 |], [| 1; 2 |]);
+    Solv.Eprecede ([| 0; 1; 2; 3 |], [| 2; 3 |]);
   ]
 
 let test_shared_eq_var_const () =
@@ -892,6 +924,7 @@ let test_shared_eq_var_const () =
     (* 1 <> c *)
     (* c <> 1 *)
     Solv.Eclause ([| |], [| ~-2; ~-2 |]);
+    Solv.Elower_eq (0, 0);
   ]
 
 let test_distinct_consts () =
@@ -923,7 +956,7 @@ let test_distinct_consts () =
     Solv.Enew_int_var (2, 2); (* d3 *)
     Solv.Enew_int_var_array ([| 2 |], 2);
     Solv.Eall_different [| 0; 1; 2 |];
-    Solv.Enew_int_var (2, 3);
+    Solv.Enew_int_var (2, 3); (* c *)
     Solv.Enew_int_var_array ([| 3 |], 3);
     (* c = 0 *)
     Solv.Enew_tmp_bool_var ~-1;
@@ -941,6 +974,8 @@ let test_distinct_consts () =
     Solv.Eeq_var_const (0, 1, ~-4);
     (* clause *)
     Solv.Eclause ([| ~-3 |], [| ~-4 |]);
+    Solv.Elower_eq (3, 0);
+    Solv.Eprecede ([| 3; 0; 1; 2 |], [| 0; 1 |]);
   ]
 
 let suite =

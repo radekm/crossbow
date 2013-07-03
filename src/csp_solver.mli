@@ -61,6 +61,14 @@ module type S = sig
   (** [eq_var_const s x c b] posts constraint [(x = c) <=> b]. *)
   val eq_var_const : t -> int var -> int -> bool var -> unit
 
+  (** [lower_eq s x c] posts constraint [x <= c]. *)
+  val lower_eq : t -> int var -> int -> unit
+
+  (** [precede s xs cs] posts constraint that successive values in [cs]
+     precede each other in [xs].
+  *)
+  val precede : t -> int var array -> int array -> unit
+
   (** [clause s pos neg] posts constraint
      [pos.(0) || pos.(1) || ... || ~neg.(0) || ~neg.(1) || ...].
   *)

@@ -40,6 +40,12 @@ external eq_var_var : t -> int var -> int var -> bool var -> unit =
 external eq_var_const : t -> int var -> int -> bool var -> unit =
     "gecode_eq_var_const"
 
+external lower_eq : t -> int var -> int -> unit =
+    "gecode_lower_eq"
+
+external precede : t -> int var array -> int array -> unit =
+    "gecode_precede"
+
 external clause : t-> bool var array -> bool var array -> unit =
     "gecode_clause"
 

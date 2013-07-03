@@ -36,7 +36,7 @@ end = struct
       (BatDynArray.add prob.Prob.clauses)
       [clause; clause2];
 
-    for max_size = 1 to 8 do
+    for max_size = 1 to 15 do
       let i = Inst.create prob max_size in
       assert_equal Sh.Lfalse (Inst.solve i)
     done
@@ -167,7 +167,7 @@ end = struct
 
     let exp_counts = (* up to max_size = 16 *)
       [| -1; 1; 1; 1; 2; 1; 1; 1; 3; 2; 1; 1; 2; 1; 1; 1; 5 |] in
-    for max_size = 1 to 7 do
+    for max_size = 1 to 9 do
       let model_cnt = count_models prob max_size in
       assert_equal exp_counts.(max_size) model_cnt
     done
@@ -188,7 +188,7 @@ end = struct
 
     let exp_counts = (* up to max_size = 16 *)
       [| -1; 1; 1; 1; 2; 1; 1; 1; 3; 2; 1; 1; 2; 1; 1; 1; 5 |] in
-    for max_size = 1 to 7 do
+    for max_size = 1 to 9 do
       let model_cnt = count_models prob max_size in
       assert_equal exp_counts.(max_size) model_cnt
     done
@@ -198,39 +198,39 @@ end = struct
 
     let exp_counts = (* up to max_size = 16 *)
       [| -1; 1; 1; 1; 2; 1; 2; 1; 5; 2; 2; 1; 5; 1; 2; 1; 14 |] in
-    for max_size = 1 to 7 do
+    for max_size = 1 to 9 do
       let model_cnt = count_models prob max_size in
       assert_equal exp_counts.(max_size) model_cnt
     done
 
-  (* injective: f(x) = f(y) -> x = y
-     not surjective: f(x) <> c
+  (* f(x, x) = f(y, y) -> x = y
+     f(x, x) <> c
   *)
   let test_solve_timed () =
     let Prob.Wr prob = Prob.create () in
     let db = prob.Prob.symbols in
     let f =
-      let s = Symb.add_func db 1 in
-      fun a -> T.func (s, [| a |]) in
+      let s = Symb.add_func db 2 in
+      fun a b -> T.func (s, [| a; b |]) in
     let c = T.func (Symb.add_func db 0, [| |]) in
     let x = T.var 0 in
     let y = T.var 1 in
     let clause = {
       C2.cl_id = Prob.fresh_id prob;
-      (* f(x) <> f(y), x = y *)
-      C2.cl_lits = [ L.mk_ineq (f x) (f y); L.mk_eq x y ];
+      (* f(x, x) <> f(y, y), x = y *)
+      C2.cl_lits = [ L.mk_ineq (f x x) (f y y); L.mk_eq x y ];
     } in
     let clause2 = {
       C2.cl_id = Prob.fresh_id prob;
-      (* f(x) <> c *)
-      C2.cl_lits = [ L.mk_ineq (f x) c ];
+      (* f(x, x) <> c *)
+      C2.cl_lits = [ L.mk_ineq (f x x) c ];
     } in
     List.iter
       (BatDynArray.add prob.Prob.clauses)
       [clause; clause2];
 
-    let i = Inst.create prob 20 in (* 20 means large search space. *)
-    let max_ms = 1000 in
+    let i = Inst.create prob 40 in (* 40 means large search space. *)
+    let max_ms = 900 in
     assert_equal (Sh.Lundef, true) (Inst.solve_timed i max_ms)
 
   let suite name =

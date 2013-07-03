@@ -400,6 +400,92 @@ struct
       (BatDynArray.to_array pos_noneq_lits)
       (BatDynArray.to_array neg_noneq_lits)
 
+  let lnh inst =
+    let lower_eq' x c =
+      if c < inst.n - 1 then
+        Solv.lower_eq inst.solver x c in
+
+    let precede' xs cs =
+      if xs <> [| |] && Array.length cs >= 2 then
+        Solv.precede inst.solver xs cs in
+
+    let consts, funcs =
+      inst.func_arrays
+      |> BatHashtbl.keys
+      |> BatArray.of_enum
+      |> BatArray.partition (fun s -> Symb.arity s = 0) in
+    Array.sort compare consts;
+    Array.sort compare funcs;
+
+    let nconsts = Array.length consts in
+
+    (* CSP variables for processed cells. *)
+    let vars = BatDynArray.create () in
+
+    (* Restrict domain sizes of constants. *)
+    Array.iteri
+      (fun i c ->
+        let var = (Hashtbl.find inst.func_arrays c).(0) in
+        (* Index of var in array vars. *)
+        let idx = i in
+        lower_eq' var idx;
+        BatDynArray.add vars var)
+      consts;
+
+    (* Precedence constraint for constants. *)
+    if consts <> [| |] then begin
+      let max_el = min (nconsts - 1) (inst.n - 1) in
+      precede'
+        (BatDynArray.to_array vars)
+        (BatEnum.range ~until:max_el 0 |> BatArray.of_enum)
+    end;
+
+    if funcs <> [| |] then begin
+      let z =
+        if consts <> [| |]
+        then 0
+        else 1 in
+      (* Nothing can be restricted when max_arg = inst.n - 1. *)
+      for max_arg = 0 to inst.n - 2 do
+        (* Restrict domain sizes of cells with maximal argument max_arg. *)
+        Array.iter
+          (fun f ->
+            let arity = Symb.arity f in
+            let each =
+              if Symb.commutative inst.symbols f
+              then Assignment.each_comm_me
+              else Assignment.each_me in
+            let a = Array.make arity 0 in
+            let adeq_sizes = Array.make arity 0 in
+            each a 0 arity adeq_sizes (max_arg + 1)
+              (fun a ->
+                let rank =
+                  Array.fold_left (fun rank x -> rank * inst.n + x) 0 a in
+                let var = (Hashtbl.find inst.func_arrays f).(rank) in
+                (* Index of var in array vars. *)
+                let idx = BatDynArray.length vars in
+                (* If there is some constant then domain of var
+                   is limited by idx.
+                   If there is no constant then domain of var
+                   is limited by idx + 1.
+                   The reason is that f(0) with idx = 0 may be limited
+                   by at least 1 (since 0 is used as the argument).
+                *)
+                lower_eq' var (idx + z);
+                BatDynArray.add vars var))
+          funcs;
+        (* Precedence constraint. *)
+        let last_idx = BatDynArray.length vars - 1 in
+        let max_el = min (last_idx + z) (inst.n - 1) in
+        let n_to = max_el in
+        (* Every new cell can use max_arg + 1 without restrictions. *)
+        let n_from = max_arg + 1 in
+        precede'
+          (BatDynArray.to_array vars)
+          (BatEnum.range ~until:n_to n_from |> BatArray.of_enum)
+      done
+    end
+
   let create ?(nthreads = 1) prob n =
     let inst = {
       solver = Solv.create nthreads;
@@ -426,6 +512,8 @@ struct
     BatDynArray.iter
       (fun cl -> each_clause inst cl.Clause2.cl_lits)
       prob.Prob.clauses;
+    (* LNH. *)
+    lnh inst;
     inst
 
   let solve inst =
