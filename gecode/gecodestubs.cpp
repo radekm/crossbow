@@ -611,6 +611,7 @@ CAMLprim value gecode_solve(value gv) {
 
     Search::Options opts;
     opts.stop = interrupt;
+    opts.threads = g->nthreads;
 
     DFS<GecodeForCrossbow> * dfs = new DFS<GecodeForCrossbow>(g->g, opts);
     g->dfs = dfs;

@@ -451,6 +451,7 @@ let find_model
     n_from
     n_to
     all_models
+    nthreads
     max_secs
     output_file
     base_dir
@@ -460,6 +461,8 @@ let find_model
   let n_to = BatOption.default max_int n_to in
   if n_from < 1 || n_to < 1 then
     failwith "Minimal domain size is 1.";
+  if nthreads < 0 then
+    failwith "Invalid number of threads.";
   let Tptp_prob.Wr tptp_prob = Tptp_prob.of_file base_dir in_file in
   let p = tptp_prob.Tptp_prob.prob in
   let solver = List.assoc solver all_solvers in
@@ -482,7 +485,7 @@ let find_model
   transform_each_clause p (fun cl -> [Clause.normalize_vars cl |> fst]);
   (* Run selected solver. *)
   let cfg = {
-    nthreads = 1;
+    nthreads;
     all_models;
     n_from;
     n_to;
@@ -509,6 +512,11 @@ let max_secs =
   let doc = "Stop search after $(docv) seconds." in
   Arg.(value & opt (some int) None &
          info ["max-secs"] ~docv:"N" ~doc)
+
+let nthreads =
+  let doc =
+    "Number of threads. Zero means as many threads as processing units." in
+  Arg.(value & opt int 0 & info ["threads"] ~docv:"N" ~doc)
 
 let n_from =
   let doc = "Start search with domain size $(docv)." in
@@ -557,7 +565,7 @@ let transforms =
 let find_model_t =
   Term.(pure find_model $ transforms $ solver $
           n_from $ n_to $ all_models $
-          max_secs $ output_file $ base_dir $ in_file)
+          nthreads $ max_secs $ output_file $ base_dir $ in_file)
 
 let info =
   let doc = "finite model finder" in
