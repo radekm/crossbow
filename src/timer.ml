@@ -9,6 +9,7 @@ let with_timer ms callback f =
   let callback_called = ref false in
   let finished = ref false in
   let m = Mutex.create () in
+  let p_read, p_write = Unix.pipe () in
 
   let callback_thread =
     let rec loop () =
@@ -21,7 +22,8 @@ let with_timer ms callback f =
         callback_called := true;
         callback ()
       end else begin
-        Thread.delay 0.4;
+        (* Waiting can be interrupted by writing to a pipe. *)
+        let _ = Unix.select [p_read] [] [] 0.4 in
         loop ()
       end in
     Thread.create loop () in
@@ -32,7 +34,11 @@ let with_timer ms callback f =
         Mutex.lock m;
         finished := true;
         Mutex.unlock m;
-        Thread.join callback_thread)
+        (* Interrupt waiting. *)
+        let _ = Unix.write p_write "x" 0 1 in
+        Thread.join callback_thread;
+        Unix.close p_write;
+        Unix.close p_read)
       f
       () in
 
