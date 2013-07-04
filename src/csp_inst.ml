@@ -486,6 +486,37 @@ struct
       done
     end
 
+  let use_hints inst =
+    let funcs =
+      inst.func_arrays
+      |> BatHashtbl.enum
+      |> BatArray.of_enum in
+    Array.sort compare funcs;
+
+    Array.iter
+      (fun (s, vars) ->
+        let hints = Symb.hints inst.symbols s in
+        List.iter
+          (function
+          | Symb.Permutation -> Solv.all_different inst.solver vars
+          | Symb.Latin_square ->
+              let n = inst.n in
+              let xs = Array.sub vars 0 n in
+              (* Rows: i-th row is f(i, ?). *)
+              for row = 0 to n - 1 do
+                Array.blit vars (row * n) xs 0 n;
+                Solv.all_different inst.solver xs
+              done;
+              (* Columns: j-th column is f(?, j). *)
+              for column = 0 to n - 1 do
+                for i = 0 to n - 1 do
+                  xs.(i) <- vars.(i * n + column)
+                done;
+                Solv.all_different inst.solver xs
+              done)
+          hints)
+      funcs
+
   let create ?(nthreads = 1) prob n =
     let inst = {
       solver = Solv.create nthreads;
@@ -514,6 +545,8 @@ struct
       prob.Prob.clauses;
     (* LNH. *)
     lnh inst;
+    (* Hints. *)
+    use_hints inst;
     inst
 
   let solve inst =

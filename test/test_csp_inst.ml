@@ -978,6 +978,78 @@ let test_distinct_consts () =
     Solv.Eprecede ([| 3; 0; 1; 2 |], [| 0; 1 |]);
   ]
 
+let test_hints () =
+  let Prob.Wr prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  let c = Symb.add_func db 0 in
+  let c = T.func (c, [| |]) in
+  let f = Symb.add_func db 2 in
+  Symb.add_hint db f Symb.Latin_square;
+  let g = Symb.add_func db 1 in
+  Symb.add_hint db g Symb.Permutation;
+  let clause = {
+    C2.cl_id = Prob.fresh_id prob;
+    C2.cl_lits = [ L.mk_eq (T.func (g, [| c |])) (T.func (f, [| c; c |])) ];
+  } in
+  BatDynArray.add prob.Prob.clauses clause;
+
+  let i4 = Inst.create prob 4 in
+  assert_log i4 [
+    Solv.Enew_int_var (4, 0); (* g(0) *)
+    Solv.Enew_int_var (4, 1); (* g(1) *)
+    Solv.Enew_int_var (4, 2); (* g(2) *)
+    Solv.Enew_int_var (4, 3); (* g(3) *)
+    Solv.Enew_int_var_array ([| 0; 1; 2; 3 |], 0);
+    Solv.Enew_int_var (4, 4); (* c *)
+    Solv.Enew_int_var_array ([| 4 |], 1);
+    Solv.Enew_int_var (4, 5); (* f(0, 0) *)
+    Solv.Enew_int_var (4, 6); (* f(0, 1) *)
+    Solv.Enew_int_var (4, 7); (* f(0, 2) *)
+    Solv.Enew_int_var (4, 8); (* f(0, 3) *)
+    Solv.Enew_int_var (4, 9); (* f(1, 0) *)
+    Solv.Enew_int_var (4, 10); (* f(1, 1) *)
+    Solv.Enew_int_var (4, 11); (* f(1, 2) *)
+    Solv.Enew_int_var (4, 12); (* f(1, 3) *)
+    Solv.Enew_int_var (4, 13); (* f(2, 0) *)
+    Solv.Enew_int_var (4, 14); (* f(2, 1) *)
+    Solv.Enew_int_var (4, 15); (* f(2, 2) *)
+    Solv.Enew_int_var (4, 16); (* f(2, 3) *)
+    Solv.Enew_int_var (4, 17); (* f(3, 0) *)
+    Solv.Enew_int_var (4, 18); (* f(3, 1) *)
+    Solv.Enew_int_var (4, 19); (* f(3, 2) *)
+    Solv.Enew_int_var (4, 20); (* f(3, 3) *)
+    Solv.Enew_int_var_array (Array.init 16 (fun i -> i + 5), 2);
+    (* g(c) *)
+    Solv.Enew_tmp_int_var (4, ~-1);
+    Solv.Eint_element (0, 4, ~-1);
+    (* f(c, c) *)
+    Solv.Enew_tmp_int_var (16, ~-2);
+    Solv.Elinear ([| 4; ~-2 |], [| 5; ~-1 |], 0);
+    Solv.Enew_tmp_int_var (4, ~-3);
+    Solv.Eint_element (2, ~-2, ~-3);
+    (* g(c) = f(c, c) *)
+    Solv.Enew_tmp_bool_var ~-1;
+    Solv.Eeq_var_var (~-3, ~-1, ~-1);
+    Solv.Eclause ([| ~-1 |], [| |]);
+    Solv.Elower_eq (4, 0); (* c <= 0 *)
+    Solv.Elower_eq (5, 1); (* f(0, 0) <= 1 *)
+    Solv.Elower_eq (0, 2); (* g(0) <= 2 *)
+    Solv.Eprecede ([| 4; 5; 0 |], [| 1; 2 |]);
+    Solv.Eprecede ([| 4; 5; 0; 9; 10; 6; 1 |], [| 2; 3 |]);
+    (* Rows of f. *)
+    Solv.Eall_different [| 5; 6; 7; 8 |];
+    Solv.Eall_different [| 9; 10; 11; 12 |];
+    Solv.Eall_different [| 13; 14; 15; 16 |];
+    Solv.Eall_different [| 17; 18; 19; 20 |];
+    (* Columns of f. *)
+    Solv.Eall_different [| 5; 9; 13; 17 |];
+    Solv.Eall_different [| 6; 10; 14; 18 |];
+    Solv.Eall_different [| 7; 11; 15; 19 |];
+    Solv.Eall_different [| 8; 12; 16; 20 |];
+    (* g is permutation *)
+    Solv.Eall_different [| 0; 1; 2; 3 |];
+  ]
+
 let suite =
   "Csp_inst suite" >:::
     [
@@ -994,4 +1066,5 @@ let suite =
       "shared eq_var_var" >:: test_shared_eq_var_var;
       "shared eq_var_const" >:: test_shared_eq_var_const;
       "distinct consts" >:: test_distinct_consts;
+      "hints" >:: test_hints;
     ]
