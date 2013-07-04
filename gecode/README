@@ -1,0 +1,15 @@
+Gecode 4.1.0
+
+Options for configure:
+
+--disable-minimodel
+--disable-examples
+--disable-flatzinc
+--disable-driver
+--disable-gist
+--disable-qt
+--disable-mpfr
+--disable-set-vars
+--disable-float-vars
+--disable-shared
+--enable-static

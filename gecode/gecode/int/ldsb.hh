@@ -7,8 +7,8 @@
  *     Christopher Mears, 2012
  *
  *  Last modified:
- *     $Date: 2013-03-07 17:39:13 +0100 (Thu, 07 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13458 $
+ *     $Date: 2013-05-08 13:30:48 +0200 (Wed, 08 May 2013) $ by $Author: schulte $
+ *     $Revision: 13622 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -342,6 +342,12 @@ namespace Gecode { namespace Int { namespace LDSB {
     // Position of variable that last choice was created for
     int _prevPos;
   protected:
+    /// Function type for printing variable and value selection
+    typedef void (*VarValPrint)(const Space& home, const BrancherHandle& bh,
+                                unsigned int b,
+                                typename View::VarType x, int i,
+                                const Val& m,
+                                std::ostream& o);
     /// Constructor for cloning \a b
     LDSBBrancher(Space& home, bool share, LDSBBrancher& b);
     /// Constructor for creation
@@ -350,7 +356,8 @@ namespace Gecode { namespace Int { namespace LDSB {
                  ViewSel<View>* vs[n], 
                  ValSelCommitBase<View,Val>* vsc,
                  SymmetryImp<View>** syms, int nsyms,
-                 BranchFilter bf);
+                 BranchFilter bf,
+                 VarValPrint vvp);
   public:
     /// Return choice
     virtual const Choice* choice(Space& home);
@@ -369,7 +376,8 @@ namespace Gecode { namespace Int { namespace LDSB {
                                ValSelCommitBase<View,Val>* vsc,
                                SymmetryImp<View>** syms,
                                int nsyms,
-                               BranchFilter bf);
+                               BranchFilter bf,
+                               VarValPrint vvp);
   };
 
   /// Exclude value \v from variable view \x

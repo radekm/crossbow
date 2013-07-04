@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2013-03-07 20:56:21 +0100 (Thu, 07 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13463 $
+ *     $Date: 2013-04-08 16:39:34 +0200 (Mon, 08 Apr 2013) $ by $Author: schulte $
+ *     $Revision: 13567 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -73,7 +73,7 @@ namespace Gecode { namespace Search { namespace Sequential {
   DFS::DFS(Space* s, size_t sz, const Options& o)
     : Worker(sz), opt(o), d(0) {
     current(s);
-    if (s->status(*this) == SS_FAILED) {
+    if ((s == NULL) || (s->status(*this) == SS_FAILED)) {
       fail++;
       cur = NULL;
       if (!opt.clone)
@@ -90,7 +90,7 @@ namespace Gecode { namespace Search { namespace Sequential {
     delete cur;
     path.reset();
     d = 0;
-    if (s->status(*this) == SS_FAILED) {
+    if ((s == NULL) || (s->status(*this) == SS_FAILED)) {
       cur = NULL;
       Worker::reset();
     } else {

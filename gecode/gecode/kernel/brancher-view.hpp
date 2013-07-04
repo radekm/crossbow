@@ -7,8 +7,8 @@
  *     Christian Schulte, 2012
  *
  *  Last modified:
- *     $Date: 2013-02-08 16:47:00 +0100 (Fri, 08 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13278 $
+ *     $Date: 2013-05-22 16:48:57 +0200 (Wed, 22 May 2013) $ by $Author: schulte $
+ *     $Revision: 13654 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -231,7 +231,7 @@ namespace Gecode {
   ViewBrancher<View,n>::dispose(Space& home) {
     for (int i=0; i<n; i++)
       if (vs[i]->notice()) {
-        home.ignore(*this,AP_DISPOSE);
+        home.ignore(*this,AP_DISPOSE,true);
         break;
       }
     for (int i=0; i<n; i++)

@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2013-02-25 17:38:28 +0100 (Mon, 25 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13398 $
+ *     $Date: 2013-07-01 06:38:48 +0200 (Mon, 01 Jul 2013) $ by $Author: tack $
+ *     $Revision: 13740 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -85,6 +85,8 @@ namespace Gecode {
       double decay(void) const;
       /// Increment counter and perform decay
       void inc(Counter& c);
+      /// Set failure count to \a a
+      void set(Counter& c, double a);
       /// Return counter value 
       double val(Counter& c);
       /// Allocate memory from heap
@@ -100,7 +102,7 @@ namespace Gecode {
     class Object {
     public:
       /// Mutex to synchronize globally shared access
-      Support::Mutex* mutex;
+      Support::FastMutex* mutex;
       /// Pointer to timed decay manager
       DecayManager* decay;
       /// Link to previous object (NULL if none)
@@ -114,7 +116,7 @@ namespace Gecode {
       /// Currently used block
       Block* cur;
       /// Constructor
-      Object(Support::Mutex* m, Object* p=NULL);
+      Object(Support::FastMutex* m, Object* p=NULL);
       /// Allocate memory from heap
       static void* operator new(size_t s);
       /// Free memory allocated from heap
@@ -143,6 +145,8 @@ namespace Gecode {
     double decay(void) const;
     /// Increment failure count
     void fail(Counter& c);
+    /// Set failure count to \a a
+    void set(Counter& c, double a);
     /// Return failure count
     double afc(Counter& c);
     /// Allocate new propagator info
@@ -203,6 +207,10 @@ namespace Gecode {
       decay(c);
     return c.c;
   }
+  forceinline void
+  GlobalAFC::DecayManager::set(Counter& c, double a) {
+    c.c = a;
+  }
   forceinline void*
   GlobalAFC::DecayManager::operator new(size_t s) {
     return Gecode::heap.ralloc(s);
@@ -237,7 +245,7 @@ namespace Gecode {
   }
 
   forceinline
-  GlobalAFC::Object::Object(Support::Mutex* m, Object* p)
+  GlobalAFC::Object::Object(Support::FastMutex* m, Object* p)
     : mutex(m), parent(p), use_cnt(1), size(size_min), free(size_min),
       cur(Block::allocate(size)) {
     if (parent == NULL) {
@@ -268,7 +276,7 @@ namespace Gecode {
   forceinline
   GlobalAFC::GlobalAFC(void) {
     // No synchronization needed as single thread is creating this object
-    local(new Object(new Support::Mutex));
+    local(new Object(new Support::FastMutex));
   }
 
   forceinline
@@ -282,7 +290,7 @@ namespace Gecode {
 
   forceinline
   GlobalAFC::~GlobalAFC(void) {
-    Support::Mutex* m = object()->mutex;
+    Support::FastMutex* m = object()->mutex;
     m->acquire();
     Object* c = object();
     DecayManager* decay = c->decay;
@@ -307,15 +315,23 @@ namespace Gecode {
 
   forceinline void
   GlobalAFC::fail(Counter& c) {
-    Support::Mutex& m = *object()->mutex;
+    Support::FastMutex& m = *object()->mutex;
     m.acquire();
     object()->decay->inc(c);
     m.release();
   }
 
+  forceinline void
+  GlobalAFC::set(Counter& c, double a) {
+    Support::FastMutex& m = *object()->mutex;
+    m.acquire();
+    object()->decay->set(c,a);
+    m.release();
+  }
+
   forceinline double
   GlobalAFC::afc(Counter& c) {
-    Support::Mutex& m = *object()->mutex;
+    Support::FastMutex& m = *object()->mutex;
     double d;
     m.acquire();
     d = object()->decay->val(c);
@@ -325,7 +341,7 @@ namespace Gecode {
 
   forceinline double
   GlobalAFC::decay(void) const {
-    Support::Mutex& m = *object()->mutex;
+    Support::FastMutex& m = *object()->mutex;
     double d;
     m.acquire();
     d = object()->decay->decay();
@@ -335,7 +351,7 @@ namespace Gecode {
 
   forceinline void
   GlobalAFC::decay(double d) {
-    Support::Mutex& m = *object()->mutex;
+    Support::FastMutex& m = *object()->mutex;
     m.acquire();
     object()->decay->decay(d);
     m.release();

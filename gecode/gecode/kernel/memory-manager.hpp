@@ -14,8 +14,8 @@
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2013-02-20 18:27:38 +0100 (Wed, 20 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13347 $
+ *     $Date: 2013-05-14 01:34:01 +0200 (Tue, 14 May 2013) $ by $Author: tack $
+ *     $Revision: 13635 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -472,6 +472,13 @@ namespace Gecode {
   forceinline void
   MemoryManager::fl_dispose(FreeList* f, FreeList* l) {
     size_t i = sz2i(s);
+#ifdef GECODE_AUDIT
+    FreeList* cur = f;
+    while (cur != l) {
+      assert(cur->next());
+      cur = cur->next();
+    }
+#endif
     l->next(fl[i]); fl[i] = f;
   }
 

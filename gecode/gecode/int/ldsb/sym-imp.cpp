@@ -7,8 +7,8 @@
  *     Christopher Mears, 2012
  *
  *  Last modified:
- *     $Date: 2013-03-07 17:39:13 +0100 (Thu, 07 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13458 $
+ *     $Date: 2013-05-13 07:50:41 +0200 (Mon, 13 May 2013) $ by $Author: mears $
+ *     $Revision: 13633 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -128,10 +128,12 @@ namespace Gecode { namespace Int { namespace LDSB {
     if (location.first == -1) return dynamicStackToArgArray(s);
     unsigned int seqNum = location.first;
     unsigned int seqPos = location.second;
-    for (unsigned int seq = 0 ; seq < n_seqs ; seq++) {
-      if (seq == seqNum) continue;
-      if (dead_sequences.get(seq)) continue;
-      s.push(Literal(l._variable, getVal(seq,seqPos)));
+    if (! dead_sequences.get(seqNum)) {
+      for (unsigned int seq = 0 ; seq < n_seqs ; seq++) {
+        if (seq == seqNum) continue;
+        if (dead_sequences.get(seq)) continue;
+        s.push(Literal(l._variable, getVal(seq,seqPos)));
+      }
     }
     return dynamicStackToArgArray(s);
   }
@@ -146,10 +148,12 @@ namespace Gecode { namespace Int { namespace LDSB {
     if (location.first == -1) return dynamicStackToArgArray(s);
     unsigned int seqNum = location.first;
     unsigned int seqPos = location.second;
-    for (unsigned int seq = 0 ; seq < n_seqs ; seq++) {
-      if (seq == seqNum) continue;
-      if (dead_sequences.get(seq)) continue;
-      s.push(Literal(l._variable, getVal(seq,seqPos)));
+    if (! dead_sequences.get(seqNum)) {
+      for (unsigned int seq = 0 ; seq < n_seqs ; seq++) {
+        if (seq == seqNum) continue;
+        if (dead_sequences.get(seq)) continue;
+        s.push(Literal(l._variable, getVal(seq,seqPos)));
+      }
     }
     return dynamicStackToArgArray(s);
   }

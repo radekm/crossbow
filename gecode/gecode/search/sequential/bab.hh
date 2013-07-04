@@ -11,8 +11,8 @@
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2013-03-07 20:56:21 +0100 (Thu, 07 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13463 $
+ *     $Date: 2013-04-08 16:39:34 +0200 (Mon, 08 Apr 2013) $ by $Author: schulte $
+ *     $Revision: 13567 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -81,7 +81,7 @@ namespace Gecode { namespace Search { namespace Sequential {
   BAB::BAB(Space* s, size_t sz, const Options& o)
     : Worker(sz), opt(o), d(0), mark(0), best(NULL) {
     current(s);
-    if (s->status(*this) == SS_FAILED) {
+    if ((s == NULL) || (s->status(*this) == SS_FAILED)) {
       fail++;
       cur = NULL;
       if (!o.clone)
@@ -172,7 +172,7 @@ namespace Gecode { namespace Search { namespace Sequential {
     path.reset();
     d = mark = 0;
     delete cur;
-    if (s->status(*this) == SS_FAILED) {
+    if ((s == NULL) || (s->status(*this) == SS_FAILED)) {
       cur = NULL;
       Worker::reset();
     } else {

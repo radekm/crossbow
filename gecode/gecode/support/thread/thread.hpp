@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2012-10-01 15:02:39 +0200 (Mon, 01 Oct 2012) $ by $Author: schulte $
- *     $Revision: 13121 $
+ *     $Date: 2013-07-01 06:38:48 +0200 (Mon, 01 Jul 2013) $ by $Author: tack $
+ *     $Revision: 13740 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -64,6 +64,23 @@ namespace Gecode { namespace Support {
     Gecode::heap.rfree(p);
   }
 
+#if defined(GECODE_THREADS_OSX) || defined(GECODE_THREADS_PTHREADS_SPINLOCK)
+
+  /*
+   * Fast mutexes
+   *
+   */
+  forceinline void*
+  FastMutex::operator new(size_t s) {
+    return Gecode::heap.ralloc(s);
+  }
+
+  forceinline void
+  FastMutex::operator delete(void* p) {
+    Gecode::heap.rfree(p);
+  }
+
+#endif
 
   /*
    * Locks

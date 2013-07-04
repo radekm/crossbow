@@ -7,8 +7,8 @@
  *     Christian Schulte, 2004
  *
  *  Last modified:
- *     $Date: 2013-02-26 10:35:41 +0100 (Tue, 26 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13413 $
+ *     $Date: 2013-05-02 17:10:16 +0200 (Thu, 02 May 2013) $ by $Author: schulte $
+ *     $Revision: 13603 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -75,8 +75,8 @@ namespace Gecode {
   /// %Exception: Commit with illegal alternative
   class GECODE_VTABLE_EXPORT SpaceIllegalAlternative : public Exception {
   public:
-    /// Initialize
-    SpaceIllegalAlternative(void);
+    /// Initialize with location \a l
+    SpaceIllegalAlternative(const char* l);
   };
 
   /// %Exception: too many branchers
@@ -151,9 +151,8 @@ namespace Gecode {
     : Exception(l,"Attempt to commit with no brancher") {}
 
   inline
-  SpaceIllegalAlternative::SpaceIllegalAlternative(void)
-    : Exception("Space::commit",
-                "Attempt to commit with illegal alternative") {}
+  SpaceIllegalAlternative::SpaceIllegalAlternative(const char* l)
+    : Exception(l,"Attempt to commit with illegal alternative") {}
 
   inline
   TooManyBranchers::TooManyBranchers(const char* l)

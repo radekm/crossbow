@@ -7,8 +7,8 @@
  *     Christian Schulte, 2013
  *
  *  Last modified:
- *     $Date: 2013-02-22 05:30:33 +0100 (Fri, 22 Feb 2013) $ by $Author: tack $
- *     $Revision: 13376 $
+ *     $Date: 2013-04-17 20:35:47 +0200 (Wed, 17 Apr 2013) $ by $Author: schulte $
+ *     $Revision: 13584 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -68,6 +68,8 @@ namespace Gecode {
     void init(Home home, const VarArgArray<Var>& x, double d);
     /// Test whether already initialized
     bool initialized(void) const;
+    /// Set AFC information to \a a
+    void set(Space& home, double a=1.0);
     /// Default (empty) AFC information
     GECODE_KERNEL_EXPORT static const AFC def;
     //@}
@@ -161,6 +163,11 @@ namespace Gecode {
     if ((d <= 0.0) || (d > 1.0))
       throw IllegalDecay("AFC");
     home.afc_decay(d);
+  }
+
+  forceinline void
+  AFC::set(Space& home, double a) {
+    home.afc_set(a);
   }
 
   forceinline double

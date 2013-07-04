@@ -7,8 +7,8 @@
  *     Christian Schulte, 2010
  *
  *  Last modified:
- *     $Date: 2012-09-07 17:31:22 +0200 (Fri, 07 Sep 2012) $ by $Author: schulte $
- *     $Revision: 13068 $
+ *     $Date: 2013-03-28 22:24:21 +0100 (Thu, 28 Mar 2013) $ by $Author: tack $
+ *     $Revision: 13561 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -56,6 +56,12 @@ namespace Gecode {
     ViewArray<OffsetView> lv(home,l.size());
     for (int i=l.size(); i--; )
       lv[i] = OffsetView(l[i],0);
+
+    if (b.size() == 0) {
+      for (int i=l.size(); i--; )
+        GECODE_ME_FAIL(lv[i].eq(home,0));
+      return;
+    }
 
     ViewArray<BinPacking::Item> bs(home,b.size());
     for (int i=bs.size(); i--; )

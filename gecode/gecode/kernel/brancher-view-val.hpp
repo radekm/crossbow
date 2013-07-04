@@ -7,8 +7,8 @@
  *     Christian Schulte, 2012
  *
  *  Last modified:
- *     $Date: 2013-03-07 02:18:29 +0100 (Thu, 07 Mar 2013) $ by $Author: mears $
- *     $Revision: 13455 $
+ *     $Date: 2013-05-20 13:21:09 +0200 (Mon, 20 May 2013) $ by $Author: schulte $
+ *     $Revision: 13644 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -77,6 +77,14 @@ namespace Gecode {
     using ViewBrancher<View,n>::x;
     /// Value selection and commit object
     ValSelCommitBase<View,Val>* vsc;
+    /// Function type for printing variable and value selection
+    typedef void (*VarValPrint)(const Space& home, const BrancherHandle& bh,
+                                unsigned int b,
+                                typename View::VarType x, int i,
+                                const Val& m,
+                                std::ostream& o);
+    /// Print function
+    VarValPrint vvp;
     /// Constructor for cloning \a b
     ViewValBrancher(Space& home, bool share, ViewValBrancher& b);
     /// Constructor for creation
@@ -84,7 +92,8 @@ namespace Gecode {
                     ViewArray<View>& x,
                     ViewSel<View>* vs[n], 
                     ValSelCommitBase<View,Val>* vsc,
-                    BranchFilter bf);
+                    BranchFilter bf,
+                    VarValPrint vvp);
   public:
     /// Return choice
     virtual const Choice* choice(Space& home);
@@ -92,6 +101,15 @@ namespace Gecode {
     virtual const Choice* choice(const Space& home, Archive& e);
     /// Perform commit for choice \a c and alternative \a b
     virtual ExecStatus commit(Space& home, const Choice& c, unsigned int b);
+    /**
+     * \brief Print branch for choice \a c and alternative \a b
+     *
+     * Prints an explanation of the alternative \a b of choice \a c
+     * on the stream \a o.
+     *
+     */
+    virtual void print(const Space& home, const Choice& c, unsigned int b,
+                       std::ostream& o) const;
     /// Perform cloning
     virtual Actor* copy(Space& home, bool share);
     /// Delete brancher and return its size
@@ -101,7 +119,8 @@ namespace Gecode {
                                ViewArray<View>& x,
                                ViewSel<View>* vs[n], 
                                ValSelCommitBase<View,Val>* vsc, 
-                               BranchFilter bf);
+                               BranchFilter bf,
+                               VarValPrint vvp);
   };
   //@}
 
@@ -148,15 +167,11 @@ namespace Gecode {
                   ViewArray<View>& x,
                   ViewSel<View>* vs[n], 
                   ValSelCommitBase<View,Val>* vsc0,
-                  BranchFilter bf)
-    : ViewBrancher<View,n>(home,x,vs,bf), vsc(vsc0) {
-    if (vsc->notice()) {
-      for (int i=0; i<n; i++)
-        if (vs[i]->notice())
-          goto not_needed;
-      home.notice(*this,AP_DISPOSE);      
-    not_needed: ;
-    }
+                  BranchFilter bf,
+                  VarValPrint vvp0)
+    : ViewBrancher<View,n>(home,x,vs,bf), vsc(vsc0), vvp(vvp0) {
+    if (vsc->notice())
+      home.notice(*this,AP_DISPOSE,true);
   }
 
   template<class View, int n, class Val, unsigned int a>
@@ -164,8 +179,9 @@ namespace Gecode {
   ViewValBrancher<View,n,Val,a>::
   post(Home home, ViewArray<View>& x,
        ViewSel<View>* vs[n], ValSelCommitBase<View,Val>* vsc,
-       BranchFilter bf) {
-    return *new (home) ViewValBrancher<View,n,Val,a>(home,x,vs,vsc,bf);
+       BranchFilter bf,
+       VarValPrint vvp) {
+    return *new (home) ViewValBrancher<View,n,Val,a>(home,x,vs,vsc,bf,vvp);
   }
 
   template<class View, int n, class Val, unsigned int a>
@@ -173,7 +189,7 @@ namespace Gecode {
   ViewValBrancher<View,n,Val,a>::
   ViewValBrancher(Space& home, bool shared, ViewValBrancher<View,n,Val,a>& b)
     : ViewBrancher<View,n>(home,shared,b), 
-      vsc(b.vsc->copy(home,shared)) {}
+      vsc(b.vsc->copy(home,shared)), vvp(b.vvp) {}
   
   template<class View, int n, class Val, unsigned int a>
   Actor*
@@ -212,15 +228,25 @@ namespace Gecode {
   }
 
   template<class View, int n, class Val, unsigned int a>
+  void
+  ViewValBrancher<View,n,Val,a>
+  ::print(const Space& home, const Choice& c, unsigned int b,
+          std::ostream& o) const {
+    const PosValChoice<Val>& pvc
+      = static_cast<const PosValChoice<Val>&>(c);
+    View xi = ViewBrancher<View,n>::view(pvc.pos());
+    typename View::VarType y(ViewBrancher<View,n>::view(pvc.pos()).varimp());
+    if (vvp != NULL)
+      vvp(home,*this,b,y,pvc.pos().pos,pvc.val(),o);
+    else
+      vsc->print(home,b,xi,pvc.pos().pos,pvc.val(),o);
+  }
+
+  template<class View, int n, class Val, unsigned int a>
   forceinline size_t
   ViewValBrancher<View,n,Val,a>::dispose(Space& home) {
-    if (vsc->notice()) {
-      for (int i=0; i<n; i++)
-        if (vs[i]->notice())
-          goto not_needed;
-      home.ignore(*this,AP_DISPOSE);
-    not_needed: ;
-    }
+    if (vsc->notice())
+      home.ignore(*this,AP_DISPOSE,true);
     vsc->dispose(home);
     (void) ViewBrancher<View,n>::dispose(home);
     return sizeof(ViewValBrancher<View,n,Val,a>);

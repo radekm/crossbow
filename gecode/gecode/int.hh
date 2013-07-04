@@ -15,8 +15,8 @@
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2013-03-08 02:29:47 +0100 (Fri, 08 Mar 2013) $ by $Author: mears $
- *     $Revision: 13473 $
+ *     $Date: 2013-05-08 13:30:48 +0200 (Wed, 08 May 2013) $ by $Author: schulte $
+ *     $Revision: 13622 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -1272,6 +1272,15 @@ namespace Gecode {
   GECODE_INT_EXPORT void
   clause(Home home, BoolOpType o, const BoolVarArgs& x, const BoolVarArgs& y,
          int n, IntConLevel icl=ICL_DEF);
+  /** \brief Post propagator for if-then-else constraint
+   *
+   * Posts propagator for \f$ z = b ? x : y \f$
+   *
+   * \ingroup TaskModelIntRelBool
+   */
+  GECODE_INT_EXPORT void
+  ite(Home home, BoolVar b, IntVar x, IntVar y, IntVar z,
+      IntConLevel icl=ICL_DEF);
 
 
   /**
@@ -3565,7 +3574,6 @@ namespace Gecode {
    */
   typedef void (*BoolBranchCommit)(Space& home, unsigned int a,
                                    BoolVar x, int i, int n);
-
 }
 
 #include <gecode/int/branch/traits.hpp>
@@ -3667,6 +3675,22 @@ namespace Gecode {
 }
 
 #include <gecode/int/branch/activity.hpp>
+
+namespace Gecode {
+
+  /// Function type for printing branching alternatives for integer variables
+  typedef void (*IntVarValPrint)(const Space &home, const BrancherHandle& bh,
+                                 unsigned int a,
+                                 IntVar x, int i, const int& n,
+                                 std::ostream& o);
+
+  /// Function type for printing branching alternatives for Boolean variables
+  typedef void (*BoolVarValPrint)(const Space &home, const BrancherHandle& bh,
+                                  unsigned int a,
+                                  BoolVar x, int i, const int& n,
+                                  std::ostream& o);
+
+}
 
 namespace Gecode {
 
@@ -4024,7 +4048,8 @@ namespace Gecode {
   GECODE_INT_EXPORT BrancherHandle
   branch(Home home, const IntVarArgs& x,
          IntVarBranch vars, IntValBranch vals, 
-         IntBranchFilter bf=NULL);
+         IntBranchFilter bf=NULL,
+         IntVarValPrint vvp=NULL);
   /**
    * \brief Branch over \a x with tie-breaking variable selection \a vars and value selection \a vals
    *
@@ -4033,14 +4058,16 @@ namespace Gecode {
   GECODE_INT_EXPORT BrancherHandle
   branch(Home home, const IntVarArgs& x,
          TieBreak<IntVarBranch> vars, IntValBranch vals,
-         IntBranchFilter bf=NULL);
+         IntBranchFilter bf=NULL,
+         IntVarValPrint vvp=NULL);
   /**
    * \brief Branch over \a x with value selection \a vals
    *
    * \ingroup TaskModelIntBranch
    */
   GECODE_INT_EXPORT BrancherHandle
-  branch(Home home, IntVar x, IntValBranch vals);
+  branch(Home home, IntVar x, IntValBranch vals,
+         IntVarValPrint vvp=NULL);
   /**
    * \brief Branch over \a x with variable selection \a vars and value selection \a vals
    *
@@ -4049,7 +4076,8 @@ namespace Gecode {
   GECODE_INT_EXPORT BrancherHandle
   branch(Home home, const BoolVarArgs& x,
          IntVarBranch vars, IntValBranch vals,
-         BoolBranchFilter bf=NULL);
+         BoolBranchFilter bf=NULL,
+         BoolVarValPrint vvp=NULL);
   /**
    * \brief Branch over \a x with tie-breaking variable selection \a vars and value selection \a vals
    *
@@ -4058,14 +4086,16 @@ namespace Gecode {
   GECODE_INT_EXPORT BrancherHandle
   branch(Home home, const BoolVarArgs& x,
          TieBreak<IntVarBranch> vars, IntValBranch vals,
-         BoolBranchFilter bf=NULL);
+         BoolBranchFilter bf=NULL,
+         BoolVarValPrint vvp=NULL);
   /**
    * \brief Branch over \a x with value selection \a vals
    *
    * \ingroup TaskModelIntBranch
    */
   GECODE_INT_EXPORT BrancherHandle
-  branch(Home home, BoolVar x, IntValBranch vals);
+  branch(Home home, BoolVar x, IntValBranch vals,
+         BoolVarValPrint vvp=NULL);
 
   /**
    * \brief Assign all \a x with value selection \a vals
@@ -4074,14 +4104,16 @@ namespace Gecode {
    */
   GECODE_INT_EXPORT BrancherHandle
   assign(Home home, const IntVarArgs& x, IntAssign vals,
-         IntBranchFilter ibf=NULL);
+         IntBranchFilter ibf=NULL,
+         IntVarValPrint vvp=NULL);
   /**
    * \brief Assign \a x with value selection \a vals
    *
    * \ingroup TaskModelIntBranch
    */
   GECODE_INT_EXPORT BrancherHandle
-  assign(Home home, IntVar x, IntAssign vals);
+  assign(Home home, IntVar x, IntAssign vals,
+         IntVarValPrint vvp=NULL);
   /**
    * \brief Assign all \a x with value selection \a vals
    *
@@ -4089,14 +4121,16 @@ namespace Gecode {
    */
   GECODE_INT_EXPORT BrancherHandle
   assign(Home home, const BoolVarArgs& x, IntAssign vals,
-         BoolBranchFilter bbf=NULL);
+         BoolBranchFilter bbf=NULL,
+         BoolVarValPrint vvp=NULL);
   /**
    * \brief Assign \a x with value selection \a vals
    *
    * \ingroup TaskModelIntBranch
    */
   GECODE_INT_EXPORT BrancherHandle
-  assign(Home home, BoolVar x, IntAssign vals);
+  assign(Home home, BoolVar x, IntAssign vals,
+         BoolVarValPrint vvp=NULL);
 
 }
 
@@ -4226,7 +4260,8 @@ namespace Gecode {
   GECODE_INT_EXPORT BrancherHandle
   branch(Home home, const IntVarArgs& x,
          IntVarBranch vars, IntValBranch vals,
-         const Symmetries& syms, IntBranchFilter bf=NULL);
+         const Symmetries& syms, 
+         IntBranchFilter bf=NULL, IntVarValPrint vvp=NULL);
   /**
    * \brief Branch over \a x with tie-breaking variable selection \a
    * vars and value selection \a vals with symmetry breaking
@@ -4241,7 +4276,8 @@ namespace Gecode {
   GECODE_INT_EXPORT BrancherHandle
   branch(Home home, const IntVarArgs& x,
          TieBreak<IntVarBranch> vars, IntValBranch vals,
-         const Symmetries& syms, IntBranchFilter bf=NULL);
+         const Symmetries& syms, 
+         IntBranchFilter bf=NULL, IntVarValPrint vvp=NULL);
   /**
    * \brief Branch over \a x with variable selection \a vars and value
    * selection \a vals with symmetry breaking
@@ -4256,7 +4292,8 @@ namespace Gecode {
   GECODE_INT_EXPORT BrancherHandle
   branch(Home home, const BoolVarArgs& x,
          IntVarBranch vars, IntValBranch vals,
-         const Symmetries& syms, BoolBranchFilter bf=NULL);
+         const Symmetries& syms, 
+         BoolBranchFilter bf=NULL, BoolVarValPrint vvp=NULL);
   /**
    * \brief Branch over \a x with tie-breaking variable selection \a
    * vars and value selection \a vals with symmetry breaking
@@ -4271,7 +4308,8 @@ namespace Gecode {
   GECODE_INT_EXPORT BrancherHandle
   branch(Home home, const BoolVarArgs& x,
          TieBreak<IntVarBranch> vars, IntValBranch vals,
-         const Symmetries& syms, BoolBranchFilter bf=NULL);
+         const Symmetries& syms, 
+         BoolBranchFilter bf=NULL, BoolVarValPrint vvp=NULL);
 }
 
 #endif

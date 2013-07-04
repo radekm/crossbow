@@ -20,7 +20,6 @@
 #include "gecode/search/options.cpp"
 #include "gecode/search/rbs.cpp"
 #include "gecode/search/stop.cpp"
-#include "gecode/search/support.cpp"
 #include "gecode/search/meta/rbs.cpp"
 #include "gecode/search/parallel/bab.cpp"
 #include "gecode/search/parallel/dfs.cpp"

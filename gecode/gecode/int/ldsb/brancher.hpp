@@ -7,8 +7,8 @@
  *     Christopher Mears, 2012
  *
  *  Last modified:
- *     $Date: 2013-03-07 17:39:13 +0100 (Thu, 07 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13458 $
+ *     $Date: 2013-05-20 13:21:09 +0200 (Mon, 20 May 2013) $ by $Author: schulte $
+ *     $Revision: 13644 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -104,13 +104,14 @@ namespace Gecode { namespace Int { namespace LDSB {
                  ViewSel<View>* vs[n],
                  ValSelCommitBase<View,Val>* vsc,
                  SymmetryImp<View>** syms, int nsyms,
-                 BranchFilter bf)
-    : ViewValBrancher<View,n,Val,a>(home, x, vs, vsc, bf),
+                 BranchFilter bf,
+                 VarValPrint vvp)
+    : ViewValBrancher<View,n,Val,a>(home, x, vs, vsc, bf, vvp),
       _syms(syms),
       _nsyms(nsyms),
       _prevPos(-1)
   {
-    home.notice(*this, AP_DISPOSE);
+    home.notice(*this, AP_DISPOSE, true);
   }
 
   template<class View, int n, class Val, unsigned int a>
@@ -119,8 +120,8 @@ namespace Gecode { namespace Int { namespace LDSB {
   post(Home home, ViewArray<View>& x,
        ViewSel<View>* vs[n], ValSelCommitBase<View,Val>* vsc,
        SymmetryImp<View>** syms, int nsyms,
-       BranchFilter bf) {
-    return *new (home) LDSBBrancher<View,n,Val,a>(home,x,vs,vsc,syms,nsyms,bf);
+       BranchFilter bf, VarValPrint vvp) {
+    return *new (home) LDSBBrancher<View,n,Val,a>(home,x,vs,vsc,syms,nsyms,bf,vvp);
   }
 
   template<class View, int n, class Val, unsigned int a>
@@ -259,7 +260,7 @@ namespace Gecode { namespace Int { namespace LDSB {
   template<class View, int n, class Val, unsigned int a>
   size_t
   LDSBBrancher<View,n,Val,a>::dispose(Space& home) {
-    home.ignore(*this,AP_DISPOSE);
+    home.ignore(*this,AP_DISPOSE,true);
     (void) ViewValBrancher<View,n,Val,a>::dispose(home);
     return sizeof(LDSBBrancher<View,n,Val,a>);
   }

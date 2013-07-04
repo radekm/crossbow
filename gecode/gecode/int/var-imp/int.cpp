@@ -7,8 +7,8 @@
  *     Christian Schulte, 2002
  *
  *  Last modified:
- *     $Date: 2009-05-13 23:51:57 +0200 (Wed, 13 May 2009) $ by $Author: tack $
- *     $Revision: 9094 $
+ *     $Date: 2013-05-14 01:34:01 +0200 (Tue, 14 May 2013) $ by $Author: tack $
+ *     $Revision: 13635 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -113,7 +113,7 @@ namespace Gecode { namespace Int {
       int max_c = std::min(m,c->max());
       dom.max(max_c); c->max(max_c);
       if (c != lst()) {
-        lst()->dispose(home,n);
+        n->dispose(home,lst());
         c->next(n,NULL); lst(c);
       }
     }

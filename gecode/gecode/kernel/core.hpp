@@ -18,8 +18,8 @@
  *     Alexander Samoilov <alexander_samoilov@yahoo.com>
  *
  *  Last modified:
- *     $Date: 2013-03-05 15:37:20 +0100 (Tue, 05 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13437 $
+ *     $Date: 2013-05-20 13:21:09 +0200 (Mon, 20 May 2013) $ by $Author: schulte $
+ *     $Revision: 13644 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -45,7 +45,9 @@
  *  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  */
+
 #include <iostream>
+
 namespace Gecode {
 
   class Space;
@@ -745,7 +747,7 @@ namespace Gecode {
     /// Mark space as failed
     void fail(void);
     ///  Notice actor property
-    void notice(Actor& a, ActorProperty p);
+    void notice(Actor& a, ActorProperty p, bool duplicate=false);
     //@}
   };
 
@@ -1055,6 +1057,18 @@ namespace Gecode {
                               unsigned int a) = 0;
     /// Return unsigned brancher id
     unsigned int id(void) const;
+    /**
+     * \brief Print branch for choice \a c and alternative \a a
+     *
+     * Prints an explanation of the alternative \a a of choice \a c
+     * on the stream \a o.
+     *
+     * The default function prints nothing.
+     *
+     */
+    GECODE_KERNEL_EXPORT 
+    virtual void print(const Space& home, const Choice& c, unsigned int a,
+                       std::ostream& o) const;
     //@}
   };
 
@@ -1320,8 +1334,6 @@ namespace Gecode {
     Actor** d_cur;
     /// Last actor for forced disposal
     Actor** d_lst;
-    /// Resize disposal array
-    GECODE_KERNEL_EXPORT void d_resize(void);
 
     /**
      * \brief Number of weakly monotonic propagators and AFC flag
@@ -1411,6 +1423,9 @@ namespace Gecode {
     void afc_decay(double d);
     /// Return AFC decay factor
     double afc_decay(void) const;
+    /// Reset AFC to \a a
+    GECODE_KERNEL_EXPORT
+    void afc_set(double a);
   public:
     /**
      * \brief Default constructor
@@ -1616,13 +1631,32 @@ namespace Gecode {
                 CommitStatistics& stat=unused_commit);
 
     /**
+     * \brief Print branch for choice \a c and alternative \a a
+     *
+     * Prints an explanation of the alternative \a a of choice \a c
+     * on the stream \a o.
+     *
+     * Explanation throws the following exceptions:
+     *  - SpaceNoBrancher, if the space has no current brancher (it is
+     *    already solved).
+     *  - SpaceIllegalAlternative, if \a a is not smaller than the number
+     *    of alternatives supported by the choice \a c.
+     *
+     * \ingroup TaskSearch
+     */
+    GECODE_KERNEL_EXPORT
+    void print(const Choice& c, unsigned int a, std::ostream& o) const;
+
+    /**
      * \brief Notice actor property
      *
      * Make the space notice that the actor \a a has the property \a p.
-     * Note that the same property can only be noticed once for an actor.
+     * Note that the same property can only be noticed once for an actor 
+     * unless \a duplicate is true.
      * \ingroup TaskActor
      */
-    void notice(Actor& a, ActorProperty p);
+    GECODE_KERNEL_EXPORT
+    void notice(Actor& a, ActorProperty p, bool duplicate=false);
     /**
      * \brief Ignore actor property
      *
@@ -1630,7 +1664,8 @@ namespace Gecode {
      * Note that a property must be ignored before an actor is disposed.
      * \ingroup TaskActor
      */
-    void ignore(Actor& a, ActorProperty p);
+    GECODE_KERNEL_EXPORT
+    void ignore(Actor& a, ActorProperty p, bool duplicate=false);
 
 
     /**
@@ -2530,41 +2565,8 @@ namespace Gecode {
   }
 
   forceinline void
-  Space::notice(Actor& a, ActorProperty p) {
-    if (p & AP_DISPOSE) {
-      if (d_cur == d_lst)
-        d_resize();
-      *(d_cur++) = &a;
-    }
-    if (p & AP_WEAKLY) {
-      if (wmp() == 0)
-        wmp(2);
-      else
-        wmp(wmp()+1);
-    }
-  }
-
-  forceinline void
-  Home::notice(Actor& a, ActorProperty p) {
-    s.notice(a,p);
-  }
-
-  forceinline void
-  Space::ignore(Actor& a, ActorProperty p) {
-    if (p & AP_DISPOSE) {
-      // Check wether array has already been discarded as space
-      // deletion is already in progress
-      Actor** f = d_fst;
-      if (f != NULL) {
-        while (&a != *f)
-          f++;
-        *f = *(--d_cur);
-      }
-    }
-    if (p & AP_WEAKLY) {
-      assert(wmp() > 1U);
-      wmp(wmp()-1);
-    }
+  Home::notice(Actor& a, ActorProperty p, bool duplicate) {
+    s.notice(a,p,duplicate);
   }
 
   forceinline Space*

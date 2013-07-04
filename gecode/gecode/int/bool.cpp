@@ -7,8 +7,8 @@
  *     Christian Schulte, 2002
  *
  *  Last modified:
- *     $Date: 2012-10-18 16:02:42 +0200 (Thu, 18 Oct 2012) $ by $Author: schulte $
- *     $Revision: 13154 $
+ *     $Date: 2013-04-29 20:52:35 +0200 (Mon, 29 Apr 2013) $ by $Author: schulte $
+ *     $Revision: 13590 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -904,6 +904,18 @@ namespace Gecode {
       break;
     default:
       throw IllegalOperation("Int::clause");
+    }
+  }
+
+  void
+  ite(Home home, BoolVar b, IntVar x, IntVar y, IntVar z,
+      IntConLevel icl) {
+    using namespace Int;
+    if (home.failed()) return;
+    if (icl == ICL_BND) {
+      GECODE_ES_FAIL(Bool::IteBnd<IntView>::post(home,b,x,y,z));
+    } else {
+      GECODE_ES_FAIL(Bool::IteDom<IntView>::post(home,b,x,y,z));
     }
   }
 

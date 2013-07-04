@@ -7,8 +7,8 @@
  *     Christian Schulte, 2012
  *
  *  Last modified:
- *     $Date: 2013-02-19 13:26:08 +0100 (Tue, 19 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13313 $
+ *     $Date: 2013-04-17 20:35:47 +0200 (Wed, 17 Apr 2013) $ by $Author: schulte $
+ *     $Revision: 13584 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -112,6 +112,9 @@ namespace Gecode {
     void init(Home home, ViewArray<View>& x, double d);
     /// Test whether already initialized
     bool initialized(void) const;
+    /// Set activity to \a a
+    GECODE_KERNEL_EXPORT
+    void set(Space& home, double a=0.0);
     /// Default (empty) activity information
     GECODE_KERNEL_EXPORT static const Activity def;
     //@}

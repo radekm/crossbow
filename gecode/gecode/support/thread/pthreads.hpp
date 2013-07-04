@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2011-04-28 14:05:18 +0200 (Thu, 28 Apr 2011) $ by $Author: tack $
- *     $Revision: 11968 $
+ *     $Date: 2013-07-01 07:36:45 +0200 (Mon, 01 Jul 2013) $ by $Author: tack $
+ *     $Revision: 13741 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -69,6 +69,62 @@ namespace Gecode { namespace Support {
       throw OperatingSystemError("Mutex::~Mutex[pthread_mutex_destroy]");
   }
 
+#ifdef GECODE_THREADS_OSX
+
+  /*
+   * FastMutex
+   */
+  forceinline
+  FastMutex::FastMutex(void) : lck(OS_SPINLOCK_INIT) {}
+  forceinline void
+  FastMutex::acquire(void) {
+    OSSpinLockLock(&lck);
+  }
+  forceinline bool
+  FastMutex::tryacquire(void) {
+    return OSSpinLockTry(&lck);
+  }
+  forceinline void
+  FastMutex::release(void) {
+    OSSpinLockUnlock(&lck);
+  }
+  forceinline
+  FastMutex::~FastMutex(void) {}
+
+#endif
+
+#ifdef GECODE_THREADS_PTHREADS_SPINLOCK
+
+  /*
+   * FastMutex
+   */
+  forceinline
+  FastMutex::FastMutex(void) {
+    if (pthread_spin_init(&p_s,PTHREAD_PROCESS_PRIVATE) != 0)
+      throw OperatingSystemError("FastMutex::FastMutex[pthread_spin_init]");
+  }
+  forceinline void
+  FastMutex::acquire(void) {
+    if (pthread_spin_lock(&p_s) != 0)
+      throw OperatingSystemError("FastMutex::acquire[pthread_spin_lock]");
+  }
+  forceinline bool
+  FastMutex::tryacquire(void) {
+    return pthread_spin_trylock(&p_s) == 0;
+  }
+  forceinline void
+  FastMutex::release(void) {
+    if (pthread_spin_unlock(&p_s) != 0)
+      throw OperatingSystemError("FastMutex::release[pthread_spin_unlock]");
+  }
+  forceinline
+  FastMutex::~FastMutex(void) {
+    if (pthread_spin_destroy(&p_s) != 0)
+      throw OperatingSystemError(
+        "FastMutex::~FastMutex[pthread_spin_destroy]");
+  }
+
+#endif
 
   /*
    * Event

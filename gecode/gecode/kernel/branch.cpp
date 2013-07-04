@@ -9,8 +9,8 @@
  *     Mikael Lagerkvist, 2008
  *
  *  Last modified:
- *     $Date: 2012-09-07 11:29:57 +0200 (Fri, 07 Sep 2012) $ by $Author: schulte $
- *     $Revision: 13061 $
+ *     $Date: 2013-05-03 10:00:50 +0200 (Fri, 03 May 2013) $ by $Author: schulte $
+ *     $Revision: 13606 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -86,6 +86,12 @@ namespace Gecode {
       done = true;
       f(home);
       return home.failed() ? ES_FAILED : ES_OK;
+    }
+    /// Print explanation
+    virtual void
+    print(const Space&, const Choice&, unsigned int, 
+          std::ostream& o) const {
+      o << "FunctionBranch(" << f << ")";
     }
     /// Copy brancher
     virtual Actor* copy(Space& home, bool share) {

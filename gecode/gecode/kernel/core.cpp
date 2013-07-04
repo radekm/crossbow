@@ -7,8 +7,8 @@
  *     Christian Schulte, 2002
  *
  *  Last modified:
- *     $Date: 2013-03-05 15:37:20 +0100 (Tue, 05 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13437 $
+ *     $Date: 2013-05-22 16:48:57 +0200 (Wed, 22 May 2013) $ by $Author: schulte $
+ *     $Revision: 13654 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -79,6 +79,15 @@ namespace Gecode {
   }
 
 
+  /*
+   * Brancher
+   *
+   */
+  void 
+  Brancher::print(const Space&, const Choice&, unsigned int,
+                  std::ostream&) const {
+  }
+
 
   /*
    * Space: Misc
@@ -114,19 +123,62 @@ namespace Gecode {
   }
 
   void
-  Space::d_resize(void) {
-    if (d_fst == NULL) {
-      // Create new array
-      d_fst = alloc<Actor*>(4);
-      d_cur = d_fst;
-      d_lst = d_fst+4;
-    } else {
-      // Resize existing array
-      unsigned int n = static_cast<unsigned int>(d_lst - d_fst);
-      assert(n != 0);
-      d_fst = realloc<Actor*>(d_fst,n,2*n);
-      d_cur = d_fst+n;
-      d_lst = d_fst+2*n;
+  Space::notice(Actor& a, ActorProperty p, bool duplicate) {
+    if (p & AP_DISPOSE) {
+      if (duplicate && (d_fst != NULL)) {
+        for (Actor** f = d_fst; f < d_cur; f++)
+          if (&a == *f)
+            return;
+      }
+      if (d_cur == d_lst) {
+        // Resize
+        if (d_fst == NULL) {
+          // Create new array
+          d_fst = alloc<Actor*>(4);
+          d_cur = d_fst;
+          d_lst = d_fst+4;
+        } else {
+          // Resize existing array
+          unsigned int n = static_cast<unsigned int>(d_lst - d_fst);
+          assert(n != 0);
+          d_fst = realloc<Actor*>(d_fst,n,2*n);
+          d_cur = d_fst+n;
+          d_lst = d_fst+2*n;
+        }
+      }
+      *(d_cur++) = &a;
+    } else if (p & AP_WEAKLY) {
+      if (wmp() == 0)
+        wmp(2);
+      else
+        wmp(wmp()+1);
+    }
+  }
+
+  void
+  Space::ignore(Actor& a, ActorProperty p, bool duplicate) {
+    if (p & AP_DISPOSE) {
+      // Check wether array has already been discarded as space
+      // deletion is already in progress
+      if (d_fst == NULL)
+        return;
+      Actor** f = d_fst;
+      if (duplicate) {
+        while (f < d_cur)
+          if (&a == *f)
+            break;
+          else
+            f++;
+        if (f == d_cur)
+          return;
+      } else {
+        while (&a != *f)
+          f++;
+      }
+      *f = *(--d_cur);
+    } else if (p & AP_WEAKLY) {
+      assert(wmp() > 1U);
+      wmp(wmp()-1);
     }
   }
 
@@ -348,7 +400,7 @@ namespace Gecode {
   void
   Space::_commit(const Choice& c, unsigned int a) {
     if (a >= c.alternatives())
-      throw SpaceIllegalAlternative();
+      throw SpaceIllegalAlternative("Space::commit");
     if (failed())
       return;
     if (Brancher* b = brancher(c._id)) {
@@ -358,6 +410,21 @@ namespace Gecode {
     } else {
       // There is no matching brancher!
       throw SpaceNoBrancher("Space::commit");
+    }
+  }
+
+  void
+  Space::print(const Choice& c, unsigned int a, std::ostream& o) const {
+    if (a >= c.alternatives())
+      throw SpaceIllegalAlternative("Space::print");
+    if (failed())
+      return;
+    if (Brancher* b = const_cast<Space&>(*this).brancher(c._id)) {
+      // There is a matching brancher
+      b->print(*this,c,a,o);
+    } else {
+      // There is no matching brancher!
+      throw SpaceNoBrancher("Space::print");
     }
   }
 
@@ -569,6 +636,13 @@ namespace Gecode {
       for (Propagators p(*this); p(); ++p)
         (void) gafc.afc(p.propagator().gafc);
     gafc.decay(d);
+  }
+
+  void
+  Space::afc_set(double a) {
+    afc_enable();
+    for (Propagators p(*this); p(); ++p)
+      gafc.set(p.propagator().gafc,a);
   }
 
 

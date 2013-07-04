@@ -7,8 +7,8 @@
  *     Christian Schulte, 2008
  *
  *  Last modified:
- *     $Date: 2013-03-07 20:56:21 +0100 (Thu, 07 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13463 $
+ *     $Date: 2013-04-08 16:39:34 +0200 (Mon, 08 Apr 2013) $ by $Author: schulte $
+ *     $Revision: 13567 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -46,16 +46,6 @@ namespace Gecode { namespace Search {
   forceinline Space*
   snapshot(Space* s, const Options& o, bool share=true);
 
-  /// A failed space by construction
-  class GECODE_VTABLE_EXPORT FailedSpace : public Space {
-  public:
-    /// Constructor for creation
-    FailedSpace(void);
-    /// Copy during cloning
-    GECODE_SEARCH_EXPORT
-    virtual Space* copy(bool share);
-  };
-
   /// Virtualize a worker to an engine
   template<class Worker>
   class WorkerToEngine : public Engine {
@@ -82,12 +72,6 @@ namespace Gecode { namespace Search {
   }
 
   
-  forceinline
-  FailedSpace::FailedSpace(void) {
-    fail();
-  }
-  
-
   template<class Worker>
   WorkerToEngine<Worker>::WorkerToEngine(Space* s, size_t sz, 
                                          const Options& o) 

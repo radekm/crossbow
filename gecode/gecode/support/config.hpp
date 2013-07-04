@@ -7,8 +7,8 @@
  *     Guido Tack, 2008
  *
  *  Last modified:
- *     $Date: 2012-03-27 15:34:39 +0200 (Tue, 27 Mar 2012) $ by $Author: schulte $
- *     $Revision: 12635 $
+ *     $Date: 2013-07-01 06:38:48 +0200 (Mon, 01 Jul 2013) $ by $Author: tack $
+ *     $Revision: 13740 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -81,7 +81,7 @@
 #define GECODE_HAS_UNISTD_H 1
 
 /* Gecode version */
-#define GECODE_LIBRARY_VERSION "4-0-0"
+#define GECODE_LIBRARY_VERSION "4-1-0"
 
 /* Heap memory alignment */
 /* #undef GECODE_MEMORY_ALIGNMENT */
@@ -89,8 +89,14 @@
 /* Whether we are compiling static libraries */
 #define GECODE_STATIC_LIBS /**/
 
+/* Whether we have Mac OS threads */
+/* #undef GECODE_THREADS_OSX */
+
 /* Whether we have posix threads */
 #define GECODE_THREADS_PTHREADS 1
+
+/* Whether we have posix spinlocks */
+#define GECODE_THREADS_PTHREADS_SPINLOCK 1
 
 /* Whether we have windows threads */
 /* #undef GECODE_THREADS_WINDOWS */
@@ -102,10 +108,10 @@
 #define GECODE_USE_GETTIMEOFDAY 1
 
 /* Gecode version */
-#define GECODE_VERSION "4.0.0"
+#define GECODE_VERSION "4.1.0"
 
 /* Gecode version */
-#define GECODE_VERSION_NUMBER 400000
+#define GECODE_VERSION_NUMBER 400100
 
 /* How to tell the compiler to really, really inline */
 #define forceinline inline __attribute__ ((__always_inline__))

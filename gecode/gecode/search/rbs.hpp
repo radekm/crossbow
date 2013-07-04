@@ -7,8 +7,8 @@
  *     Guido Tack, 2012
  *
  *  Last modified:
- *     $Date: 2013-03-08 11:11:37 +0100 (Fri, 08 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13482 $
+ *     $Date: 2013-04-08 16:39:34 +0200 (Mon, 08 Apr 2013) $ by $Author: schulte $
+ *     $Revision: 13567 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -63,7 +63,7 @@ namespace Gecode {
     if (m_opt.clone) {
       if (s->status(ms->m_stat) == SS_FAILED) {
         ms->m_stat.fail++;
-        master = new Search::FailedSpace();
+        master = NULL;
       } else {
         master = s->clone();
       }

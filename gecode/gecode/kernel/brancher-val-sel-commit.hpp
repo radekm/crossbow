@@ -7,8 +7,8 @@
  *     Christian Schulte, 2012
  *
  *  Last modified:
- *     $Date: 2012-10-30 07:46:12 +0100 (Tue, 30 Oct 2012) $ by $Author: tack $
- *     $Revision: 13166 $
+ *     $Date: 2013-05-02 17:10:16 +0200 (Thu, 02 May 2013) $ by $Author: schulte $
+ *     $Revision: 13603 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -60,7 +60,12 @@ namespace Gecode {
     /// Return value of view \a x at position \a i
     virtual Val val(const Space& home, View x, int i) = 0;
     /// Commit view \a x at position \a i to value \a n for alternative \a a
-    virtual ModEvent commit(Space& home, unsigned int a, View x, int i, Val n) = 0;
+    virtual ModEvent commit(Space& home, unsigned int a, 
+                            View x, int i, Val n) = 0;
+    /// Print on \a o branch for alternative \a a, view \a x at position \a i, and value \a n
+    virtual void print(const Space& home, unsigned int a,
+                       View x, int i, const Val& n,
+                       std::ostream& o) const = 0;
     /// Perform cloning
     virtual ValSelCommitBase<View,Val>* copy(Space& home, bool shared) = 0;
     /// Whether dispose must always be called (that is, notice is needed)
@@ -101,6 +106,10 @@ namespace Gecode {
     virtual Val val(const Space& home, View x, int i);
     /// Commit view \a x at position \a i to value \a n for alternative \a a
     virtual ModEvent commit(Space& home, unsigned int a, View x, int i, Val n);
+    /// Print on \a o branch for alternative \a a, view \a x at position \a i, and value \a n
+    virtual void print(const Space& home, unsigned int a,
+                       View x, int i, const Val& n,
+                       std::ostream& o) const;
     /// Perform cloning
     virtual ValSelCommit<ValSel,ValCommit>* copy(Space& home, bool shared);
     /// Whether dispose must always be called (that is, notice is needed)
@@ -158,6 +167,14 @@ namespace Gecode {
   ValSelCommit<ValSel,ValCommit>::commit(Space& home, unsigned int a, 
                                          View x, int i, Val n) {
     return c.commit(home,a,x,i,n);
+  }
+
+  template<class ValSel, class ValCommit>
+  void
+  ValSelCommit<ValSel,ValCommit>::print(const Space& home, unsigned int a, 
+                                        View x, int i, const Val& n,
+                                        std::ostream& o) const {
+    c.print(home,a,x,i,n,o);
   }
 
   template<class ValSel, class ValCommit>

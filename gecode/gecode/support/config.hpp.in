@@ -6,8 +6,8 @@
  *     Guido Tack, 2008
  *
  *  Last modified:
- *     $Date: 2012-03-27 15:34:39 +0200 (Tue, 27 Mar 2012) $ by $Author: schulte $
- *     $Revision: 12635 $
+ *     $Date: 2013-07-01 06:38:48 +0200 (Mon, 01 Jul 2013) $ by $Author: tack $
+ *     $Revision: 13740 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -88,8 +88,14 @@
 /* Whether we are compiling static libraries */
 #undef GECODE_STATIC_LIBS
 
+/* Whether we have Mac OS threads */
+#undef GECODE_THREADS_OSX
+
 /* Whether we have posix threads */
 #undef GECODE_THREADS_PTHREADS
+
+/* Whether we have posix spinlocks */
+#undef GECODE_THREADS_PTHREADS_SPINLOCK
 
 /* Whether we have windows threads */
 #undef GECODE_THREADS_WINDOWS

@@ -7,8 +7,8 @@
  *     Christian Schulte, 2012
  *
  *  Last modified:
- *     $Date: 2013-03-05 20:51:24 +0100 (Tue, 05 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13438 $
+ *     $Date: 2013-06-23 18:58:11 +0200 (Sun, 23 Jun 2013) $ by $Author: schulte $
+ *     $Revision: 13729 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -123,7 +123,7 @@ namespace Gecode {
 
   inline IntValBranch
   INT_VALUES_MAX(void) {
-    return IntValBranch(IntValBranch::SEL_VALUES_MIN);
+    return IntValBranch(IntValBranch::SEL_VALUES_MAX);
   }
 
   inline IntValBranch

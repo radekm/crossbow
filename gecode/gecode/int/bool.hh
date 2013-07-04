@@ -9,8 +9,8 @@
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2011-10-07 11:28:27 +0200 (Fri, 07 Oct 2011) $ by $Author: schulte $
- *     $Revision: 12427 $
+ *     $Date: 2013-04-17 17:17:53 +0200 (Wed, 17 Apr 2013) $ by $Author: schulte $
+ *     $Revision: 13580 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -566,6 +566,84 @@ namespace Gecode { namespace Int { namespace Bool {
   };
 
 
+  /**
+   * \brief If-then-else propagator base-class
+   *
+   * Requires \code #include <gecode/int/bool.hh> \endcode
+   * \ingroup FuncIntProp
+   */
+  template<class View, PropCond pc>
+  class IteBase : public Propagator {
+  protected:
+    /// View for condition
+    BoolView b;
+    /// Views
+    View x0, x1, x2;
+    /// Constructor for cloning \a p
+    IteBase(Space& home, bool share, IteBase& p);
+    /// Constructor for creation
+    IteBase(Home home, BoolView b, View x0, View x1, View x2);
+  public:
+    /// Cost function (defined as low ternary)
+    virtual PropCost cost(const Space& home, const ModEventDelta& med) const;
+    /// Delete propagator and return its size
+    virtual size_t dispose(Space& home);
+  };
+
+  /**
+   * \brief If-then-else bounds-consistent propagator
+   *
+   * Requires \code #include <gecode/int/bool.hh> \endcode
+   * \ingroup FuncIntProp
+   */
+  template<class View>
+  class IteBnd : public IteBase<View,PC_INT_BND> {
+  protected:
+    using IteBase<View,PC_INT_BND>::b;
+    using IteBase<View,PC_INT_BND>::x0;
+    using IteBase<View,PC_INT_BND>::x1;
+    using IteBase<View,PC_INT_BND>::x2;
+    /// Constructor for cloning \a p
+    IteBnd(Space& home, bool share, IteBnd& p);
+    /// Constructor for creation
+    IteBnd(Home home, BoolView b, View x0, View x1, View x2);
+  public:
+    /// Copy propagator during cloning
+    virtual Actor* copy(Space& home, bool share);
+    /// Perform propagation
+    virtual ExecStatus propagate(Space& home, const ModEventDelta& med);
+    /// Post if-then-else propagator
+    static ExecStatus post(Home home, BoolView b, View x0, View x1, View x2);
+  };
+
+  /**
+   * \brief If-then-else domain-consistent propagator
+   *
+   * Requires \code #include <gecode/int/bool.hh> \endcode
+   * \ingroup FuncIntProp
+   */
+  template<class View>
+  class IteDom : public IteBase<View,PC_INT_DOM> {
+  protected:
+    using IteBase<View,PC_INT_DOM>::b;
+    using IteBase<View,PC_INT_DOM>::x0;
+    using IteBase<View,PC_INT_DOM>::x1;
+    using IteBase<View,PC_INT_DOM>::x2;
+    /// Constructor for cloning \a p
+    IteDom(Space& home, bool share, IteDom& p);
+    /// Constructor for creation
+    IteDom(Home home, BoolView b, View x0, View x1, View x2);
+  public:
+    /// Copy propagator during cloning
+    virtual Actor* copy(Space& home, bool share);
+    /// Cost function (defined as high ternary)
+    virtual PropCost cost(const Space& home, const ModEventDelta& med) const;
+    /// Perform propagation
+    virtual ExecStatus propagate(Space& home, const ModEventDelta& med);
+    /// Post if-then-else propagator
+    static ExecStatus post(Home home, BoolView b, View x0, View x1, View x2);
+  };
+
 }}}
 
 #include <gecode/int/bool/base.hpp>
@@ -574,6 +652,7 @@ namespace Gecode { namespace Int { namespace Bool {
 #include <gecode/int/bool/or.hpp>
 #include <gecode/int/bool/eqv.hpp>
 #include <gecode/int/bool/clause.hpp>
+#include <gecode/int/bool/ite.hpp>
 
 #endif
 
