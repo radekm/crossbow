@@ -35,6 +35,7 @@ FILES[] =
     clause
     clause2
     prob
+    prop_det
     term_def
     splitting
     tptp_prob

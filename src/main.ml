@@ -53,6 +53,16 @@ let transform_each_clause prob (trans : 's Clause.t -> 's Clause.t list) =
         cs;
       cs')
 
+let detect_commutativity_transform =
+  let transform prob =
+    transform_clauses
+      prob
+      (Prop_det.detect_commutativity prob.Prob.symbols) in
+  {
+    t_func = transform;
+    t_flattening = F_preserves;
+  }
+
 let simplify_transform =
   let transform prob =
     transform_clauses prob (Clause.simplify_all prob.Prob.symbols) in
@@ -120,6 +130,7 @@ let paradox_mod_splitting_transform =
   }
 
 type transform_id =
+  | T_detect_commutativity
   | T_simplify
   | T_rewrite_ground_terms
   | T_unflatten
@@ -130,6 +141,7 @@ type transform_id =
 
 let all_transforms =
   [
+    T_detect_commutativity, detect_commutativity_transform;
     T_simplify, simplify_transform;
     T_rewrite_ground_terms, rewrite_ground_terms_transform;
     T_unflatten, unflatten_transform;
@@ -389,8 +401,8 @@ let minisat_solver =
     s_func;
     s_only_flat_clauses = true;
     s_default_transforms = [
-      T_rewrite_ground_terms; T_unflatten; T_define_ground_terms;
-      T_flatten; T_paradox_mod_splitting
+      T_detect_commutativity; T_rewrite_ground_terms; T_unflatten;
+      T_define_ground_terms; T_flatten; T_paradox_mod_splitting;
     ];
   }
 
@@ -401,8 +413,8 @@ let cmsat_solver =
     s_func;
     s_only_flat_clauses = true;
     s_default_transforms = [
-      T_rewrite_ground_terms; T_unflatten; T_define_ground_terms;
-      T_flatten; T_paradox_mod_splitting
+      T_detect_commutativity; T_rewrite_ground_terms; T_unflatten;
+      T_define_ground_terms; T_flatten; T_paradox_mod_splitting;
     ];
   }
 
@@ -412,7 +424,9 @@ let gecode_solver =
   {
     s_func;
     s_only_flat_clauses = false;
-    s_default_transforms = [ T_rewrite_ground_terms; T_unflatten ];
+    s_default_transforms = [
+      T_detect_commutativity; T_rewrite_ground_terms; T_unflatten;
+    ];
   }
 
 let only_preproc_solver =
@@ -545,6 +559,8 @@ let solver =
 
 let transforms =
   let flags = [
+    T_detect_commutativity,
+    Arg.info ["detect-commutativity"] ~docs:"TRANSFORMATIONS";
     T_simplify,
     Arg.info ["simplify"] ~docs:"TRANSFORMATIONS";
     T_rewrite_ground_terms,
