@@ -107,6 +107,40 @@ let test_set_auxiliary_rejects_predefined_symbs () =
     (Failure "predefined symbol")
     (fun () -> Symb.set_auxiliary db Symb.sym_eq true)
 
+let test_add_hint () =
+  let Symb.Wr db = Symb.create_db () in
+  let p = Symb.add_pred db 2 in
+  let f = Symb.add_func db 2 in
+  let g = Symb.add_func db 1 in
+  let c = Symb.add_func db 0 in
+  Symb.add_hint db g Symb.Permutation;
+  Symb.add_hint db f Symb.Latin_square;
+  assert_equal [] (Symb.hints db p);
+  assert_equal [Symb.Latin_square] (Symb.hints db f);
+  assert_equal [Symb.Permutation] (Symb.hints db g);
+  assert_equal [] (Symb.hints db c)
+
+let test_add_hint_rejects_predefined_symbs () =
+  let Symb.Wr db = Symb.create_db () in
+  assert_raises
+    (Failure "predefined symbol")
+    (fun () -> Symb.add_hint db Symb.sym_eq Symb.Latin_square)
+
+let test_add_hint_rejects_incompatible_symbs () =
+  let Symb.Wr db = Symb.create_db () in
+  let p = Symb.add_pred db 2 in
+  let f = Symb.add_func db 2 in
+  let c = Symb.add_func db 0 in
+  assert_raises
+    (Failure "kind")
+    (fun () -> Symb.add_hint db p Symb.Latin_square);
+  assert_raises
+    (Failure "latin square")
+    (fun () -> Symb.add_hint db c Symb.Latin_square);
+  assert_raises
+    (Failure "permutation")
+    (fun () -> Symb.add_hint db f Symb.Permutation)
+
 let suite =
   "Symb suite" >:::
     [
@@ -122,4 +156,9 @@ let suite =
       "set_auxiliary" >:: test_set_auxiliary;
       "set_auxiliary rejects predefined symbols" >::
         test_set_auxiliary_rejects_predefined_symbs;
+      "add_hint" >:: test_add_hint;
+      "add_hint rejects predefined symbols" >::
+        test_add_hint_rejects_predefined_symbs;
+      "add_hint rejects incompatible symbols" >::
+        test_add_hint_rejects_incompatible_symbs;
     ]

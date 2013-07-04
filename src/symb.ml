@@ -8,10 +8,15 @@ type kind =
   | Func
   | Pred
 
+type hint =
+  | Permutation
+  | Latin_square
+
 type 's symbol = {
   s_id : 's id;
   s_commutative : bool;
   s_auxiliary : bool;
+  s_hints : hint list;
 }
 
 type 's db = {
@@ -61,6 +66,7 @@ let create_db () =
     s_id = sym_eq;
     s_commutative = true;
     s_auxiliary = false;
+    s_hints = [];
   };
 
   Wr { by_id }
@@ -72,6 +78,7 @@ let add_func db arity =
     s_id = id;
     s_commutative = false;
     s_auxiliary = false;
+    s_hints = [];
   };
   id
 
@@ -82,6 +89,7 @@ let add_pred db arity =
     s_id = id;
     s_commutative = false;
     s_auxiliary = false;
+    s_hints = [];
   };
   id
 
@@ -118,6 +126,23 @@ let set_auxiliary db sym aux =
     failwith "predefined symbol";
   let symb = get db sym in
   BatDynArray.set db.by_id (Id.to_idx sym) { symb with s_auxiliary = aux }
+
+let hints db sym = (get db sym).s_hints
+
+let add_hint db sym hint =
+  if sym = sym_eq then
+    failwith "predefined symbol";
+  if kind sym <> Func then
+    failwith "kind";
+  begin match hint with
+    | Permutation ->
+        if arity sym <> 1 then failwith "permutation"
+    | Latin_square ->
+        if arity sym <> 2 then failwith "latin square"
+  end;
+  let symb = get db sym in
+  let s_hints = BatList.sort_unique compare (hint :: symb.s_hints) in
+  BatDynArray.set db.by_id (Id.to_idx sym) { symb with s_hints }
 
 module IntMap = BatMap.IntMap
 

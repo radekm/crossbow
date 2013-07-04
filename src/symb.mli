@@ -25,6 +25,13 @@ type kind =
   | Func
   | Pred
 
+(** Note: Solver may ignore these without affecting correctness. *)
+type hint =
+  | Permutation
+  (** For unary functions. *)
+  | Latin_square
+  (** For binary functions. *)
+
 (** Creates a new symbol database containing only the predefined symbols. *)
 val create_db : unit -> wdb
 
@@ -76,6 +83,17 @@ val auxiliary : 's db -> 's id -> bool
    Raises [Failure] if the symbol is predefined.
 *)
 val set_auxiliary : 's db -> 's id -> bool -> unit
+
+(** Returns the hints of the given symbol. *)
+val hints : 's db -> 's id -> hint list
+
+(** Records hint for the given symbol.
+
+   Raises [Failure] if the symbol is predefined
+   or if the hint is not compatible with the kind
+   or the arity of the symbol.
+*)
+val add_hint : 's db -> 's id -> hint -> unit
 
 (** {6 Predefined symbols}
 
