@@ -7,3 +7,8 @@
 *)
 val detect_commutativity :
   's Symb.db -> 's Clause.t BatDynArray.t -> 's Clause.t BatDynArray.t
+
+(** Detect group axioms and add hints [Symb.Latin_square] to multiplication
+   symbols and [Symb.Permutation] to inversion symbols.
+*)
+val detect_hints_for_groups : 's Symb.db -> 's Clause.t BatDynArray.t -> unit

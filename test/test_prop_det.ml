@@ -70,10 +70,45 @@ let test_detect_commutativity3 () =
   assert_equal [clause] (BatDynArray.to_list new_clauses);
   assert_bool "" (Symb.commutative db f |> not)
 
+let test_detect_hints_for_groups () =
+  let Symb.Wr db = Symb.create_db () in
+  let esymb = Symb.add_func db 0 in
+  let e = T.func (esymb, [| |]) in
+  let gsymb = Symb.add_func db 1 in
+  let g a = T.func (gsymb, [| a |]) in
+  let fsymb = Symb.add_func db 2 in
+  let f a b = T.func (fsymb, [| a; b |]) in
+  let x = T.var 1 in
+  let y = T.var 2 in
+  let z = T.var 0 in
+  let clauses =
+    BatDynArray.of_list
+      [
+        [ L.mk_eq e (g e) ];
+        [ L.mk_eq (f (f x y) z) (f x (f y z)) ];
+        [ L.mk_eq (f x e) x ];
+        [ L.mk_eq (f e x) x ];
+        [ L.mk_eq x (g (g x)) ];
+        [ L.mk_eq (f (g x) x) e ];
+      ] in
+
+  Prop_det.detect_hints_for_groups db clauses;
+  assert_equal [] (Symb.hints db esymb);
+  assert_equal [] (Symb.hints db gsymb);
+  assert_equal [] (Symb.hints db fsymb);
+
+  (* Add missing axiom. *)
+  BatDynArray.add clauses [ L.mk_eq e (f x (g x)) ];
+  Prop_det.detect_hints_for_groups db clauses;
+  assert_equal [] (Symb.hints db esymb);
+  assert_equal [Symb.Permutation] (Symb.hints db gsymb);
+  assert_equal [Symb.Latin_square] (Symb.hints db fsymb)
+
 let suite =
   "Prop_det suite" >:::
     [
       "detect_commutativity" >:: test_detect_commutativity;
       "detect_commutativity 2" >:: test_detect_commutativity2;
       "detect_commutativity 3" >:: test_detect_commutativity3;
+      "detect_hints_for_groups" >:: test_detect_hints_for_groups;
     ]
