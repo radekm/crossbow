@@ -75,6 +75,18 @@ let detect_hints_for_groups_transform =
     t_flattening = F_preserves;
   }
 
+let detect_hints_for_quasigroups_transform =
+  let transform prob =
+    transform_clauses
+      prob
+      (fun cs ->
+        Prop_det.detect_hints_for_quasigroups prob.Prob.symbols cs;
+        cs) in
+  {
+    t_func = transform;
+    t_flattening = F_preserves;
+  }
+
 let simplify_transform =
   let transform prob =
     transform_clauses prob (Clause.simplify_all prob.Prob.symbols) in
@@ -144,6 +156,7 @@ let paradox_mod_splitting_transform =
 type transform_id =
   | T_detect_commutativity
   | T_detect_hints_for_groups
+  | T_detect_hints_for_quasigroups
   | T_simplify
   | T_rewrite_ground_terms
   | T_unflatten
@@ -156,6 +169,7 @@ let all_transforms =
   [
     T_detect_commutativity, detect_commutativity_transform;
     T_detect_hints_for_groups, detect_hints_for_groups_transform;
+    T_detect_hints_for_quasigroups, detect_hints_for_quasigroups_transform;
     T_simplify, simplify_transform;
     T_rewrite_ground_terms, rewrite_ground_terms_transform;
     T_unflatten, unflatten_transform;
@@ -439,7 +453,8 @@ let gecode_solver =
     s_func;
     s_only_flat_clauses = false;
     s_default_transforms = [
-      T_detect_commutativity; T_detect_hints_for_groups;
+      T_detect_commutativity;
+      T_detect_hints_for_groups; T_detect_hints_for_quasigroups;
       T_rewrite_ground_terms; T_unflatten;
     ];
   }
@@ -578,6 +593,8 @@ let transforms =
     Arg.info ["detect-commutativity"] ~docs:"TRANSFORMATIONS";
     T_detect_hints_for_groups,
     Arg.info ["detect-hints-for-groups"] ~docs:"TRANSFORMATIONS";
+    T_detect_hints_for_quasigroups,
+    Arg.info ["detect-hints-for-quasigroups"] ~docs:"TRANSFORMATIONS";
     T_simplify,
     Arg.info ["simplify"] ~docs:"TRANSFORMATIONS";
     T_rewrite_ground_terms,

@@ -104,6 +104,37 @@ let test_detect_hints_for_groups () =
   assert_equal [Symb.Permutation] (Symb.hints db gsymb);
   assert_equal [Symb.Latin_square] (Symb.hints db fsymb)
 
+let test_detect_hints_for_quasigroups () =
+  let Symb.Wr db = Symb.create_db () in
+  let multsymb = Symb.add_func db 2 in
+  let mult a b = T.func (multsymb, [| a; b |]) in
+  let ldsymb = Symb.add_func db 2 in
+  let ld a b = T.func (ldsymb, [| a; b |]) in
+  let rdsymb = Symb.add_func db 2 in
+  let rd a b = T.func (rdsymb, [| a; b |]) in
+  let gsymb = Symb.add_func db 2 in
+  let g a b = T.func (gsymb, [| a; b |]) in
+  let x = T.var 1 in
+  let y = T.var 2 in
+  let clauses =
+    BatDynArray.of_list
+      [
+        (* Quasigroup: mult, ld, rd. *)
+        [ L.mk_eq (mult y (ld y x)) x ];
+        [ L.mk_eq x (mult (rd x y) y) ];
+        [ L.mk_eq x (rd (mult x y) y) ];
+        [ L.mk_eq (ld y (mult y x)) x ];
+        (* Quasigroup: rd, g, mult. *)
+        [ L.mk_eq (rd y (g y x)) x ];
+        [ L.mk_eq (g y (rd y x)) x ];
+      ] in
+
+  Prop_det.detect_hints_for_quasigroups db clauses;
+  assert_equal [Symb.Latin_square] (Symb.hints db multsymb);
+  assert_equal [] (Symb.hints db ldsymb);
+  assert_equal [Symb.Latin_square] (Symb.hints db rdsymb);
+  assert_equal [] (Symb.hints db gsymb)
+
 let suite =
   "Prop_det suite" >:::
     [
@@ -111,4 +142,5 @@ let suite =
       "detect_commutativity 2" >:: test_detect_commutativity2;
       "detect_commutativity 3" >:: test_detect_commutativity3;
       "detect_hints_for_groups" >:: test_detect_hints_for_groups;
+      "detect_hints_for_quasigroups" >:: test_detect_hints_for_quasigroups;
     ]

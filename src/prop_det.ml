@@ -121,3 +121,54 @@ let detect_hints_for_groups symdb clauses =
         Symb.add_hint symdb g Symb.Permutation
       end)
     !fxgx_0
+
+(* Note: commutativity is not supported. *)
+let detect_hints_for_quasigroups symdb clauses =
+  let x_mylyx = ref BatSet.empty in
+  let x_lymyx = ref BatSet.empty in
+  let x_mrxyy = ref BatSet.empty in
+  let x_rmxyy = ref BatSet.empty in
+
+  let record_axiom l r =
+    match l with
+      | T.Var 0 ->
+          begin match r with
+            (* x = mult(y, ld(y, x)) or
+               x = ld(y, mult(y, x))
+            *)
+            | T.Func (s,
+                      [|
+                        T.Var 1;
+                        T.Func (s', [| T.Var 1; T.Var 0 |]);
+                      |]) ->
+                x_mylyx := BatSet.add (s, s') !x_mylyx;
+                x_lymyx := BatSet.add (s', s) !x_lymyx
+            (* x = mult(rd(x, y), y) or
+               x = rd(mult(x, y), y)
+            *)
+            | T.Func (s,
+                      [|
+                        T.Func (s', [| T.Var 0; T.Var 1 |]);
+                        T.Var 1;
+                      |]) ->
+                x_mrxyy := BatSet.add (s, s') !x_mrxyy;
+                x_rmxyy := BatSet.add (s', s) !x_rmxyy
+            | _ -> ()
+          end
+      | _ -> () in
+
+  iter_axioms record_axiom symdb clauses;
+
+  BatSet.iter
+    (fun (mult, ld) ->
+      if BatSet.mem (mult, ld) !x_lymyx then
+        BatSet.iter
+          (fun (mult', rd) ->
+            if
+              mult = mult' &&
+              BatSet.mem (mult, rd) !x_rmxyy
+            then begin
+              Symb.add_hint symdb mult Symb.Latin_square
+            end)
+          !x_mrxyy)
+    !x_mylyx
