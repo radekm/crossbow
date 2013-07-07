@@ -3,12 +3,119 @@
 let (|-) = BatPervasives.(|-)
 let (|>) = BatPervasives.(|>)
 
+module T = Term
+module L = Lit
+
 module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
 
 let option_to_list = function
   | None -> []
   | Some a -> [a]
+
+let preds_in_clause lits =
+  let preds = ref BatSet.empty in
+  List.iter
+    (fun (L.Lit (_, s, _)) ->
+      if s <> Symb.sym_eq then
+        preds := BatSet.add s !preds)
+    lits;
+  !preds
+
+let funcs_in_clause lits =
+  let funcs = ref BatSet.empty in
+  List.iter
+    (fun lit ->
+      L.iter
+        (function
+        | T.Var _ -> ()
+        | T.Func (s, _) -> funcs := BatSet.add s !funcs)
+        lit)
+    lits;
+  !funcs
+
+(* ************************************************************************ *)
+(* Printing *)
+
+let print_symb_info verbose tp =
+  let p = tp.Tptp_prob.prob in
+  let symdb = p.Prob.symbols in
+  let clauses =
+    p.Prob.clauses
+    |> BatDynArray.to_array
+    |> Array.map (fun cl -> cl.Clause2.cl_lits) in
+  let preds =
+    Array.fold_left
+      (fun acc -> preds_in_clause |- BatSet.union acc)
+      BatSet.empty
+      clauses in
+  let funcs =
+    Array.fold_left
+      (fun acc -> funcs_in_clause |- BatSet.union acc)
+      BatSet.empty
+      clauses in
+  Printf.fprintf stderr "%d pred(s)\n" (BatSet.cardinal preds);
+  if verbose then
+    BatSet.iter
+      (fun s ->
+        let symmetric =
+          if Symb.commutative symdb s
+          then ", symmetric"
+          else "" in
+        Printf.fprintf stderr "    %3d arity%s\n" (Symb.arity s) symmetric)
+      preds;
+  Printf.fprintf stderr "%d func(s)\n" (BatSet.cardinal funcs);
+  if verbose then
+    BatSet.iter
+      (fun s ->
+        let commutative =
+          if Symb.commutative symdb s
+          then ", commutative"
+          else "" in
+        let hint =
+          match Symb.hints symdb s with
+            | [] -> ""
+            | [Symb.Permutation] -> ", permutation"
+            | [Symb.Latin_square] -> ", latin square"
+            | _ :: _ -> failwith "hints" in
+        Printf.fprintf stderr "    %3d arity%s%s\n"
+          (Symb.arity s) commutative hint)
+      funcs
+
+let print_clause_info verbose tp =
+  let p = tp.Tptp_prob.prob in
+  let clauses = p.Prob.clauses in
+  Printf.fprintf stderr "%d clause(s)\n" (BatDynArray.length clauses);
+  if verbose then begin
+    let compute_stats cl =
+      let cl = cl.Clause2.cl_lits in
+      let _, nvars = Clause.normalize_vars cl in
+      let nlits = List.length cl in
+      let npreds = preds_in_clause cl |> BatSet.cardinal in
+      let nfuncs = funcs_in_clause cl |> BatSet.cardinal in
+      (nvars, nlits, npreds, nfuncs) in
+    let stats =
+      clauses
+      |> BatDynArray.to_array
+      |> Array.map compute_stats in
+    Array.iter
+      (fun (nvars, nlits, npreds, nfuncs) ->
+        Printf.fprintf stderr
+          "    %3d var(s), %3d lit(s), %3d pred(s), %3d func(s)\n"
+          nvars nlits npreds nfuncs)
+      stats
+  end
+
+let print_sort_info verbose sorts =
+  let nsorts = Array.length sorts.Sorts.adeq_sizes in
+  Printf.fprintf stderr "%d sort(s)\n" nsorts;
+  if verbose then
+    for sort = 0 to nsorts - 1 do
+      Printf.fprintf stderr
+        "    %3d adequate size, %3d const(s)\n"
+        sorts.Sorts.adeq_sizes.(sort)
+        (Array.length sorts.Sorts.consts.(sort))
+    done
 
 (* ************************************************************************ *)
 (* Transforms *)
@@ -219,7 +326,7 @@ let has_time cfg =
     | Some ms -> ms > 0
 
 type solver = {
-  s_func : 's. 's Tptp_prob.t -> solver_config -> unit;
+  s_func : 's. 's Tptp_prob.t -> 's Sorts.t -> solver_config -> unit;
   s_only_flat_clauses : bool;
   s_default_transforms : transform_id list;
 }
@@ -259,16 +366,13 @@ let call_solver cfg inst solve solve_timed =
               failwith "unexpected result from the solver"
         end
 
-let sat_solve (module Inst : Sat_inst.Inst_sig) tp cfg =
+let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
   let print_instantiating dsize =
     print_with_time cfg (Printf.sprintf "Instantiating %d" dsize) in
 
   let p = tp.Tptp_prob.prob in
-  let sorts = Sorts.of_problem p in
   let inst = Inst.create p sorts in
   let model_cnt = ref 0 in
-
-  Printf.fprintf stderr "Clauses: %d\n" (BatDynArray.length p.Prob.clauses);
 
   for dsize = 1 to cfg.n_from - 1 do
     print_instantiating dsize;
@@ -355,8 +459,6 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
   let p = tp.Tptp_prob.prob in
   let model_cnt = ref 0 in
 
-  Printf.fprintf stderr "Clauses: %d\n" (BatDynArray.length p.Prob.clauses);
-
   if cfg.all_models then begin
     let dsize = cfg.n_from in
     if dsize < BatDynArray.length p.Prob.distinct_consts then
@@ -423,8 +525,8 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
     | n -> print_with_time cfg (Printf.sprintf "%d non-isomorphic models found" n)
 
 let minisat_solver =
-  let s_func tp cfg =
-    sat_solve (module Minisat_inst.Inst : Sat_inst.Inst_sig) tp cfg in
+  let s_func tp sorts cfg =
+    sat_solve (module Minisat_inst.Inst : Sat_inst.Inst_sig) tp sorts cfg in
   {
     s_func;
     s_only_flat_clauses = true;
@@ -435,8 +537,8 @@ let minisat_solver =
   }
 
 let cmsat_solver =
-  let s_func tp cfg =
-    sat_solve (module Cmsat_inst.Inst : Sat_inst.Inst_sig) tp cfg in
+  let s_func tp sorts cfg =
+    sat_solve (module Cmsat_inst.Inst : Sat_inst.Inst_sig) tp sorts cfg in
   {
     s_func;
     s_only_flat_clauses = true;
@@ -447,7 +549,7 @@ let cmsat_solver =
   }
 
 let gecode_solver =
-  let s_func tp cfg =
+  let s_func tp _ cfg =
     csp_solve (module Gecode_inst.Inst : Csp_inst.Inst_sig) tp cfg in
   {
     s_func;
@@ -460,7 +562,7 @@ let gecode_solver =
   }
 
 let only_preproc_solver =
-  let s_func tp cfg =
+  let s_func tp _ cfg =
     let b = Buffer.create 1024 in
     with_output cfg
       (fun out ->
@@ -489,6 +591,9 @@ let all_solvers =
     Solv_only_preproc, only_preproc_solver;
   ]
 
+(* ************************************************************************ *)
+(* Main *)
+
 let find_model
     transforms
     solver
@@ -497,6 +602,7 @@ let find_model
     all_models
     nthreads
     max_secs
+    verbose
     output_file
     base_dir
     in_file =
@@ -527,6 +633,13 @@ let find_model
     transforms;
   (* Normalize variables. *)
   transform_each_clause p (fun cl -> [Clause.normalize_vars cl |> fst]);
+  (* Infer sorts. *)
+  let sorts = Sorts.of_problem p in
+  (* Print statistics before solving. *)
+  print_symb_info verbose tptp_prob;
+  print_sort_info verbose sorts;
+  print_clause_info verbose tptp_prob;
+  flush stderr;
   (* Run selected solver. *)
   let cfg = {
     nthreads;
@@ -537,7 +650,7 @@ let find_model
     start_ms;
     max_ms = BatOption.map (fun secs -> secs * 1000) max_secs;
   } in
-  solver.s_func tptp_prob cfg
+  solver.s_func tptp_prob sorts cfg
 
 let in_file =
   let doc = "File with CNF clauses in TPTP format." in
@@ -551,6 +664,10 @@ let output_file =
   let doc = "Write model to this file." in
   Arg.(value & opt (some string) None &
          info ["output-file"] ~docv:"FILE" ~doc)
+
+let verbose =
+  let doc = "Show more statistics." in
+  Arg.(value & flag & info ["v"; "verbose"] ~doc)
 
 let max_secs =
   let doc = "Stop search after $(docv) seconds." in
@@ -615,7 +732,7 @@ let transforms =
 let find_model_t =
   Term.(pure find_model $ transforms $ solver $
           n_from $ n_to $ all_models $
-          nthreads $ max_secs $ output_file $ base_dir $ in_file)
+          nthreads $ max_secs $ verbose $ output_file $ base_dir $ in_file)
 
 let info =
   let doc = "finite model finder" in
