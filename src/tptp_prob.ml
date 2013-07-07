@@ -134,7 +134,8 @@ let rec iter_tptp_input
           | Ast.R_definition
           | Ast.R_lemma
           | Ast.R_theorem
-          | Ast.R_negated_conjecture ->
+          | Ast.R_negated_conjecture
+          | Ast.R_plain ->
               proc_clause ca.Tptp_ast.af_name ca.Tptp_ast.af_formula;
               iter_tptp_input proc_clause proc_include input
           | _ -> failwith "Unexpected role"
@@ -155,14 +156,21 @@ let combine_paths (a : string) (b : string) : string =
   BatPathGen.OfString.to_ustring
     (BatPathGen.OfString.normalize_in_tree res)
 
-let of_file base_dir file =
+let of_file ?(prob = None) base_dir file =
 
-  let Prob.Wr prob = Prob.create () in
-  let p = {
-    smap = { of_tptp = Hashtbl.create 20; to_tptp = Hashtbl.create 20 };
-    preds = Hashtbl.create 20;
-    prob;
-  } in
+  let Wr p =
+    match prob with
+      | Some p -> p
+      | None ->
+          let Prob.Wr prob = Prob.create () in
+          Wr {
+            smap = {
+              of_tptp = Hashtbl.create 20;
+              to_tptp = Hashtbl.create 20
+            };
+            preds = Hashtbl.create 20;
+            prob;
+          } in
 
   let rec of_file file selected =
     BatFile.with_file_in file (fun i ->
@@ -187,7 +195,12 @@ let of_file base_dir file =
   of_file file (fun _ -> true);
   Wr p
 
-let prob_to_tptp tp flat f =
+type commutativity =
+  | Ignore
+  | Export
+  | Export_flat
+
+let prob_to_tptp tp comm f =
   let clauses = tp.prob.Prob.clauses in
 
   (* Translate variable names. *)
@@ -302,7 +315,7 @@ let prob_to_tptp tp flat f =
         let lits symb =
           let l = Ast.Func (symb, args) in
           let r = Ast.Func (symb, args') in
-          if flat then
+          if comm = Export_flat then
             [
               Ast.Lit (Ast.Pos, Ast.Equals (Ast.Var (var arity), l));
               Ast.Lit (Ast.Neg, Ast.Equals (Ast.Var (var arity), r));
@@ -319,7 +332,7 @@ let prob_to_tptp tp flat f =
             | Not_found -> lits (aux_symb s) in
         f (make_cnf lits)
        end)
-    !seen_funcs
+    (if comm <> Ignore then !seen_funcs else BatSet.empty)
 
 module M = Model
 

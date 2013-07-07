@@ -381,7 +381,10 @@ let test_prob_to_tptp_vars () =
     };
   ] in
   let res = ref [] in
-  TP.prob_to_tptp tptp_prob true (fun cl -> res := cl :: !res);
+  TP.prob_to_tptp
+    tptp_prob
+    Tptp_prob.Export_flat
+    (fun cl -> res := cl :: !res);
   assert_equal exp (List.rev !res)
 
 let test_prob_to_tptp_aux_symbs () =
@@ -440,7 +443,10 @@ let test_prob_to_tptp_aux_symbs () =
     };
   ] in
   let res = ref [] in
-  TP.prob_to_tptp tptp_prob true (fun cl -> res := cl :: !res);
+  TP.prob_to_tptp
+    tptp_prob
+    Tptp_prob.Export_flat
+    (fun cl -> res := cl :: !res);
   assert_equal exp (List.rev !res)
 
 let test_prob_to_tptp_commutativity () =
@@ -507,10 +513,16 @@ let test_prob_to_tptp_commutativity () =
     Ast.af_annos = None;
   } in
   let res = ref [] in
-  TP.prob_to_tptp tptp_prob false (fun cl -> res := cl :: !res);
+  TP.prob_to_tptp
+    tptp_prob
+    Tptp_prob.Export
+    (fun cl -> res := cl :: !res);
   assert_equal [exp_clause; exp_comm] (List.rev !res);
   let res_flat = ref [] in
-  TP.prob_to_tptp tptp_prob true (fun cl -> res_flat := cl :: !res_flat);
+  TP.prob_to_tptp
+    tptp_prob
+    Tptp_prob.Export_flat
+    (fun cl -> res_flat := cl :: !res_flat);
   assert_equal [exp_clause; exp_flat_comm] (List.rev !res_flat)
 
 module M = Model

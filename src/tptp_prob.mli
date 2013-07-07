@@ -38,11 +38,16 @@ val add_clause : 's t -> Tptp_ast.cnf_formula -> unit
 
    Note: [base_dir] does not affect the path to the file [file].
 *)
-val of_file : string -> string -> wt
+val of_file : ?prob:(wt option) -> string -> string -> wt
+
+type commutativity =
+  | Ignore
+  | Export
+  | Export_flat
 
 val prob_to_tptp :
   's t ->
-  bool ->
+  commutativity ->
   (Tptp_ast.tptp_input -> unit) ->
   unit
 
