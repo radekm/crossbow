@@ -599,7 +599,10 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
   match !model_cnt with
     | 0 -> print_with_time cfg "No model found"
     | 1 -> print_with_time cfg "1 model found"
-    | n -> print_with_time cfg (Printf.sprintf "%d non-isomorphic models found" n)
+    | n ->
+        print_with_time
+          cfg
+          (Printf.sprintf "%d non-isomorphic models found" n)
 
 let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
   let print_instantiating dsize =
@@ -671,7 +674,10 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
   match !model_cnt with
     | 0 -> print_with_time cfg "No model found"
     | 1 -> print_with_time cfg "1 model found"
-    | n -> print_with_time cfg (Printf.sprintf "%d non-isomorphic models found" n)
+    | n ->
+        print_with_time
+          cfg
+          (Printf.sprintf "%d non-isomorphic models found" n)
 
 let minisat_solver =
   let s_func tp sorts cfg =
