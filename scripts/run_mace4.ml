@@ -26,7 +26,7 @@ let main
           (fun out ->
             let pid =
               Unix.create_process
-                tptp_to_ladr_exe [| |]
+                tptp_to_ladr_exe [| tptp_to_ladr_exe |]
                 (Unix.descr_of_in_channel inp)
                 (Unix.descr_of_out_channel out)
                 (Unix.descr_of_out_channel stderr) in

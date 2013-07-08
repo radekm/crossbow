@@ -67,6 +67,7 @@ let run_with_limits
   let args =
     Array.concat
       [
+        [| timeout_exe |];
         [| "-c"; "-o"; stats_file |];
         BatOption.map_default
           (fun max_time -> [| "-t"; string_of_int max_time |])
