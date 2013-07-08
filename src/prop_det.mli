@@ -18,3 +18,9 @@ val detect_hints_for_groups : 's Symb.db -> 's Clause.t BatDynArray.t -> unit
 *)
 val detect_hints_for_quasigroups :
   's Symb.db -> 's Clause.t BatDynArray.t -> unit
+
+(** For each involutivity axiom [f(f(x)) = x] add hint [Symb.Permutation]
+   to symbol [f].
+*)
+val detect_hints_for_involutive_funcs :
+  's Symb.db -> 's Clause.t BatDynArray.t -> unit

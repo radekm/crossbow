@@ -172,3 +172,14 @@ let detect_hints_for_quasigroups symdb clauses =
             end)
           !x_mrxyy)
     !x_mylyx
+
+let detect_hints_for_involutive_funcs symdb clauses =
+  let proc_axiom l r =
+    match l, r with
+      (* x = f(f(x)) *)
+      | T.Var 0, T.Func (f, [| T.Func (f', [| T.Var 0 |]) |])
+        when f = f' ->
+          Symb.add_hint symdb f Symb.Permutation
+      | _ -> () in
+
+  iter_axioms proc_axiom symdb clauses

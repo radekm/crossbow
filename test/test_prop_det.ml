@@ -135,6 +135,38 @@ let test_detect_hints_for_quasigroups () =
   assert_equal [Symb.Latin_square] (Symb.hints db rdsymb);
   assert_equal [] (Symb.hints db gsymb)
 
+let test_detect_hints_for_involutive_funcs () =
+  let Symb.Wr db = Symb.create_db () in
+  let f = Symb.add_func db 1 in
+  let g = Symb.add_func db 1 in
+  let h = Symb.add_func db 1 in
+  let i = Symb.add_func db 1 in
+  let clause = [
+    L.mk_eq
+      (T.func (f, [| T.func (g, [| T.var 1 |]) |]))
+      (T.var 1);
+  ] in
+  let clause2 = [
+    L.mk_eq
+      (T.var 1)
+      (T.func (h, [| T.var 0 |]));
+    L.mk_ineq
+      (T.func (h, [| T.var 1 |]))
+      (T.var 0);
+  ] in
+  let clause3 = [
+    L.mk_eq
+      (T.var 0)
+      (T.func (i, [| T.func (i, [| T.func (i, [| T.var 0 |]) |]) |]));
+  ] in
+  let clauses = BatDynArray.of_list [clause; clause2; clause3] in
+  Prop_det.detect_hints_for_involutive_funcs db clauses;
+
+  assert_equal [] (Symb.hints db f);
+  assert_equal [] (Symb.hints db g);
+  assert_equal [Symb.Permutation] (Symb.hints db h);
+  assert_equal [] (Symb.hints db i)
+
 let suite =
   "Prop_det suite" >:::
     [
@@ -143,4 +175,6 @@ let suite =
       "detect_commutativity 3" >:: test_detect_commutativity3;
       "detect_hints_for_groups" >:: test_detect_hints_for_groups;
       "detect_hints_for_quasigroups" >:: test_detect_hints_for_quasigroups;
+      "detect_hints_for_involutive_funcs" >::
+        test_detect_hints_for_involutive_funcs;
     ]
