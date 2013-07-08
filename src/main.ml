@@ -41,6 +41,15 @@ let funcs_in_clause lits =
     lits;
   !funcs
 
+let contains_empty_clause p =
+  try
+    BatDynArray.iter
+      (fun cl -> if cl.Clause2.cl_lits = [] then raise Exit)
+      p.Prob.clauses;
+    false
+  with
+    | Exit -> true
+
 (* ************************************************************************ *)
 (* Printing *)
 
@@ -833,7 +842,10 @@ let find_model
     start_ms;
     max_ms = BatOption.map (fun secs -> secs * 1000) max_secs;
   } in
-  solver.s_func tptp_prob sorts cfg
+  if contains_empty_clause p then
+    print_with_time cfg "\nNo model found - empty clause"
+  else
+    solver.s_func tptp_prob sorts cfg
 
 let in_file =
   let doc = "File with CNF clauses in TPTP format." in
