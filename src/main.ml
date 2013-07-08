@@ -805,7 +805,7 @@ let find_model
         max_symbs
         max_vars_when_flat
         max_lits_when_flat in
-    print_lemmas verbose tptp_prob lemmas;
+    print_lemmas (verbose >= 1) tptp_prob lemmas;
     BatDynArray.append lemmas p.Prob.clauses
   end;
   (* Preprocessing. *)
@@ -819,9 +819,9 @@ let find_model
   (* Infer sorts. *)
   let sorts = Sorts.of_problem p in
   (* Print statistics before solving. *)
-  print_symb_info verbose tptp_prob;
-  print_sort_info verbose sorts;
-  print_clause_info verbose tptp_prob;
+  print_symb_info (verbose >= 2) tptp_prob;
+  print_sort_info (verbose >= 2) sorts;
+  print_clause_info (verbose >= 3) tptp_prob;
   flush stderr;
   (* Run selected solver. *)
   let cfg = {
@@ -900,8 +900,8 @@ let detect_commutativity_from_lemmas =
            ~docv:"BOOL" ~doc ~docs:"LEMMA GENERATION")
 
 let verbose =
-  let doc = "Show more statistics." in
-  Arg.(value & flag & info ["v"; "verbose"] ~doc)
+  let doc = "Verbosity level of the program. $(docv) can be: 0, 1, 2, 3." in
+  Arg.(value & opt int 1 & info ["v"; "verbose"] ~docv:"N" ~doc)
 
 let max_secs =
   let doc = "Stop search after $(docv) seconds." in
