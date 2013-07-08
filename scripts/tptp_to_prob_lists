@@ -1,0 +1,24 @@
+#!/usr/bin/sh
+
+if [ $# -ne 2 ]
+then
+    echo "Usage: `basename $0` path-to-tptp output-directory"
+    exit 65
+fi
+
+TPTP=$1
+OUT_DIR=$2
+
+mkdir -p "$OUT_DIR"
+
+for path in "$TPTP"/Problems/*
+do
+    dir=`basename "$path"`
+    out_file="$OUT_DIR/$dir"
+    echo $dir
+    "$TPTP/Scripts/tptp2T" -q3 -pp Form CNF Status Satisfiable Domains $dir \
+        | awk -v path="$path" \
+        '{print path "/" $1 ".p" }' > "$out_file"
+    # Remove problem list if empty.
+    find "$out_file" -empty -delete
+done
