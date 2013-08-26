@@ -324,6 +324,8 @@ let test_constants () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 3 |]; (* c != 1 *)
       Solver.Enew_false_var 5;
       Solver.Esolve [| lit' 5 |];
     ];
@@ -337,6 +339,8 @@ let test_constants () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 3 |]; (* c != 1 *)
       Solver.Enew_false_var 6;
       Solver.Esolve [| lit' 6 |]
     ];
@@ -350,6 +354,8 @@ let test_constants () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 3 |]; (* c != 1 *)
       Solver.Enew_false_var 7;
       Solver.Esolve [| lit' 7 |]
     ]
@@ -420,6 +426,9 @@ let test_distinct_consts () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 2 |]; (* d2 != 0 *)
+      Solver.Eadd_clause [| lit' 5 |]; (* d != 1 *)
       Solver.Enew_false_var 7;
       Solver.Eadd_at_least_one_val_clause [| lit 0; lit 4; lit 7 |]; (* c *)
       Solver.Esolve [| lit' 7 |];
@@ -446,6 +455,11 @@ let test_distinct_consts () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 2 |]; (* d2 != 0 *)
+      Solver.Eadd_clause [| lit' 10 |]; (* d2 != 2 *)
+      Solver.Eadd_clause [| lit' 5 |]; (* d != 1 *)
+      Solver.Eadd_clause [| lit' 9 |]; (* d != 2 *)
       Solver.Enew_false_var 11;
       Solver.Esolve [| lit' 11 |];
     ];
@@ -473,6 +487,14 @@ let test_distinct_consts () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 12 |]; (* c != 3 *)
+      Solver.Eadd_clause [| lit' 2 |]; (* d2 != 0 *)
+      Solver.Eadd_clause [| lit' 10 |]; (* d2 != 2 *)
+      Solver.Eadd_clause [| lit' 14 |]; (* d2 != 3 *)
+      Solver.Eadd_clause [| lit' 5 |]; (* d != 1 *)
+      Solver.Eadd_clause [| lit' 9 |]; (* d != 2 *)
+      Solver.Eadd_clause [| lit' 13 |]; (* d != 3 *)
       Solver.Enew_false_var 15;
       Solver.Esolve [| lit' 15 |];
     ];
@@ -486,6 +508,14 @@ let test_distinct_consts () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 12 |]; (* c != 3 *)
+      Solver.Eadd_clause [| lit' 2 |]; (* d2 != 0 *)
+      Solver.Eadd_clause [| lit' 10 |]; (* d2 != 2 *)
+      Solver.Eadd_clause [| lit' 14 |]; (* d2 != 3 *)
+      Solver.Eadd_clause [| lit' 5 |]; (* d != 1 *)
+      Solver.Eadd_clause [| lit' 9 |]; (* d != 2 *)
+      Solver.Eadd_clause [| lit' 13 |]; (* d != 3 *)
       Solver.Enew_false_var 16;
       Solver.Esolve [| lit' 16 |];
     ]
@@ -537,6 +567,8 @@ let test_unary_func () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 2 |]; (* f(0) != 1 *)
       Solver.Enew_false_var 3;
       Solver.Esolve [| lit' 3 |];
     ];
@@ -554,6 +586,9 @@ let test_unary_func () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 2 |]; (* f(0) != 1 *)
+      Solver.Eadd_clause [| lit' 4 |]; (* f(0) != 2 *)
       Solver.Enew_false_var 5;
       Solver.Esolve [| lit' 5 |];
     ]
@@ -607,6 +642,8 @@ let test_unary_pred () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 3 |]; (* c != 1 *)
       Solver.Enew_false_var 5;
       Solver.Esolve [| lit' 5 |];
     ];
@@ -620,6 +657,8 @@ let test_unary_pred () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 3 |]; (* c != 1 *)
       Solver.Enew_false_var 6;
       Solver.Esolve [| lit' 6 |];
     ]
@@ -739,6 +778,8 @@ let test_commutative_func () =
   assert_equal Sh.Lundef (Inst.solve i);
   assert_log i
     [
+      (* Eliminated by symmetry reduction. *)
+      Solver.Eadd_clause [| lit' 17 |]; (* f(0, 0) != 2 *)
       Solver.Enew_false_var 20;
       (* f(1, 1) *)
       Solver.Eadd_at_least_one_val_clause

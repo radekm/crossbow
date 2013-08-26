@@ -399,6 +399,36 @@ struct
       )
       assigned_cells
 
+  let ban_values_eliminated_by_symmetry_reduction inst =
+    List.iter
+      (fun ((symb, args), (lo, hi)) ->
+        let adeq_sizes, commutative = BatMap.find symb inst.adeq_sizes in
+        let pvars = Hashtbl.find inst.pvars symb in
+        let arity = Array.length args in
+        let res_max_el =
+          if
+            adeq_sizes.(arity) = 0 ||
+            adeq_sizes.(arity) >= inst.max_size
+          then inst.max_size - 1
+          else adeq_sizes.(arity) - 1 in
+        let rank =
+          if commutative
+          then Assignment.rank_comm_me
+          else Assignment.rank_me in
+        let a = Array.copy adeq_sizes in
+        Array.blit args 0 a 0 arity;
+        (* Explicitly ban values which are not between lo and hi. *)
+        for result = 0 to res_max_el do
+          if result < lo || result > hi then begin
+            a.(arity) <- result;
+            let r, max_el_idx = rank a 0 (arity+1) adeq_sizes in
+            let pvar = r + BatDynArray.get pvars a.(max_el_idx) in
+            let plit = Solv.to_lit Sh.Neg pvar in
+            ignore (Solv.add_clause inst.solver [| plit |] 1)
+          end
+        done)
+      inst.assig_by_symred_list
+
   let add_at_most_one_val_clauses inst pclause =
     Array.iter
       (fun f ->
@@ -601,6 +631,7 @@ struct
       failwith "solve: max_size must be at least 1";
     if inst.max_size < inst.min_size then
       failwith "solve: max_size is too small";
+    ban_values_eliminated_by_symmetry_reduction inst;
     add_at_least_one_val_clauses inst;
     match inst.totality_clauses_switch with
       | None -> failwith "solve: impossible"
