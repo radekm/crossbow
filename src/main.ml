@@ -727,6 +727,18 @@ let cmsat_solver =
     ];
   }
 
+let josat_solver =
+  let s_func tp sorts cfg =
+    sat_solve (module Josat_inst.Inst : Sat_inst.Inst_sig) tp sorts cfg in
+  {
+    s_func;
+    s_only_flat_clauses = true;
+    s_default_transforms = [
+      T_detect_commutativity; T_rewrite_ground_terms; T_unflatten;
+      T_define_ground_terms; T_flatten; T_paradox_mod_splitting;
+    ];
+  }
+
 let gecode_solver =
   let s_func tp _ cfg =
     csp_solve (module Gecode_inst.Inst : Csp_inst.Inst_sig) tp cfg in
@@ -760,6 +772,7 @@ let only_preproc_solver =
 type solver_id =
   | Solv_minisat
   | Solv_cmsat
+  | Solv_josat
   | Solv_gecode
   | Solv_only_preproc
 
@@ -767,6 +780,7 @@ let all_solvers =
   [
     Solv_minisat, minisat_solver;
     Solv_cmsat, cmsat_solver;
+    Solv_josat, josat_solver;
     Solv_gecode, gecode_solver;
     Solv_only_preproc, only_preproc_solver;
   ]
@@ -956,10 +970,12 @@ let all_models =
   Arg.(value & flag & info ["all-models"] ~doc)
 
 let solver =
-  let doc = "$(docv) can be: cryptominisat, minisat, gecode, only-preproc." in
+  let doc =
+    "$(docv) can be: cryptominisat, minisat, josat, gecode, only-preproc." in
   let values = [
     "cryptominisat", Solv_cmsat;
     "minisat", Solv_minisat;
+    "josat", Solv_josat;
     "gecode", Solv_gecode;
     "only-preproc", Solv_only_preproc;
   ] in

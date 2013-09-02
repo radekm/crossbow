@@ -5,6 +5,7 @@ OCAMLFLAGS += -thread
 OCAML_LIB_FLAGS += \
     -ccopt -L../minisat -cclib -lminisat \
     -ccopt -L../cmsat -cclib -lcmsat \
+    -ccopt -L../josat -cclib -ljosat \
     -ccopt -L../gecode -cclib -lgecode \
     -ccopt -L../bliss -cclib -lbliss
 
@@ -45,6 +46,7 @@ FILES[] =
     sat_solver
     minisat
     cmsat
+    josat
     csp_solver
     gecode
     bliss
@@ -55,12 +57,14 @@ FILES[] =
     sat_inst
     minisat_inst
     cmsat_inst
+    josat_inst
     csp_inst
     gecode_inst
 
 libcrossbow.cmxa libcrossbow$(EXT_LIB): \
     ../minisat/libminisat$(EXT_LIB) \
     ../cmsat/libcmsat$(EXT_LIB) \
+    ../josat/libjosat$(EXT_LIB) \
     ../gecode/libgecode$(EXT_LIB) \
     ../bliss/libbliss$(EXT_LIB)
 

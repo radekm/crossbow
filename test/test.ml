@@ -23,6 +23,7 @@ let suite =
       Test_sinterp.suite;
       Test_minisat.suite;
       Test_cmsat.suite;
+      Test_josat.suite;
       Test_gecode.suite;
       Test_bliss.suite;
       Test_symred.suite;
@@ -32,6 +33,7 @@ let suite =
       Test_sat_inst.suite;
       Test_minisat_inst.suite;
       Test_cmsat_inst.suite;
+      Test_josat_inst.suite;
       Test_csp_inst.suite;
       Test_gecode_inst.suite;
     ]

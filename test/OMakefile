@@ -42,6 +42,7 @@ FILES[] =
     ftest_anysat
     test_minisat
     test_cmsat
+    test_josat
     ftest_anycsp
     test_gecode
     test_bliss
@@ -53,6 +54,7 @@ FILES[] =
     ftest_anysat_inst
     test_minisat_inst
     test_cmsat_inst
+    test_josat_inst
     test_csp_inst
     ftest_anycsp_inst
     test_gecode_inst
