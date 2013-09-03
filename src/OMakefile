@@ -42,7 +42,6 @@ FILES[] =
     tptp_prob
     sorts
     assignment
-    sinterp
     sat_solver
     minisat
     cmsat

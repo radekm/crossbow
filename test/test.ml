@@ -20,7 +20,6 @@ let suite =
       Test_tptp_prob.suite;
       Test_sorts.suite;
       Test_assignment.suite;
-      Test_sinterp.suite;
       Test_minisat.suite;
       Test_cmsat.suite;
       Test_josat.suite;

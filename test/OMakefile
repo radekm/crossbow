@@ -38,7 +38,6 @@ FILES[] =
     test_tptp_prob
     test_sorts
     test_assignment
-    test_sinterp
     ftest_anysat
     test_minisat
     test_cmsat
