@@ -189,13 +189,15 @@ CAMLprim value josat_model_value(value sv, value varv) {
   CAMLreturn (Val_int(res));
 }
 
-CAMLprim value josat_force_simplify(value sv) {
-  CAMLparam1 (sv);
+CAMLprim value josat_remove_clauses_with_lit(value sv, value litv) {
+  CAMLparam2 (sv, litv);
 
   Solver * s = Solver_val(sv);
-  s->forceSimplify();
+  Lit lit = toLit(Int_val(litv));
 
-  log("josat_force_simplify(%p)\n", s);
+  s->removeClausesWithLit(lit);
+
+  log("josat_remove_clauses_with_lit(%p, %d)\n", s, toInt(lit));
 
   CAMLreturn (Val_unit);
 }
