@@ -314,7 +314,7 @@ let iter_all_of_ms_model f ms_model sorts =
   permute_sorts 1
 
 let all_of_ms_model ms_model sorts =
-  let set = ref (BatSet.create compare) in
+  let set = ref BatSet.empty in
   iter_all_of_ms_model
     (fun m -> set := BatSet.add (canonize m) !set)
     ms_model sorts;

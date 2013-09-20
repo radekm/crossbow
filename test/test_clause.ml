@@ -345,7 +345,7 @@ let test_unflatten_term_contains_var () =
   ] in
   assert_equal (Some exp_clause) (C.unflatten db orig_clause)
 
-module IntSet = BatSet.IntSet
+module IntSet = Sh.IntSet
 
 let test_vars () =
   let Symb.Wr db = Symb.create_db () in

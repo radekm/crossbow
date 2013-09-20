@@ -4,7 +4,6 @@ module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
 
 let (|>) = BatPervasives.(|>)
-let (|-) = BatPervasives.(|-)
 
 type stat = {
   s_time : int;

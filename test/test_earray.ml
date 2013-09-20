@@ -151,7 +151,7 @@ let test_iter_permutations2 () =
   (* No duplicates. *)
   assert_equal 5040 (List.length (BatList.sort_unique compare !perms));
   (* Pemutations are in lexicographic order. *)
-  assert_equal (List.rev !perms) (BatList.sort !perms)
+  assert_equal (List.rev !perms) (BatList.sort compare !perms)
 
 let suite =
   "Earray suite" >:::

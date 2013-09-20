@@ -1,6 +1,6 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-open BatPervasives
+let (%>) = BatPervasives.(%>)
 
 module T = Term
 module L = Lit
@@ -159,7 +159,7 @@ let merge_sorts_of_constants
     | Some c ->
         let sort = get_const_sort c in
         BatEnum.iter
-          (get_const_sort |- Equiv.union sorts.inf_equiv sort)
+          (get_const_sort %> Equiv.union sorts.inf_equiv sort)
           consts
 
 type sort_id = int

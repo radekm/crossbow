@@ -89,7 +89,7 @@ let rec replace a b term = match term with
   | Var _ -> term
   | Func (s, args) -> func (s, Array.map (replace a b) args)
 
-module IntSet = BatSet.IntSet
+module IntSet = Sh.IntSet
 
 let vars term =
   let xs = ref IntSet.empty in

@@ -1,6 +1,6 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-module IntSet = BatSet.IntSet
+module IntSet = Sh.IntSet
 
 let (|>) = BatPervasives.(|>)
 

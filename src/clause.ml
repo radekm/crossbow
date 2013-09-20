@@ -7,7 +7,7 @@ module L = Lit
 type 's t = 's L.t list
 
 let (|>) = BatPervasives.(|>)
-let (|-) = BatPervasives.(|-)
+let (%>) = BatPervasives.(%>)
 
 (* Every inequality of variables [x != y] is removed and [x]
    is replaced by [y].
@@ -33,7 +33,7 @@ let simplify symdb lits =
     |> remove_var_ineqs
     |> BatList.map (L.normalize_comm symdb)
     |> BatList.unique
-    |> BatList.filter (L.is_false |- not) in
+    |> BatList.filter (L.is_false %> not) in
   let taut =
     List.exists
       (fun l -> L.is_true l || Elist.contains (L.neg l) lits)
@@ -246,10 +246,10 @@ let unflatten symdb lits =
     | None -> None
     | Some lits -> loop lits
 
-module IntSet = BatSet.IntSet
+module IntSet = Sh.IntSet
 
 let vars lits =
-  List.fold_left (fun xs -> L.vars |- IntSet.union xs) IntSet.empty lits
+  List.fold_left (fun xs -> L.vars %> IntSet.union xs) IntSet.empty lits
 
 let show lits =
   let lits_str =

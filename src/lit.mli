@@ -26,7 +26,7 @@ val contains : 's Term.t -> 's t -> bool
 
 val iter : ('s Term.t -> unit) -> 's t -> unit
 
-val vars : 's t -> BatSet.IntSet.t
+val vars : 's t -> Sh.IntSet.t
 
 val lift : ('s Term.t -> 's Term.t) -> 's t -> 's t
 

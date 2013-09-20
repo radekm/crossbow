@@ -3,7 +3,7 @@
 open OUnit
 
 let (|>) = BatPervasives.(|>)
-let (|-) = BatPervasives.(|-)
+let (%>) = BatPervasives.(%>)
 
 let test_canonical_form () =
   let green = 0 in
@@ -45,7 +45,7 @@ let test_canonical_form () =
           l.(a), l.(b)
         else
           l.(b), l.(a))
-    |- BatList.sort in
+    %> BatList.sort compare in
   assert_bool "edges" (map_edges lab edges = map_edges lab2 edges2)
 
 let test_canonical_form_zero_len () =

@@ -23,7 +23,7 @@ end
 include Inner
 
 let (|>) = BatPervasives.(|>)
-let (|-) = BatPervasives.(|-)
+let (%>) = BatPervasives.(%>)
 
 let mk_eq l r = lit (Sh.Pos, S.sym_eq, [| l; r; |])
 
@@ -44,10 +44,10 @@ let contains subterm (Lit (_, _, args)) =
 
 let iter f (Lit (_, _, args)) = Array.iter (T.iter f) args
 
-module IntSet = BatSet.IntSet
+module IntSet = Sh.IntSet
 
 let vars (Lit (_, _, args)) =
-  Array.fold_left (fun xs -> T.vars |- IntSet.union xs) IntSet.empty args
+  Array.fold_left (fun xs -> T.vars %> IntSet.union xs) IntSet.empty args
 
 let lift f (Lit (sign, s, args)) = lit (sign, s, Array.map f args)
 

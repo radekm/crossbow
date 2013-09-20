@@ -144,7 +144,7 @@ let add_hint db sym hint =
   let s_hints = BatList.sort_unique compare (hint :: symb.s_hints) in
   BatDynArray.set db.by_id (Id.to_idx sym) { symb with s_hints }
 
-module IntMap = BatMap.IntMap
+module IntMap = Sh.IntMap
 
 module Map = struct
   type ('s, 'a) t = 'a IntMap.t

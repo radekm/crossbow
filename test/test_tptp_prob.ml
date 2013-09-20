@@ -651,7 +651,7 @@ let test_model_to_tptp () =
   let formulas =
     let fs = ref [] in
     TP.model_to_tptp prob model interp_name (fun f -> fs := f :: !fs);
-    BatList.sort !fs in
+    BatList.sort compare !fs in
 
   assert_equal exp_formulas formulas
 

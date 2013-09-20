@@ -5,10 +5,10 @@ module L = Lit
 module C = Clause
 module C2 = Clause2
 
-module IntSet = BatSet.IntSet
+module IntSet = Sh.IntSet
 
 let (|>) = BatPervasives.(|>)
-let (|-) = BatPervasives.(|-)
+let (%>) = BatPervasives.(%>)
 
 (* For each variable count to how many variables it is connected.
 
@@ -75,12 +75,12 @@ let binary_splitting split new_pred lits =
 
 let paradox_splitting new_pred lits =
   let partition_lits x lits =
-    BatList.partition (L.vars |- IntSet.mem x) lits in
+    BatList.partition (L.vars %> IntSet.mem x) lits in
   binary_splitting (paradox_binary_split partition_lits) new_pred lits
 
 let paradox_mod_splitting new_pred lits =
   let partition_lits x lits =
-    let l, r = BatList.partition (L.vars |- IntSet.mem x) lits in
+    let l, r = BatList.partition (L.vars %> IntSet.mem x) lits in
     let lvars = C.vars l in
     (* Literals in l' contain only variables from lvars.
        Moving these literals from the right to the left can
@@ -90,7 +90,7 @@ let paradox_mod_splitting new_pred lits =
       BatList.partition (fun lit -> IntSet.subset (L.vars lit) lvars) r in
     l @ l', r' in
   let ground, nonground =
-    BatList.partition (L.vars |- IntSet.is_empty) lits in
+    BatList.partition (L.vars %> IntSet.is_empty) lits in
   let clauses =
     binary_splitting
       (paradox_binary_split partition_lits)

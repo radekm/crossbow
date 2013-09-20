@@ -6,7 +6,6 @@ module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
 
 let (|>) = BatPervasives.(|>)
-let (|-) = BatPervasives.(|-)
 
 let main exe opts max_time max_mem problems out_dir =
   let each_problem file =

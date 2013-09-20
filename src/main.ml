@@ -1,6 +1,6 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-let (|-) = BatPervasives.(|-)
+let (%>) = BatPervasives.(%>)
 let (|>) = BatPervasives.(|>)
 
 module T = Term
@@ -71,7 +71,7 @@ let print_lemmas verbose tp lemmas =
       (fun f ->
         Tptp.write b f;
         Printf.fprintf stderr "    ";
-        BatBuffer.output_buffer BatPervasives.stderr b;
+        BatBuffer.print BatPervasives.stderr b;
         Buffer.clear b);
 
     (* Return original clauses to the problem. *)
@@ -88,12 +88,12 @@ let print_symb_info verbose tp =
     |> Array.map (fun cl -> cl.Clause2.cl_lits) in
   let preds =
     Array.fold_left
-      (fun acc -> preds_in_clause |- BatSet.union acc)
+      (fun acc -> preds_in_clause %> BatSet.union acc)
       BatSet.empty
       clauses in
   let funcs =
     Array.fold_left
-      (fun acc -> funcs_in_clause |- BatSet.union acc)
+      (fun acc -> funcs_in_clause %> BatSet.union acc)
       BatSet.empty
       clauses in
   Printf.fprintf stderr "%d pred(s)\n" (BatSet.cardinal preds);
@@ -268,7 +268,7 @@ let unflatten_transform =
   let transform prob =
     transform_each_clause
       prob
-      (Clause.unflatten prob.Prob.symbols |- option_to_list) in
+      (Clause.unflatten prob.Prob.symbols %> option_to_list) in
   {
     t_func = transform;
     t_flattening = F_not_preserves;
@@ -286,7 +286,7 @@ let flatten_transform =
   let transform prob =
     transform_each_clause
       prob
-      (Clause.flatten prob.Prob.symbols |- option_to_list) in
+      (Clause.flatten prob.Prob.symbols %> option_to_list) in
   {
     t_func = transform;
     t_flattening = F_performs;
@@ -376,7 +376,7 @@ let generate_lemmas_by_e
         Tptp_prob.prob_to_tptp tp Tptp_prob.Export
           (fun f ->
             Tptp.write b f;
-            BatBuffer.output_buffer out b;
+            BatBuffer.print out b;
             Buffer.clear b);
         name) in
 
@@ -433,7 +433,7 @@ let generate_lemmas_by_e
   (* Unflatten. *)
   transform_each_clause
     p
-    (Clause.unflatten p.Prob.symbols |- option_to_list);
+    (Clause.unflatten p.Prob.symbols %> option_to_list);
 
   (* Return original clauses to the problem. *)
   let eprover_clauses = BatDynArray.copy p.Prob.clauses in
@@ -446,7 +446,7 @@ let generate_lemmas_by_e
   let orig_clauses =
     orig_clauses
     |> BatDynArray.to_array
-    |> BatArray.filter_map (get_lits |- Clause.unflatten p.Prob.symbols) in
+    |> BatArray.filter_map (get_lits %> Clause.unflatten p.Prob.symbols) in
   BatDynArray.keep
     (fun cl ->
       let cl, nvars = Clause.normalize_vars (get_lits cl) in
@@ -514,7 +514,7 @@ let write_model tp model number out =
     (Tptp_ast.N_word (Tptp_ast.to_plain_word formula_name))
     (fun f ->
       Tptp.write b f;
-      BatBuffer.output_buffer out b;
+      BatBuffer.print out b;
       Buffer.clear b)
 
 let print_with_time cfg str =
@@ -560,7 +560,7 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
       Printf.fprintf stderr "\n"
     else begin
       let tot_ms_model_cnt = ref 0 in
-      let ms_models = ref (BatSet.create Ms_model.compare) in
+      let ms_models = ref (BatSet.PSet.create Ms_model.compare) in
       let rec loop () =
         if not (has_time cfg) then
           print_with_time cfg "\nTime out"
@@ -571,8 +571,8 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
                 let ms_model = Inst.construct_model inst in
                 Inst.block_model inst ms_model;
                 let cano_ms_model = Ms_model.canonize ms_model sorts in
-                if not (BatSet.mem cano_ms_model !ms_models) then begin
-                  ms_models := BatSet.add cano_ms_model !ms_models;
+                if not (BatSet.PSet.mem cano_ms_model !ms_models) then begin
+                  ms_models := BatSet.PSet.add cano_ms_model !ms_models;
                   let models = Model.all_of_ms_model cano_ms_model sorts in
                   BatSet.iter
                     (fun model ->
@@ -643,7 +643,7 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
       print_instantiating dsize;
       let inst = Inst.create ~nthreads:cfg.nthreads p dsize in
       let tot_model_cnt = ref 0 in
-      let models = ref (BatSet.create Model.compare) in
+      let models = ref (BatSet.PSet.create Model.compare) in
       let rec loop () =
         if not (has_time cfg) then
           print_with_time cfg "\nTime out"
@@ -653,8 +653,8 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
                 incr tot_model_cnt;
                 let model = Inst.construct_model inst in
                 let cano_model = Model.canonize model in
-                if not (BatSet.mem cano_model !models) then begin
-                  models := BatSet.add cano_model !models;
+                if not (BatSet.PSet.mem cano_model !models) then begin
+                  models := BatSet.PSet.add cano_model !models;
                   with_output
                     ~append:true
                     cfg
@@ -761,7 +761,7 @@ let only_preproc_solver =
         Tptp_prob.prob_to_tptp tp Tptp_prob.Export
           (fun f ->
             Tptp.write b f;
-            BatBuffer.output_buffer out b;
+            BatBuffer.print out b;
             Buffer.clear b)) in
   {
     s_func;

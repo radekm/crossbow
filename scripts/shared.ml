@@ -3,7 +3,7 @@
 module Path = BatPathGen.OfString
 
 let (|>) = BatPervasives.(|>)
-let (|-) = BatPervasives.(|-)
+let (%>) = BatPervasives.(%>)
 
 let read_problems_of_file file =
   let problems =
@@ -14,7 +14,7 @@ let read_problems_of_file file =
 
   let cnt_unique_names =
     problems
-    |> BatList.map (Path.of_string |- Path.name)
+    |> BatList.map (Path.of_string %> Path.name)
     |> BatList.sort_unique compare
     |> List.length in
 
@@ -23,7 +23,7 @@ let read_problems_of_file file =
 
   let _ =
     try
-      let file = List.find (Sys.file_exists |- not) problems in
+      let file = List.find (Sys.file_exists %> not) problems in
       failwith ("problem doesn't exist: " ^ file)
     with
       | Not_found -> () in
@@ -167,7 +167,7 @@ let tptp_concat_map f base_dir in_files out_file =
       let b = Buffer.create 1024 in
       let proc_command cmd =
         Tptp.write b (f cmd);
-        BatIO.write_buf out b;
+        BatBuffer.print out b;
         Buffer.clear b in
       List.iter
         (tptp_iter proc_command base_dir)

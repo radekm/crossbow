@@ -347,7 +347,7 @@ struct
     end
 
   let each_clause inst lits =
-    let nvars = BatSet.IntSet.cardinal (Clause.vars lits) in
+    let nvars = Sh.IntSet.cardinal (Clause.vars lits) in
 
     let add_funcs_in_term =
       T.iter

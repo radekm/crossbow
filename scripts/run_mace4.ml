@@ -6,7 +6,7 @@ module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
 
 let (|>) = BatPervasives.(|>)
-let (|-) = BatPervasives.(|-)
+let (%>) = BatPervasives.(%>)
 
 let main
     exe opts tptp_to_ladr_exe
@@ -69,7 +69,7 @@ let main
                 let lines =
                   inp
                   |> BatIO.lines_of
-                  |> BatEnum.drop_while (model_start |- not)
+                  |> BatEnum.drop_while (model_start %> not)
                   |> BatEnum.filter (fun l -> BatString.starts_with l s) in
                 match BatEnum.peek lines with
                   | None -> None

@@ -207,7 +207,7 @@ let prob_to_tptp tp comm f =
   let var =
     let names =
       BatChar.range ~until:'Z' 'A'
-      |> BatEnum.map BatPervasives.string_of_char
+      |> BatEnum.map (BatString.make 1)
       |> BatEnum.map Ast.to_var
       |> BatArray.of_enum in
     fun x ->
@@ -350,7 +350,7 @@ let model_to_tptp
     p.smap.of_tptp
     |> BatHashtbl.enum
     |> BatList.of_enum
-    |> BatList.sort in
+    |> BatList.sort compare in
 
   (* Maps doamin elements to TPTP symbols. *)
   let dom_to_tptp =

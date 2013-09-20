@@ -60,7 +60,7 @@ val flatten : 's Symb.db -> 's t -> 's t option
 val unflatten : 's Symb.db -> 's t -> 's t option
 
 (** Returns the set of the variables in the given terms. *)
-val vars : 's t -> BatSet.IntSet.t
+val vars : 's t -> Sh.IntSet.t
 
 (** Converts clause to string. *)
 val show : 's t -> string

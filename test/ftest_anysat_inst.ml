@@ -380,7 +380,7 @@ end = struct
       Inst.incr_max_size i;
     done;
     let found = ref true in
-    let ms_models = ref (BatSet.create Ms_model.compare) in
+    let ms_models = ref (BatSet.PSet.create Ms_model.compare) in
     let model_cnt = ref 0 in
     while !found do
       if Inst.solve i = Sh.Ltrue then begin
@@ -388,15 +388,15 @@ end = struct
         Inst.block_model i ms_model;
         assert_equal max_size ms_model.Ms_model.max_size;
         let cano_ms_model = Ms_model.canonize ms_model sorts in
-        if not (BatSet.mem cano_ms_model !ms_models) then begin
-          ms_models := BatSet.add cano_ms_model !ms_models;
+        if not (BatSet.PSet.mem cano_ms_model !ms_models) then begin
+          ms_models := BatSet.PSet.add cano_ms_model !ms_models;
           let models = Model.all_of_ms_model ms_model sorts in
           model_cnt := !model_cnt + BatSet.cardinal models
         end
       end else
         found := false
     done;
-    BatSet.cardinal !ms_models, !model_cnt
+    BatSet.PSet.cardinal !ms_models, !model_cnt
 
   let test_abelian_groups () =
     let Group_wr (prob, _, _, f) = make_group () in

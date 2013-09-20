@@ -43,7 +43,7 @@ val normalize_comm : 's Symb.db -> 's t -> 's t
 val replace : 's t -> 's t -> 's t -> 's t
 
 (** Returns the set of the variables in the given term. *)
-val vars : 's t -> BatSet.IntSet.t
+val vars : 's t -> Sh.IntSet.t
 
 (** Converts term to string. *)
 val show : 's t -> string

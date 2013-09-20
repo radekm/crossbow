@@ -147,19 +147,19 @@ end = struct
   let count_models prob max_size =
     let i = Inst.create prob max_size in
     let found = ref true in
-    let models = ref (BatSet.create Model.compare) in
+    let models = ref (BatSet.PSet.create Model.compare) in
     while !found do
       if Inst.solve i = Sh.Ltrue then begin
         let model = Inst.construct_model i in
         assert_equal max_size model.Model.max_size;
         let cano_model = Model.canonize model in
-        if not (BatSet.mem cano_model !models) then begin
-          models := BatSet.add cano_model !models;
+        if not (BatSet.PSet.mem cano_model !models) then begin
+          models := BatSet.PSet.add cano_model !models;
         end
       end else
         found := false
     done;
-    BatSet.cardinal !models
+    BatSet.PSet.cardinal !models
 
   let test_abelian_groups () =
     let Group_wr (prob, _, _, f) = make_group () in

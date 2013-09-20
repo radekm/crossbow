@@ -12,3 +12,6 @@ type lbool =
   | Ltrue
   | Lfalse
   | Lundef
+
+module IntSet = BatSet.Make (BatInt)
+module IntMap = BatMap.Make (BatInt)

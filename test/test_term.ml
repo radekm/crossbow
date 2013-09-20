@@ -143,7 +143,7 @@ let test_normalize_comm () =
   assert_equal normalized (T.normalize_comm db orig)
 
 
-module IntSet = BatSet.IntSet
+module IntSet = Sh.IntSet
 
 let test_vars () =
   let Symb.Wr db = Symb.create_db () in

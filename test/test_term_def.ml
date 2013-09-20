@@ -13,7 +13,7 @@ let get_auxiliary_symbs db =
       if Symb.auxiliary db s then
         aux := s :: !aux)
     db;
-  BatList.sort !aux
+  BatList.sort compare !aux
 
 let show_clauses cs = String.concat "\n" (BatList.map C.show cs)
 

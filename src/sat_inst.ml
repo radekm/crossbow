@@ -144,7 +144,7 @@ struct
       sorts.Sorts.symb_sorts
       |> BatHashtbl.enum
       |> BatList.of_enum
-      |> BatList.sort in
+      |> BatList.sort compare in
 
     (* Create propositional variables for nullary predicates. *)
     let nullary_pred_pvars = Hashtbl.create 20 in
