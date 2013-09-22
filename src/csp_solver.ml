@@ -6,6 +6,7 @@ module type S = sig
   type 'a var_array = private int
 
   val create : int -> t
+  val destroy : t -> unit
 
   val new_bool_var : t -> bool var
   val new_int_var : t -> int -> int var (* domain size *)

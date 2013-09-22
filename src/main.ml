@@ -689,7 +689,9 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
               with_output cfg (write_model tp model None);
               incr model_cnt;
               Printf.fprintf stderr "\n"
-          | Sh.Lfalse -> loop (dsize + 1)
+          | Sh.Lfalse ->
+              Inst.destroy inst;
+              loop (dsize + 1)
           | Sh.Lundef -> print_with_time cfg "\nTime out"
       end in
     loop cfg.n_from

@@ -301,7 +301,11 @@ static void gecode_finalize (value gv) {
 
   log("gecode_finalize(%p)\n", (void *)g);
 
-  delete g;
+  if (g != NULL) {
+    delete g;
+
+    Solver_val(gv) = NULL;
+  }
 }
 
 static struct custom_operations gecode_ops = {
@@ -329,6 +333,22 @@ CAMLprim value gecode_create(value nthreadsv) {
   log("gecode_create(%d) = %p\n", nthreads, (void *)g);
 
   CAMLreturn (gv);
+}
+
+CAMLprim value gecode_destroy(value gv) {
+  CAMLparam1 (gv);
+
+  GecodeSolver * g = Solver_val(gv);
+
+  log("gecode_destroy(%p)\n", (void *)g);
+
+  if (g != NULL) {
+    delete g;
+
+    Solver_val(gv) = NULL;
+  }
+
+  CAMLreturn (Val_unit);
 }
 
 CAMLprim value gecode_new_bool_var(value gv) {

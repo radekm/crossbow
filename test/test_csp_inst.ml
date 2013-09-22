@@ -44,6 +44,8 @@ module Solver = struct
       last_int_var_array = ~-1;
     }
 
+  let destroy _ = failwith "not implemented"
+
   let new_bool_var s =
     s.last_bool_var <- s.last_bool_var + 1;
     BatDynArray.add s.log (Enew_bool_var s.last_bool_var);

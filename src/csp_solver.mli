@@ -19,6 +19,9 @@ module type S = sig
   *)
   val create : int -> t
 
+  (** Destroys the solver. *)
+  val destroy : t -> unit
+
   (** Creates a new boolean CSP variable. *)
   val new_bool_var : t -> bool var
 

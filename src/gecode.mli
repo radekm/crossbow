@@ -11,6 +11,8 @@ type 'a var_array = private int
 
 external create : int -> t = "gecode_create"
 
+external destroy : t -> unit = "gecode_destroy"
+
 external new_bool_var : t -> bool var = "gecode_new_bool_var"
 
 external new_int_var : t -> int -> int var = "gecode_new_int_var"

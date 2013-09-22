@@ -6,6 +6,8 @@ module type Inst_sig = sig
 
   val create : ?nthreads:int -> 's Prob.t -> int -> 's t
 
+  val destroy : 's t -> unit
+
   val solve : 's t -> Sh.lbool
 
   val solve_timed : 's t -> int -> Sh.lbool * bool
@@ -548,6 +550,8 @@ struct
     (* Hints. *)
     use_hints inst;
     inst
+
+  let destroy inst = Solv.destroy inst.solver
 
   let solve inst =
     let result = Solv.solve inst.solver in
