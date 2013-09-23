@@ -28,3 +28,4 @@ clean:
     rm -rf run_crossbow$(EXE)
     rm -rf run_paradox$(EXE)
     rm -rf run_mace4$(EXE)
+    rm -rf results_to_latex$(EXE)
