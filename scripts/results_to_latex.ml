@@ -5,6 +5,7 @@ open Report_reader
 module Path = BatPathGen.OfString
 
 let (|>) = BatPervasives.(|>)
+let (%>) = BatPervasives.(%>)
 
 (* Generates a table like this:
 
@@ -67,6 +68,12 @@ let results_to_latex output_file reports =
       | [] -> failwith "impossible"
       | r :: _ -> to_rows (BatList.make (List.length r.results) []) reports in
 
+  (* Formatting. *)
+  let unimp = Printf.sprintf "{\\footnotesize %s}" in
+  let imp = Printf.sprintf "\\textbf{%s}" in
+  let unimp_int = string_of_int %> unimp in
+  let imp_int = string_of_int %> imp in
+
   let write_header o =
     BatIO.nwrite o "\\begin{longtable}{l";
     List.iter (fun _ -> BatIO.nwrite o "|c") reports;
@@ -74,10 +81,9 @@ let results_to_latex output_file reports =
     List.iter
       (fun rep ->
         BatIO.nwrite o " & ";
-        BatIO.nwrite o
-          "\\multicolumn{1}{c}{\\adjustbox{angle=90}{{\\footnotesize ";
-        BatIO.nwrite o rep.config_name;
-        BatIO.nwrite o "}}}")
+        BatIO.nwrite o "\\multicolumn{1}{c}{\\adjustbox{angle=90}{";
+        BatIO.nwrite o (unimp rep.config_name);
+        BatIO.nwrite o "}}")
       reports;
     BatIO.nwrite o "\\\\\n";
     BatIO.nwrite o "\\hline\n";
@@ -112,22 +118,22 @@ let results_to_latex output_file reports =
                 |> milisecs_to_secs in
               let name = Path.of_string result.problem |> Path.name_core in
               (* Write row. *)
-              BatIO.nwrite o (Printf.sprintf "{\\footnotesize %s}" name);
+              BatIO.nwrite o (unimp name);
               List.iter
                 (fun res ->
                   BatIO.nwrite o " & ";
                   BatIO.nwrite
                     o
                     (match res.exit_status with
-                      | Out_of_time -> "{\\footnotesize t}"
-                      | Out_of_memory -> "{\\footnotesize m}"
+                      | Out_of_time -> unimp "t"
+                      | Out_of_memory -> unimp "m"
                       | Exit_code 0 when res.model_size <> None ->
                           let time = milisecs_to_secs res.time in
                           if time = min_time then
-                            Printf.sprintf "\\textbf{%d}" time
+                            imp_int time
                           else
-                            Printf.sprintf "{\\footnotesize %d}" time
-                      | Exit_code _ -> "{\\footnotesize x}"))
+                            unimp_int time
+                      | Exit_code _ -> unimp "x"))
                 row;
               BatIO.nwrite o "\\\\\n";
               BatIO.nwrite o "\\hline\n")
