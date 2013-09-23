@@ -84,11 +84,6 @@ let results_to_latex output_file reports =
     BatIO.nwrite o "\\endhead\n" in
 
   let write_results o =
-    let time_to_secs time =
-      if time mod 1000 = 0
-      then time / 1000
-      else time / 1000 + 1 in
-
     List.iter
       (fun row ->
         match row with
@@ -114,7 +109,7 @@ let results_to_latex output_file reports =
                 |> BatList.filter model_found
                 |> BatList.map (fun res -> res.time)
                 |> List.fold_left min max_int
-                |> time_to_secs in
+                |> milisecs_to_secs in
               let name = Path.of_string result.problem |> Path.name_core in
               (* Write row. *)
               BatIO.nwrite o (Printf.sprintf "{\\footnotesize %s}" name);
@@ -127,7 +122,7 @@ let results_to_latex output_file reports =
                       | Out_of_time -> "{\\footnotesize t}"
                       | Out_of_memory -> "{\\footnotesize m}"
                       | Exit_code 0 when res.model_size <> None ->
-                          let time = time_to_secs res.time in
+                          let time = milisecs_to_secs res.time in
                           if time = min_time then
                             Printf.sprintf "\\textbf{%d}" time
                           else

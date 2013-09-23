@@ -22,6 +22,8 @@ type report = {
   results : result list;
 }
 
+val milisecs_to_secs : int -> int
+
 val model_found : result -> bool
 
 val report_from_file : string -> string -> report

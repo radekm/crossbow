@@ -22,6 +22,11 @@ type report = {
   results : result list;
 }
 
+let milisecs_to_secs ms =
+  if ms mod 1000 = 0
+  then ms / 1000
+  else ms / 1000 + 1
+
 (* Assumes that model was not found when the exit code <> 0. *)
 let model_found res =
   res.exit_status = Exit_code 0 &&
