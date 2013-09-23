@@ -21,7 +21,7 @@ OCamlProgram(run_paradox, shared run_shared run_paradox)
 
 OCamlProgram(run_mace4, shared run_shared run_mace4)
 
-OCamlProgram(results_to_latex, shared results_to_latex)
+OCamlProgram(results_to_latex, shared report_reader results_to_latex)
 
 clean:
     $(CLEAN)
