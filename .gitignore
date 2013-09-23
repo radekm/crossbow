@@ -16,6 +16,8 @@ scripts/run_mace4
 scripts/run_mace4.opt
 scripts/results_to_latex
 scripts/results_to_latex.opt
+scripts/summary_to_latex
+scripts/summary_to_latex.opt
 
 # OCaml
 *.cmi
