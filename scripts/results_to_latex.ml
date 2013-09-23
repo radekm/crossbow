@@ -10,15 +10,15 @@ let (|>) = BatPervasives.(|>)
 
            | Config    Config    Config
            | name      name      name
-------------------------------------------
- Problem - | time    | time    | time    |
- without   | in s    | in s    | in s    |
- extension |         |         |         |
-------------------------------------------
- Problem - | time    | time    | time    |
- without   | in s    | in s    | in s    |
- extension |         |         |         |
-------------------------------------------
+-----------------------------------------
+ Problem - | time    | time    | time
+ without   | in s    | in s    | in s
+ extension |         |         |
+-----------------------------------------
+ Problem - | time    | time    | time
+ without   | in s    | in s    | in s
+ extension |         |         |
+-----------------------------------------
 
 *)
 let results_to_latex output_file reports =
