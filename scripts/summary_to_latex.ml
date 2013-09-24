@@ -45,7 +45,9 @@ let count_solved_problems report time_limit =
 
 let summary_to_latex
     output_file ngroups items
-    label_num_problems label_total =
+    max_time
+    label_num_problems label_total
+    label_x label_y label_all_groups =
 
   if Sys.file_exists output_file then
     failwith "output file already exists";
@@ -53,6 +55,8 @@ let summary_to_latex
     failwith "number of problem groups is not positive";
   if items = [] then
     failwith "no items";
+  if max_time < 1 then
+    failwith "max time is not positive";
 
   let group_names, items2 = BatList.split_at ngroups items in
   let group_names = Array.of_list group_names in
@@ -163,17 +167,67 @@ let summary_to_latex
   let write_summary_footer o =
     BatIO.nwrite o "\\end{longtable}\n" in
 
+  let graph_step = 30 in
+
+  let write_graph o caption reports =
+    (* Header. *)
+    BatIO.nwrite o "\n\n\n\n";
+    BatIO.nwrite o "\\begin{figure}\n";
+    BatIO.nwrite o "\\begin{tikzpicture}\n";
+    BatIO.nwrite o "\\begin{axis}[";
+    BatIO.nwrite o
+      (String.concat ","
+         [
+           "width=12cm";
+           "height=9cm";
+           "legend style={at={(0.5,1.03)},anchor=south}";
+           "legend columns=2";
+           "xlabel=" ^ label_x;
+           "ylabel=" ^ label_y;
+         ]);
+    BatIO.nwrite o "]\n";
+    (* Plot for each solver. *)
+    List.iter
+      (fun reps ->
+        BatIO.nwrite o "\\addplot coordinates {\n";
+        for t = 1 to max_time do
+          if t = 1 || t = max_time || t mod graph_step = 0 then begin
+            let nsolved =
+              Array.fold_left
+                (fun sum rep -> sum + count_solved_problems rep t)
+                0
+                reps in
+            BatIO.nwrite o (Printf.sprintf "  (%d, %d)\n" t nsolved)
+          end
+        done;
+        BatIO.nwrite o "};\n";
+        BatIO.nwrite o
+          (Printf.sprintf "\\addlegendentry{%s}\n" reps.(0).config_name))
+      reports;
+    (* Footer. *)
+    BatIO.nwrite o "\\end{axis}\n";
+    BatIO.nwrite o "\\end{tikzpicture}\n";
+    BatIO.nwrite o (Printf.sprintf "\\caption{%s}\n" caption);
+    BatIO.nwrite o "\\end{figure}\n" in
+
   BatFile.with_file_out
     output_file
     (fun o ->
       BatIO.nwrite o "\\documentclass[a4paper]{article}\n";
       BatIO.nwrite o "\\usepackage[utf8]{inputenc}\n";
+      BatIO.nwrite o "\\usepackage{pgfplots}\n";
       BatIO.nwrite o "\\usepackage{longtable}\n";
       BatIO.nwrite o "\\usepackage{adjustbox}\n";
       BatIO.nwrite o "\\begin{document}\n";
       write_summary_header o;
       write_summary_body o;
       write_summary_footer o;
+      write_graph o label_all_groups reports;
+      for gr = 0 to ngroups - 1 do
+        let name = group_names.(gr) in
+        let reports = List.map (fun reps -> [| reps.(gr) |]) reports in
+        write_graph o name reports
+      done;
       BatIO.nwrite o "\\end{document}\n")
 
 module Arg = Cmdliner.Arg
@@ -192,6 +246,11 @@ let items =
     "Problem group names, configuration names, directories with reports." in
   Arg.(value & pos_right 1 string [] & info [] ~docv:"ITEMS" ~doc)
 
+let max_time =
+  let doc = "Max time in graphs." in
+  Arg.(value & opt int 300 &
+         info ["max-time"] ~docv:"SECS" ~doc)
+
 let label_num_problems =
   let doc = "Label of the column with problem counts." in
   Arg.(value & opt string "No. of problems" &
@@ -202,9 +261,26 @@ let label_total =
   Arg.(value & opt string "Total" &
          info ["label-total"] ~docv:"STR" ~doc)
 
+let label_x =
+  let doc = "Label of the x-axes of the graphs." in
+  Arg.(value & opt string "Time (s)" &
+         info ["label-x"] ~docv:"STR" ~doc)
+
+let label_y =
+  let doc = "Label of the y-axes of the graphs." in
+  Arg.(value & opt string "No. of solved problems" &
+         info ["label-y"] ~docv:"STR" ~doc)
+
+let label_all_groups =
+  let doc = "Caption of the graph with problems from all groups." in
+  Arg.(value & opt string "All groups" &
+         info ["label-all-groups"] ~docv:"STR" ~doc)
+
 let summary_to_latex_t =
   Term.(pure summary_to_latex $ output_file $ ngroups $ items $
-          label_num_problems $ label_total)
+          max_time $
+          label_num_problems $ label_total $
+          label_x $ label_y $ label_all_groups)
 
 let info =
   Term.info "summary_to_latex"
