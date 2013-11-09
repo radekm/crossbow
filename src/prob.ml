@@ -1,11 +1,12 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-type t = {
+type 'a t = {
   clauses : Clause2.t BatDynArray.t;
   distinct_consts : Symb.id BatDynArray.t;
-  symbols : Symb.db;
+  symbols : 'a Symb.db;
   next_clause_id : Clause2.id ref;
 }
+constraint 'a = [< `R|`W]
 
 let create () =
   let symbols = Symb.create_db () in
@@ -15,6 +16,10 @@ let create () =
     symbols;
     next_clause_id = ref 0;
   }
+
+external read_only : [> `R] t -> [`R] t = "%identity"
+
+external write_only : [> `W] t -> [`W] t = "%identity"
 
 let fresh_id prob =
   let id = !(prob.next_clause_id) in

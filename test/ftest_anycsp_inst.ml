@@ -88,7 +88,7 @@ end = struct
         assert_equal Sh.Lfalse (Inst.solve i)
     done
 
-  let make_group () : Prob.t * S.id * S.id * S.id =
+  let make_group () : [> `W] Prob.t * S.id * S.id * S.id =
     let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let zero' = Symb.add_func db 0 in

@@ -168,7 +168,7 @@ type flattening =
   | F_performs
 
 type transform = {
-  t_func : Prob.t -> unit;
+  t_func : [`R|`W] Prob.t -> unit;
   t_flattening : flattening;
 }
 

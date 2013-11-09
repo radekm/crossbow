@@ -12,7 +12,7 @@ type t
 (** Note: The problem and the sort information must not be modified after
    this call.
 *)
-val create : Prob.t -> Sorts.t -> t
+val create : [> `R] Prob.t -> Sorts.t -> t
 
 (** Assigns distinct constants and restricts range of some cells.
    Returns a list of pairs [(cell, (lo, hi))] where [lo] and [hi]

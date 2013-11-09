@@ -3,4 +3,4 @@
 (** Defining ground terms. *)
 
 val define_ground_terms :
-  Symb.db -> Clause.t BatDynArray.t -> Clause.t BatDynArray.t
+  [`R|`W] Symb.db -> Clause.t BatDynArray.t -> Clause.t BatDynArray.t

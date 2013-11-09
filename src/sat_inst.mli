@@ -39,7 +39,7 @@ module type Inst_sig = sig
 
      Note: the maximum domain size is 0.
   *)
-  val create : Prob.t -> Sorts.t -> t
+  val create : [> `R] Prob.t -> Sorts.t -> t
 
   (** Increases the maximum domain size:
 

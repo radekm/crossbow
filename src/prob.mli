@@ -2,15 +2,22 @@
 
 (** Representation of a problem. *)
 
-type t = {
+type 'a t = {
   clauses : Clause2.t BatDynArray.t;
   distinct_consts : Symb.id BatDynArray.t;
-  symbols : Symb.db;
+  symbols : 'a Symb.db;
   next_clause_id : Clause2.id ref;
 }
+constraint 'a = [< `R|`W]
 
 (** Creates an empty problem. *)
-val create : unit -> t
+val create : unit -> _ t
+
+(** Drop to read-only permissions. *)
+external read_only : [> `R] t -> [`R] t = "%identity"
+
+(** Drop to write-only permissions. *)
+external write_only : [> `W] t -> [`W] t = "%identity"
 
 (** Returns a new clause id. *)
-val fresh_id : t -> Clause2.id
+val fresh_id : [> `W] t -> Clause2.id

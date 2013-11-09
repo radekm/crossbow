@@ -39,7 +39,7 @@ let test_paradox_mod_splitting_empty_cl () =
   assert_equal ~printer:show_clauses exp_clauses clauses
 
 let make_cl ()
-    : Symb.db * C.t *
+    : [> `W] Symb.db * C.t *
     (T.t -> T.t -> Lit.t) *
     (T.t -> T.t -> T.t -> T.t -> T.t -> T.t) *
     (T.var -> T.t) =
@@ -63,7 +63,7 @@ let make_cl ()
 
 (* Polymorphic function is needed. *)
 type split = {
-  f : Symb.db -> C.t -> C.t list;
+  f : [`R|`W] Symb.db -> C.t -> C.t list;
 }
 
 let check_splitting_cl (split : split) =
@@ -119,7 +119,7 @@ let test_paradox_mod_splitting () =
   check_splitting_cl { f }
 
 let make_cl2 ()
-    : Symb.db * C.t *
+    : [> `W] Symb.db * C.t *
     (T.t -> T.t -> L.t) *
     (T.t -> T.t -> T.t -> T.t -> L.t) *
     L.t * (T.var -> T.t) =

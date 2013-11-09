@@ -25,7 +25,7 @@ type t = {
    the constraints guarantee that it is the least new value in its range.
 *)
 val lnh :
-  Symb.db -> Sorts.t ->
+  [> `R] Symb.db -> Sorts.t ->
   (Symred.cell * (int * int)) list ->
   Symred.cell * (int * int) ->
   t array

@@ -9,7 +9,7 @@ let (|>) = BatPervasives.(|>)
 
 exception Term of T.t
 
-let define_ground_terms (symdb : S.db) clauses =
+let define_ground_terms symdb clauses =
 
   let raise_when_ground_term_depth_two = function
     | T.Var _

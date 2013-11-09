@@ -4,7 +4,7 @@ module type Inst_sig = sig
   type solver
   type t
 
-  val create : ?nthreads:int -> Prob.t -> int -> t
+  val create : ?nthreads:int -> [> `R] Prob.t -> int -> t
 
   val destroy : t -> unit
 
@@ -30,7 +30,7 @@ struct
 
   type t = {
     solver : Solv.t;
-    symbols : Symb.db;
+    symbols : [`R] Symb.db;
 
     (* Domain size. *)
     n : int;
@@ -520,6 +520,7 @@ struct
       funcs
 
   let create ?(nthreads = 1) prob n =
+    let prob = Prob.read_only prob in
     let inst = {
       solver = Solv.create nthreads;
       symbols = prob.Prob.symbols;

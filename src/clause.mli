@@ -14,13 +14,13 @@ type t = Lit.t list
 
    Returns [None] if the clause is tautology.
 *)
-val simplify : Symb.db -> t -> t option
+val simplify : [> `R] Symb.db -> t -> t option
 
 (** Uses {!Clause.simplify} to simplify the given clauses. Returns only
    the empty clause if there is the empty clause among the simplified clauses.
    Otherwise all simplified clauses are returned.
 *)
-val simplify_all : Symb.db -> t BatDynArray.t -> t BatDynArray.t
+val simplify_all : [> `R] Symb.db -> t BatDynArray.t -> t BatDynArray.t
 
 (** Counts and renumbers the variables in the given clause.
    The variables are assigned numbers [0,..,n-1] where [n]
@@ -36,7 +36,7 @@ val normalize_vars : t -> t * int
    Inputs are not modified.
 *)
 val rewrite_ground_terms :
-  Symb.db -> t BatDynArray.t -> t BatDynArray.t
+  [> `R] Symb.db -> t BatDynArray.t -> t BatDynArray.t
 
 (** Returns a logically equivalent clause which is flat
    or [None] if the clause is a tautology.
@@ -50,14 +50,14 @@ val rewrite_ground_terms :
 
    Question mark means an optional negation.
 *)
-val flatten : Symb.db -> t -> t option
+val flatten : [> `R] Symb.db -> t -> t option
 
 (** Returns a logically equivalent clause or [None] if the clause
    is a tautology.
 
    Tries to reduce the number of variables.
 *)
-val unflatten : Symb.db -> t -> t option
+val unflatten : [> `R] Symb.db -> t -> t option
 
 (** Returns the set of the variables in the given terms. *)
 val vars : t -> Sh.IntSet.t

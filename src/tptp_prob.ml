@@ -20,7 +20,7 @@ type symb_map = {
 type t = {
   smap : symb_map;
   preds : (tptp_symbol, bool) Hashtbl.t;
-  prob : Prob.t;
+  prob : [`R|`W] Prob.t;
 }
 
 let (|>) = BatPervasives.(|>)

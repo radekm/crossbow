@@ -11,7 +11,7 @@ module type Inst_sig = sig
      the problem [prob] for the domain size [n].
      [nthreads] is the number of threads to use when solving.
   *)
-  val create : ?nthreads:int -> Prob.t -> int -> t
+  val create : ?nthreads:int -> [> `R] Prob.t -> int -> t
 
   val destroy : t -> unit
 

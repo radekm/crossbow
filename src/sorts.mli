@@ -58,4 +58,4 @@ type t = {
      and no literal [x = y] where [x] has sort [A] then
      [k + 1] is an adequate domain size.
 *)
-val of_problem : Prob.t -> t
+val of_problem : [> `R] Prob.t -> t

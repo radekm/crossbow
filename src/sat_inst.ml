@@ -19,7 +19,7 @@ module type Inst_sig = sig
 
   type t
 
-  val create : Prob.t -> Sorts.t -> t
+  val create : [> `R] Prob.t -> Sorts.t -> t
 
   val incr_max_size : t -> unit
 
@@ -81,7 +81,7 @@ struct
   type t = {
     symred : Symred.t;
     solver : Solv.t;
-    symbols : Symb.db;
+    symbols : [`R] Symb.db;
     sorts : Sorts.t;
 
     (* Flag whether the LNH is enabled. *)
@@ -137,7 +137,7 @@ struct
   let create prob sorts =
     let symred = Symred.create prob sorts in
     let solver = Solv.create () in
-    let symbols = prob.Prob.symbols in
+    let symbols = Symb.read_only (prob.Prob.symbols) in
 
     (* Sort to make SAT instantiation deterministic. *)
     let sorted_symb_sorts =

@@ -30,7 +30,7 @@ val vars : t -> Sh.IntSet.t
 
 val lift : (Term.t -> Term.t) -> t -> t
 
-val normalize_comm : Symb.db -> t -> t
+val normalize_comm : [> `R] Symb.db -> t -> t
 
 val replace : Term.t -> Term.t -> t -> t
 

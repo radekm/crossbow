@@ -19,9 +19,10 @@ type symbol = {
   s_hints : hint list;
 }
 
-type db = {
+type 'a db = {
   by_id : symbol BatDynArray.t;
 }
+constraint 'a = [< `R|`W]
 
 let max_arity = 255
 
@@ -67,6 +68,10 @@ let create_db () =
   };
 
   { by_id }
+
+external read_only : [> `R] db -> [`R] db = "%identity"
+
+external write_only : [> `W] db -> [`W] db = "%identity"
 
 let add_func db arity =
   if arity < 0 || arity > max_arity then invalid_arg "arity";

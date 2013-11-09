@@ -48,7 +48,7 @@ let init_inferred () = {
      (except for the equality which works on all sorts).
 *)
 let update_inferred
-    (symdb : S.db)
+    (symdb : [> `R] S.db)
     (sorts : inferred)
     (clause_id : C.id)
     (lit : Lit.t)
@@ -140,7 +140,7 @@ let update_inferred
    constants. Missing constants are added to the signature.
 *)
 let merge_sorts_of_constants
-    (symdb : S.db)
+    (symdb : [> `R] S.db)
     (sorts : inferred)
     (consts : S.id BatEnum.t) =
 
@@ -176,7 +176,7 @@ type t = {
 (* Note: Only a many-sorted signature is computed.
    The other record fields have default values.
 *)
-let infer_sorts (p : Prob.t) : t =
+let infer_sorts (p : [> `R] Prob.t) : t =
 
   (* Infer sorts. *)
 
