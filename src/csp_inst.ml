@@ -2,19 +2,19 @@
 
 module type Inst_sig = sig
   type solver
-  type 's t
+  type t
 
-  val create : ?nthreads:int -> 's Prob.t -> int -> 's t
+  val create : ?nthreads:int -> Prob.t -> int -> t
 
-  val destroy : 's t -> unit
+  val destroy : t -> unit
 
-  val solve : 's t -> Sh.lbool
+  val solve : t -> Sh.lbool
 
-  val solve_timed : 's t -> int -> Sh.lbool * bool
+  val solve_timed : t -> int -> Sh.lbool * bool
 
-  val construct_model : 's t -> 's Model.t
+  val construct_model : t -> Model.t
 
-  val get_solver : 's t -> solver
+  val get_solver : t -> solver
 end
 
 module Make (Solv : Csp_solver.S) :
@@ -28,33 +28,33 @@ struct
 
   let (|>) = BatPervasives.(|>)
 
-  type 's t = {
+  type t = {
     solver : Solv.t;
-    symbols : 's Symb.db;
+    symbols : Symb.db;
 
     (* Domain size. *)
     n : int;
 
     (* Variables for predicates. *)
-    pred_arrays : ('s S.id, bool Solv.var array) Hashtbl.t;
+    pred_arrays : (S.id, bool Solv.var array) Hashtbl.t;
 
     (* Variables for functions. *)
-    func_arrays : ('s S.id, int Solv.var array) Hashtbl.t;
+    func_arrays : (S.id, int Solv.var array) Hashtbl.t;
 
     (* Arrays of CSP variables for bool_element constraint. *)
-    preds : ('s S.id, bool Solv.var_array) Hashtbl.t;
+    preds : (S.id, bool Solv.var_array) Hashtbl.t;
 
     (* Arrays of CSP variables for int_element constraint. *)
-    funcs : ('s S.id, int Solv.var_array) Hashtbl.t;
+    funcs : (S.id, int Solv.var_array) Hashtbl.t;
 
     (* Maps the result of x1 * c1 + x2 * c2 + x3 * c3 + ... + c to variable y.
        Variables xi in polynomial are sorted and unique.
     *)
     linear : ((int Solv.var * int) array * int, int Solv.var) Hashtbl.t;
 
-    bool_element : ('s S.id * int Solv.var, bool Solv.var) Hashtbl.t;
+    bool_element : (S.id * int Solv.var, bool Solv.var) Hashtbl.t;
 
-    int_element : ('s S.id * int Solv.var, int Solv.var) Hashtbl.t;
+    int_element : (S.id * int Solv.var, int Solv.var) Hashtbl.t;
 
     (* Variables in equality are sorted. *)
     eq_var_var : (int Solv.var * int Solv.var, bool Solv.var) Hashtbl.t;
@@ -78,9 +78,9 @@ struct
      a is assignment.
   *)
   let rec index
-      (inst : 's t)
+      (inst : t)
       (a : int array)
-      (args : 's T.t array) : index =
+      (args : T.t array) : index =
 
     (* Index can be computed statically. *)
     if BatArray.for_all T.is_var args then
@@ -141,8 +141,8 @@ struct
 
   (* a is assignment. *)
   and var_for_func_term
-      (inst : 's t)
-      (a : int array) : 's T.t -> int Solv.var = function
+      (inst : t)
+      (a : int array) : T.t -> int Solv.var = function
 
     | T.Var _ -> failwith "var_for_func_term"
     | T.Func (s, args) ->
@@ -165,10 +165,10 @@ struct
 
   (* a is assignment. *)
   let var_for_noneq_atom
-      (inst : 's t)
+      (inst : t)
       (a : int array)
-      (s : 's S.id)
-      (args : 's T.t array) : bool Solv.var =
+      (s : S.id)
+      (args : T.t array) : bool Solv.var =
 
     assert (s <> S.sym_eq);
     match index inst a args with
@@ -190,10 +190,10 @@ struct
 
   (* a is assignment. *)
   let var_for_eq_atom
-      (inst : 's t)
+      (inst : t)
       (a : int array)
-      (l : 's T.t)
-      (r : 's T.t) : bool Solv.var =
+      (l : T.t)
+      (r : T.t) : bool Solv.var =
 
     match l, r with
       | T.Var _, T.Var _ -> failwith "var_for_eq_atom"
@@ -230,14 +230,14 @@ struct
                  y)
 
   let instantiate_clause
-      (inst : 's t)
+      (inst : t)
       (nvars : int)
       (var_eqs : (T.var * T.var) array)
       (var_ineqs : (T.var * T.var) array)
-      (pos_eq_lits : ('s T.t * 's T.t) array)
-      (neg_eq_lits : ('s T.t * 's T.t) array)
-      (pos_noneq_lits : ('s Symb.id * 's T.t array) array)
-      (neg_noneq_lits : ('s Symb.id * 's T.t array) array) : unit =
+      (pos_eq_lits : (T.t * T.t) array)
+      (neg_eq_lits : (T.t * T.t) array)
+      (pos_noneq_lits : (S.id * T.t array) array)
+      (neg_noneq_lits : (S.id * T.t array) array) : unit =
 
     (* Arrays for literals. *)
     let pos =

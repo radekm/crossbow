@@ -8,9 +8,9 @@
    value [v] can be assigned to the cell [c] only if
    one of the cells [cs] is assigned value [v'].
 *)
-type 's t = {
-  assig : 's Symred.cell * int;
-  required : 's Symred.cell array * int;
+type t = {
+  assig : Symred.cell * int;
+  required : Symred.cell array * int;
 }
 
 (** [lnh symbols sorts proc_cells cell] returns constraints for the cell
@@ -25,7 +25,7 @@ type 's t = {
    the constraints guarantee that it is the least new value in its range.
 *)
 val lnh :
-  's Symb.db -> 's Sorts.t ->
-  ('s Symred.cell * (int * int)) list ->
-  's Symred.cell * (int * int) ->
-  's t array
+  Symb.db -> Sorts.t ->
+  (Symred.cell * (int * int)) list ->
+  Symred.cell * (int * int) ->
+  t array

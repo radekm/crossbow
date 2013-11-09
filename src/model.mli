@@ -13,9 +13,9 @@ type table = {
   values : int array;
 }
 
-type 's t = {
+type t = {
   max_size : int;
-  symbs : ('s, table) Symb.Map.t;
+  symbs : table Symb.Map.t;
 }
 
 (** [of_ms_model ms_model sorts] converts the multi-sorted model [ms_model]
@@ -24,13 +24,13 @@ type 's t = {
    Sorts with an adequate size lower than [max_size] are extended
    ([ms_model] must interpret all constants from these sorts).
  *)
-val of_ms_model : 's Ms_model.t -> 's Sorts.t -> 's t
+val of_ms_model : Ms_model.t -> Sorts.t -> t
 
-val equal : 's t -> 's t -> bool
+val equal : t -> t -> bool
 
-val compare : 's t -> 's t -> int
+val compare : t -> t -> int
 
-val canonize : 's t -> 's t
+val canonize : t -> t
 
 (** Constructs a set of non-isomorphic models with a single sort
    from the given multi-sorted model by fixing the domain of one sort and
@@ -39,4 +39,4 @@ val canonize : 's t -> 's t
    Note: All domain sizes in the multi-sorted model must be equal
    to [max_size].
 *)
-val all_of_ms_model : 's Ms_model.t -> 's Sorts.t -> 's t BatSet.t
+val all_of_ms_model : Ms_model.t -> Sorts.t -> t BatSet.t

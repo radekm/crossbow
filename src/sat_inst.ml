@@ -17,23 +17,23 @@ end
 module type Inst_sig = sig
   type solver
 
-  type 's t
+  type t
 
-  val create : 's Prob.t -> 's Sorts.t -> 's t
+  val create : Prob.t -> Sorts.t -> t
 
-  val incr_max_size : 's t -> unit
+  val incr_max_size : t -> unit
 
-  val solve : 's t -> Sh.lbool
+  val solve : t -> Sh.lbool
 
-  val solve_timed : 's t -> int -> Sh.lbool * bool
+  val solve_timed : t -> int -> Sh.lbool * bool
 
-  val construct_model : 's t -> 's Ms_model.t
+  val construct_model : t -> Ms_model.t
 
-  val block_model : 's t -> 's Ms_model.t -> unit
+  val block_model : t -> Ms_model.t -> unit
 
-  val get_solver : 's t -> solver
+  val get_solver : t -> solver
 
-  val get_max_size : 's t -> int
+  val get_max_size : t -> int
 end
 
 module Make (Solv : Solver) :
@@ -78,26 +78,26 @@ struct
 
   type commutative = bool
 
-  type 's t = {
-    symred : 's Symred.t;
+  type t = {
+    symred : Symred.t;
     solver : Solv.t;
-    symbols : 's Symb.db;
-    sorts : 's Sorts.t;
+    symbols : Symb.db;
+    sorts : Sorts.t;
 
     (* Flag whether the LNH is enabled. *)
     mutable lnh : bool;
 
     (* Propositional variables corresponding to nullary predicates. *)
-    nullary_pred_pvars : ('s Symb.id, pvar) Hashtbl.t;
+    nullary_pred_pvars : (Symb.id, pvar) Hashtbl.t;
 
     (* Propositional variables for symbols (except nullary predicates). *)
-    pvars : ('s Symb.id, pvar BatDynArray.t) Hashtbl.t;
+    pvars : (Symb.id, pvar BatDynArray.t) Hashtbl.t;
 
     (* Except nullary predicates. *)
-    adeq_sizes : ('s Symb.id, (int array * commutative)) BatMap.t;
+    adeq_sizes : (Symb.id, (int array * commutative)) BatMap.t;
 
     (* Constants and functions. *)
-    funcs : 's Symb.id array;
+    funcs : Symb.id array;
 
     clauses : clause array;
 
@@ -124,10 +124,10 @@ struct
        by a triple (symb_id, rank, max_el).
        Constants have rank = 0 and max_el = -1.
     *)
-    assig_by_symred : ('s Symb.id * int * int, unit) Hashtbl.t;
+    assig_by_symred : (Symb.id * int * int, unit) Hashtbl.t;
 
     (* List of the cells assigned by symmetry reduction. Used for LNH. *)
-    mutable assig_by_symred_list : ('s Symred.cell * (int * int)) list;
+    mutable assig_by_symred_list : (Symred.cell * (int * int)) list;
 
     mutable can_construct_model : bool;
   }

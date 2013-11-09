@@ -4,7 +4,7 @@
 
 type id = int
 
-type 's t = {
+type t = {
   cl_id : id;
-  cl_lits : 's Clause.t;
+  cl_lits : Clause.t;
 }

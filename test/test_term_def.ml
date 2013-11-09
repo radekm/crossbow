@@ -18,7 +18,7 @@ let get_auxiliary_symbs db =
 let show_clauses cs = String.concat "\n" (BatList.map C.show cs)
 
 let test_define_nested_terms () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let p =
     let s = Symb.add_pred db 2 in
     fun a b -> L.lit (Sh.Pos, s, [| a; b |]) in
@@ -77,7 +77,7 @@ let test_define_nested_terms () =
     (BatDynArray.to_list new_clauses)
 
 let test_define_terms_in_eqs () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f =
     let s = Symb.add_func db 2 in
     fun a b -> T.func (s, [| a; b |]) in

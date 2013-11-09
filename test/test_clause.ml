@@ -8,7 +8,7 @@ module L = Lit
 module C = Clause
 
 let test_simplify () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 2 in
   let g = S.add_func db 2 in
   S.set_commutative db f true;
@@ -35,7 +35,7 @@ let test_simplify () =
     (C.simplify db orig_clause)
 
 let test_simplify_tautology () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 1 in
   let f a = T.func (f, [| a |]) in
   let x = T.var 0 in
@@ -59,7 +59,7 @@ let test_simplify_tautology () =
     ])
 
 let test_simplify_all_empty_clause () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 2 in
   Symb.set_commutative db f true;
   let f a b = T.func (f, [| a; b |]) in
@@ -80,7 +80,7 @@ let test_simplify_all_empty_clause () =
   assert_equal [[]] (BatDynArray.to_list (C.simplify_all db clauses))
 
 let test_simplify_all () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 2 in
   Symb.set_commutative db f true;
   let f a b = T.func (f, [| a; b |]) in
@@ -98,7 +98,7 @@ let test_simplify_all () =
   assert_equal [clause] (BatDynArray.to_list (C.simplify_all db clauses))
 
 let test_normalize_vars () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 2 in
   let f a b = T.func (f, [| a; b |]) in
   let orig_clause = [
@@ -116,7 +116,7 @@ let test_normalize_vars () =
     (C.normalize_vars orig_clause)
 
 let test_rewrite_ground_terms () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 2 in
   Symb.set_commutative db f true;
   let f a b = T.func (f, [| a; b |]) in
@@ -153,7 +153,7 @@ let test_rewrite_ground_terms () =
     (BatDynArray.to_list (C.rewrite_ground_terms db clauses))
 
 let test_flatten () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 1 in
   let c = S.add_func db 0 in
   let d = S.add_func db 0 in
@@ -181,7 +181,7 @@ let test_flatten () =
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_commutative_symb () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 2 in
   S.set_commutative db f true;
   let p = S.add_pred db 2 in
@@ -211,7 +211,7 @@ let test_flatten_commutative_symb () =
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_deep_nesting () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 2 in
   let g = S.add_func db 1 in
   let p = S.add_pred db 1 in
@@ -244,7 +244,7 @@ let test_flatten_deep_nesting () =
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_func_equalities () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 1 in
   let g = S.add_func db 1 in
   let c = S.add_func db 0 in
@@ -277,7 +277,7 @@ let test_flatten_func_equalities () =
   assert_equal (Some flat_clause) (C.flatten db orig_clause)
 
 let test_flatten_tautology () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let p = S.add_pred db 1 in
   let c = S.add_func db 0 in
   let p a = L.lit (Sh.Pos, p, [| a |]) in
@@ -292,7 +292,7 @@ let test_flatten_tautology () =
   assert_equal None (C.flatten db orig_clause)
 
 let test_unflatten () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let p = S.add_pred db 1 in
   let f = S.add_func db 1 in
   let c = S.add_func db 0 in
@@ -320,7 +320,7 @@ let test_unflatten () =
   assert_equal (Some exp_clause) (C.unflatten db orig_clause)
 
 let test_unflatten_term_contains_var () =
-  let S.Wr db = S.create_db () in
+  let db = S.create_db () in
   let f = S.add_func db 2 in
   let c = S.add_func db 0 in
   let d = S.add_func db 0 in
@@ -348,7 +348,7 @@ let test_unflatten_term_contains_var () =
 module IntSet = Sh.IntSet
 
 let test_vars () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 3 in
   let f a b c = T.func (f, [| a; b; c |]) in
   let g = Symb.add_func db 2 in

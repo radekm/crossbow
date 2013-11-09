@@ -4,7 +4,7 @@ module S = Symb
 module T = Term
 module L = Lit
 
-type 's t = 's L.t list
+type t = L.t list
 
 let (|>) = BatPervasives.(|>)
 let (%>) = BatPervasives.(%>)

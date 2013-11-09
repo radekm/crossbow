@@ -5,15 +5,15 @@ module S = Symb
 type var = int
 
 module Inner : sig
-  type 's t = private
+  type t = private
     | Var of var
-    | Func of 's S.id * 's t array
-  val var : var -> 's t
-  val func : 's Symb.id * 's t array -> 's t
+    | Func of S.id * t array
+  val var : var -> t
+  val func : S.id * t array -> t
 end = struct
-  type 's t =
+  type t =
     | Var of var
-    | Func of 's S.id * 's t array
+    | Func of S.id * t array
   let var x = Var x
   let func (s, args) =
     match Symb.kind s with

@@ -2,28 +2,28 @@
 
 type args = int array
 
-type 's cell = 's Symb.id * args
+type cell = Symb.id * args
 
 type commutative = bool
 
-type 's t = {
+type t = {
   (* Constant fields. *)
 
-  symb_sorts : ('s Symb.id, Sorts.sort_id array) Hashtbl.t;
+  symb_sorts : (Symb.id, Sorts.sort_id array) Hashtbl.t;
   (* Sorts of predicate and function symbols. *)
 
   adeq_sizes : int array;
   (* [adeq_sizes.(i)] is the adequate domain size of the sort [i]. *)
 
-  consts : 's Symb.id array array;
+  consts : Symb.id array array;
   (* [consts.(i)] is an array of the constants of the sort [i]. *)
 
-  funcs : ('s Symb.id * commutative) array array;
+  funcs : (Symb.id * commutative) array array;
   (* [funcs.(i)] is an array of the function symbols of the sort [i]
      with arity > 0.
   *)
 
-  distinct_consts : 's Symb.id array;
+  distinct_consts : Symb.id array;
   (* Constants which must be assigned distinct values.
      All belong to the same sort.
   *)
@@ -36,7 +36,7 @@ type 's t = {
   used_elems : int array;
   (* Number of the used elements in each sort. *)
 
-  mutable assigned : 's cell BatSet.t;
+  mutable assigned : cell BatSet.t;
   (* Cells already assigned by symmetry reduction. *)
 }
 
@@ -116,12 +116,9 @@ let assign_constants sr total_elems result =
 
   loop ()
 
-let assign_funcs (type s) (sr : s t) total_elems result =
-  let module M = struct
-    type t = s
-    exception Unassigned_cell of t cell
-  end in
+exception Unassigned_cell of cell
 
+let assign_funcs (sr : t) total_elems result =
   (* Finds an unassigned cell where the arguments are some already used
      elements.
   *)
@@ -150,13 +147,13 @@ let assign_funcs (type s) (sr : s t) total_elems result =
                 (fun a ->
                   let cell = f, a in
                   if not (BatSet.mem cell sr.assigned) then
-                    raise (M.Unassigned_cell cell))
+                    raise (Unassigned_cell cell))
             done
           end)
         sr.funcs.(sort);
       None
     with
-      | M.Unassigned_cell cell -> Some cell in
+      | Unassigned_cell cell -> Some cell in
 
   (* Marks some unused elements as used so that find_unassigned_cell
      succeeds. Returns false if no elements were marked.

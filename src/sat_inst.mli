@@ -26,7 +26,7 @@ end
 module type Inst_sig = sig
   type solver
 
-  type 's t
+  type t
 
   (** Initialization:
 
@@ -39,7 +39,7 @@ module type Inst_sig = sig
 
      Note: the maximum domain size is 0.
   *)
-  val create : 's Prob.t -> 's Sorts.t -> 's t
+  val create : Prob.t -> Sorts.t -> t
 
   (** Increases the maximum domain size:
 
@@ -51,14 +51,14 @@ module type Inst_sig = sig
 
     Note: "at least one value" clauses are not added.
   *)
-  val incr_max_size : 's t -> unit
+  val incr_max_size : t -> unit
 
   (** Adds "at least one value" clauses and starts the solver.
 
      Raises [Failure] when the maximum domain size is 0 or when it is
      lower than the number of the distinct constants.
   *)
-  val solve : 's t -> Sh.lbool
+  val solve : t -> Sh.lbool
 
   (** Adds "at least one value" clauses and starts the solver.
      The solver is interrupted if it doesn't finish within
@@ -68,7 +68,7 @@ module type Inst_sig = sig
      Raises [Failure] when the maximum domain size is 0 or when it is
      lower than the number of the distinct constants.
   *)
-  val solve_timed : 's t -> int -> Sh.lbool * bool
+  val solve_timed : t -> int -> Sh.lbool * bool
 
   (** Constructs a multi-sorted model for all constants, non-auxiliary
      functions and non-auxiliary predicates.
@@ -77,16 +77,16 @@ module type Inst_sig = sig
      Raises [Failure] when used after the call to {!incr_max_size}
      or after the unsuccessful call to {!solve}.
   *)
-  val construct_model : 's t -> 's Ms_model.t
+  val construct_model : t -> Ms_model.t
 
   (** Blocks every model which is an extension of the given model. *)
-  val block_model : 's t -> 's Ms_model.t -> unit
+  val block_model : t -> Ms_model.t -> unit
 
   (** Returns the solver instance. *)
-  val get_solver : 's t -> solver
+  val get_solver : t -> solver
 
   (** Returns the current maximum domain size. *)
-  val get_max_size : 's t -> int
+  val get_max_size : t -> int
 end
 
 module Make (Solv : Solver) :

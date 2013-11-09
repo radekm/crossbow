@@ -8,7 +8,7 @@ module L = Lit
 let (|>) = BatPervasives.(|>)
 
 let test_detect_commutativity () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let g = Symb.add_func db 2 in
   let h = Symb.add_func db 2 in
@@ -31,7 +31,7 @@ let test_detect_commutativity () =
   assert_bool "" (Symb.commutative db h |> not)
 
 let test_detect_commutativity2 () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let g = Symb.add_func db 2 in
   let clause = [
@@ -56,7 +56,7 @@ let test_detect_commutativity2 () =
   assert_bool "" (Symb.commutative db g)
 
 let test_detect_commutativity3 () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let c = Symb.add_func db 0 in
   let clause = [
@@ -71,7 +71,7 @@ let test_detect_commutativity3 () =
   assert_bool "" (Symb.commutative db f |> not)
 
 let test_detect_hints_for_groups () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let esymb = Symb.add_func db 0 in
   let e = T.func (esymb, [| |]) in
   let gsymb = Symb.add_func db 1 in
@@ -105,7 +105,7 @@ let test_detect_hints_for_groups () =
   assert_equal [Symb.Latin_square] (Symb.hints db fsymb)
 
 let test_detect_hints_for_quasigroups () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let multsymb = Symb.add_func db 2 in
   let mult a b = T.func (multsymb, [| a; b |]) in
   let ldsymb = Symb.add_func db 2 in
@@ -136,7 +136,7 @@ let test_detect_hints_for_quasigroups () =
   assert_equal [] (Symb.hints db gsymb)
 
 let test_detect_hints_for_involutive_funcs () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 1 in
   let g = Symb.add_func db 1 in
   let h = Symb.add_func db 1 in

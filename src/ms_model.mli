@@ -15,13 +15,13 @@ type table = {
   values : int array;
 }
 
-type 's t = {
+type t = {
   max_size : int;
-  symbs : ('s, table) Symb.Map.t;
+  symbs : table Symb.Map.t;
 }
 
-val equal : 's t -> 's t -> bool
+val equal : t -> t -> bool
 
-val compare : 's t -> 's t -> int
+val compare : t -> t -> int
 
-val canonize : 's t -> 's Sorts.t -> 's t
+val canonize : t -> Sorts.t -> t

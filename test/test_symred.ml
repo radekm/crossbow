@@ -13,7 +13,7 @@ let print_result result =
     result
 
 let test_no_consts_no_funcs () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let q = Symb.add_pred db 1 in
@@ -39,7 +39,7 @@ let test_no_consts_no_funcs () =
   done
 
 let test_consts_in_same_sort () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let c = Symb.add_func db 0 in
@@ -71,7 +71,7 @@ let test_consts_in_same_sort () =
   done
 
 let test_consts_in_diff_sorts () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let c = Symb.add_func db 0 in
@@ -107,7 +107,7 @@ let test_consts_in_diff_sorts () =
   done
 
 let test_distinct_consts () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let c = Symb.add_func db 0 in
@@ -145,7 +145,7 @@ let test_distinct_consts () =
   done
 
 let test_distinct_consts_consts () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let c1 = Symb.add_func db 0 in
@@ -191,7 +191,7 @@ let test_distinct_consts_consts () =
   done
 
 let test_noncomm_func_one_sort () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let f = Symb.add_func db 3 in
@@ -226,7 +226,7 @@ let test_noncomm_func_one_sort () =
   assert_equal [(f, [| 2; 0; 1 |]), (0, 10)] (Symred.incr_max_size sr)
 
 let test_noncomm_func_many_sorts_bounded_res_sort () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let f = Symb.add_func db 4 in
@@ -259,7 +259,7 @@ let test_noncomm_func_many_sorts_bounded_res_sort () =
   done
 
 let test_noncomm_func_many_sorts_bounded_param_sort () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let f = Symb.add_func db 2 in
@@ -291,7 +291,7 @@ let test_noncomm_func_many_sorts_bounded_param_sort () =
   done
 
 let test_noncomm_func_many_sorts_bounded_param_sorts1 () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let f = Symb.add_func db 2 in
@@ -322,7 +322,7 @@ let test_noncomm_func_many_sorts_bounded_param_sorts1 () =
   done
 
 let test_noncomm_func_many_sorts_bounded_param_sorts2 () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 3 in
   let f = Symb.add_func db 2 in
@@ -357,7 +357,7 @@ let test_noncomm_func_many_sorts_bounded_param_sorts2 () =
   done
 
 let test_noncomm_funcs_many_sorts () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 3 in
   let f = Symb.add_func db 2 in
@@ -399,7 +399,7 @@ let test_noncomm_funcs_many_sorts () =
   done
 
 let test_comm_func_one_sort () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 3 in
   let f = Symb.add_func db 2 in
@@ -435,7 +435,7 @@ let test_comm_func_one_sort () =
   done
 
 let test_comm_funcs_many_sorts () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 1 in
   let f = Symb.add_func db 2 in
@@ -478,7 +478,7 @@ let test_comm_funcs_many_sorts () =
   done
 
 let test_distinct_consts_const_func () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let f = Symb.add_func db 2 in

@@ -24,30 +24,26 @@ let show_clauses cs =
   |> (fun str -> "\n" ^ str)
 
 let test_paradox_splitting_empty_cl () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let cl = [] in
   let clauses = Splitting.split_clause Splitting.paradox_splitting db cl in
   let exp_clauses = [ [] ] in
   assert_equal ~printer:show_clauses exp_clauses clauses
 
 let test_paradox_mod_splitting_empty_cl () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let cl = [] in
   let clauses =
     Splitting.split_clause Splitting.paradox_mod_splitting db cl in
   let exp_clauses = [ [] ] in
   assert_equal ~printer:show_clauses exp_clauses clauses
 
-type wrap_cl =
-  | Wr_cl :
-      's Symb.db * 's C.t *
-      ('s T.t -> 's T.t -> 's Lit.t) *
-      ('s T.t -> 's T.t -> 's T.t -> 's T.t -> 's T.t -> 's T.t) *
-      (T.var -> 's T.t) ->
-      wrap_cl
-
-let make_cl () =
-  let Symb.Wr db = Symb.create_db () in
+let make_cl ()
+    : Symb.db * C.t *
+    (T.t -> T.t -> Lit.t) *
+    (T.t -> T.t -> T.t -> T.t -> T.t -> T.t) *
+    (T.var -> T.t) =
+  let db = Symb.create_db () in
   let p = Symb.add_pred db 2 in
   let p a b = L.lit (Sh.Pos, p, [| a; b |]) in
   let f = Symb.add_func db 5 in
@@ -63,15 +59,15 @@ let make_cl () =
     L.mk_ineq (x 10) (f (x 0) (x 2) (x 4) (x 6) (x 8));
     L.mk_ineq (x 11) (f (x 1) (x 3) (x 5) (x 7) (x 9));
   ] in
-  Wr_cl (db, cl, p, f, x)
+  (db, cl, p, f, x)
 
 (* Polymorphic function is needed. *)
 type split = {
-  f : 's. 's Symb.db -> 's C.t -> 's C.t list;
+  f : Symb.db -> C.t -> C.t list;
 }
 
 let check_splitting_cl (split : split) =
-  let Wr_cl (db, cl, p, f, x) = make_cl () in
+  let (db, cl, p, f, x) = make_cl () in
   let clauses = split.f db cl in
   let q1, q2, q3, q4, q5 =
     match get_auxiliary_symbs db with
@@ -122,17 +118,12 @@ let test_paradox_mod_splitting () =
     Splitting.split_clause Splitting.paradox_mod_splitting p cl in
   check_splitting_cl { f }
 
-type wrap_cl2 =
-  | Wr_cl2 :
-      's Symb.db * 's C.t *
-      ('s T.t -> 's T.t -> 's L.t) *
-      ('s T.t -> 's T.t -> 's T.t -> 's T.t -> 's L.t) *
-      's L.t *
-      (T.var -> 's T.t) ->
-      wrap_cl2
-
-let make_cl2 () =
-  let Symb.Wr db = Symb.create_db () in
+let make_cl2 ()
+    : Symb.db * C.t *
+    (T.t -> T.t -> L.t) *
+    (T.t -> T.t -> T.t -> T.t -> L.t) *
+    L.t * (T.var -> T.t) =
+  let db = Symb.create_db () in
   let p = Symb.add_pred db 2 in
   let p a b = L.lit (Sh.Pos, p, [| a; b |]) in
   let q = Symb.add_pred db 4 in
@@ -147,10 +138,10 @@ let make_cl2 () =
     r;
     q (x 3) (x 4) (x 5) (x 6);
   ] in
-  Wr_cl2 (db, cl, p, q, r, x)
+  (db, cl, p, q, r, x)
 
 let test_paradox_splitting2 () =
-  let Wr_cl2 (db, cl, p, q, r, x) = make_cl2 () in
+  let (db, cl, p, q, r, x) = make_cl2 () in
   let clauses = Splitting.split_clause Splitting.paradox_splitting db cl in
   let q1, q2 =
     match get_auxiliary_symbs db with
@@ -177,7 +168,7 @@ let test_paradox_splitting2 () =
   assert_equal ~printer:show_clauses exp_clauses clauses
 
 let test_paradox_mod_splitting2 () =
-  let Wr_cl2 (db, cl, p, q, r, x) = make_cl2 () in
+  let (db, cl, p, q, r, x) = make_cl2 () in
   let clauses =
     Splitting.split_clause Splitting.paradox_mod_splitting db cl in
   let q1 =

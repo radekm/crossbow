@@ -6,7 +6,7 @@ module S = Symb
 module T = Term
 
 let test_is_var_is_const_is_proper_func () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 1 in
   let c = Symb.add_func db 0 in
   let t1 = T.var 2 in
@@ -23,7 +23,7 @@ let test_is_var_is_const_is_proper_func () =
   assert_equal true (T.is_proper_func t3)
 
 let test_contains1 () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let g = Symb.add_func db 2 in
   let i = Symb.add_func db 1 in
@@ -38,7 +38,7 @@ let test_contains1 () =
   assert_bool "" (not (T.contains subterm term))
 
 let test_contains2 () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 1 in
   let g = Symb.add_func db 2 in
   let subterm = T.func (f, [| T.var 1 |]) in
@@ -52,7 +52,7 @@ let test_contains2 () =
   assert_bool "" (T.contains subterm term)
 
 let test_is_ground () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 1 in
   let c = Symb.add_func db 0 in
   let term =
@@ -64,7 +64,7 @@ let test_is_ground () =
   assert_bool "" (T.is_ground term)
 
 let test_is_ground2 () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let c = Symb.add_func db 0 in
   let term =
@@ -77,7 +77,7 @@ let test_is_ground2 () =
   assert_bool "" (not (T.is_ground term))
 
 let test_iter () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let g = Symb.add_func db 1 in
   let x = T.var 0 in
@@ -95,7 +95,7 @@ let test_iter () =
   assert_equal [] !subterms
 
 let test_count_symbs () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let g = Symb.add_func db 1 in
   let x = T.var 0 in
@@ -110,7 +110,7 @@ let test_count_symbs () =
   assert_equal 0 (T.count_symbs t4)
 
 let test_normalize_comm () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let g = Symb.add_func db 2 in
   let h = Symb.add_func db 2 in
@@ -146,7 +146,7 @@ let test_normalize_comm () =
 module IntSet = Sh.IntSet
 
 let test_vars () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let f = Symb.add_func db 2 in
   let f a b = T.func (f, [| a; b |]) in
   let c = Symb.add_func db 0 in

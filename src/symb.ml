@@ -1,6 +1,6 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-type 's id = int
+type id = int
 
 type arity = int
 
@@ -12,27 +12,24 @@ type hint =
   | Permutation
   | Latin_square
 
-type 's symbol = {
-  s_id : 's id;
+type symbol = {
+  s_id : id;
   s_commutative : bool;
   s_auxiliary : bool;
   s_hints : hint list;
 }
 
-type 's db = {
-  by_id : 's symbol BatDynArray.t;
+type db = {
+  by_id : symbol BatDynArray.t;
 }
-
-type wdb =
-  | Wr : 's db -> wdb
 
 let max_arity = 255
 
 module Id : sig
-  val make : int -> arity -> kind -> 's id
-  val to_idx : 's id -> int
-  val to_arity : 's id -> arity
-  val to_kind : 's id -> kind
+  val make : int -> arity -> kind -> id
+  val to_idx : id -> int
+  val to_arity : id -> arity
+  val to_kind : id -> kind
 end = struct
   let bits_arity = 8
 
@@ -69,7 +66,7 @@ let create_db () =
     s_hints = [];
   };
 
-  Wr { by_id }
+  { by_id }
 
 let add_func db arity =
   if arity < 0 || arity > max_arity then invalid_arg "arity";
@@ -147,7 +144,7 @@ let add_hint db sym hint =
 module IntMap = Sh.IntMap
 
 module Map = struct
-  type ('s, 'a) t = 'a IntMap.t
+  type 'a t = 'a IntMap.t
 
   let empty = IntMap.empty
   let add = IntMap.add

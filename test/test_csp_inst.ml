@@ -174,14 +174,14 @@ module L = Lit
 module C2 = Clause2
 
 let test_empty () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
 
   for max_size = 1 to 20 do
     assert_log (Inst.create prob max_size) []
   done
 
 let test_flat_pred () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 3 in
   let clause = {
@@ -215,7 +215,7 @@ let test_flat_pred () =
   ]
 
 let test_flat_func () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   let clause = {
@@ -286,7 +286,7 @@ let test_flat_func () =
   ]
 
 let test_flat_comm_func () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   S.set_commutative db f true;
@@ -369,7 +369,7 @@ let test_flat_comm_func () =
   ]
 
 let test_nested () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 3 in
   let f = Symb.add_func db 2 in
@@ -460,7 +460,7 @@ let test_nested () =
   ]
 
 let test_nested_comm_func () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   S.set_commutative db f true;
@@ -600,7 +600,7 @@ let test_nested_comm_func () =
   ]
 
 let test_var_eqs_and_ineqs () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   let c = Symb.add_func db 0 in
@@ -658,7 +658,7 @@ let test_var_eqs_and_ineqs () =
   ]
 
 let test_shared_linear () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   let f a b = T.func (f, [| a; b |]) in
@@ -774,7 +774,7 @@ let test_shared_linear () =
   ]
 
 let test_shared_bool_element () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 1 in
   let c = Symb.add_func db 0 in
@@ -802,7 +802,7 @@ let test_shared_bool_element () =
   ]
 
 let test_shared_int_element () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 1 in
   let f a = T.func (f, [| a |]) in
@@ -840,7 +840,7 @@ let test_shared_int_element () =
   ]
 
 let test_shared_eq_var_var () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = Symb.add_func db 0 in
   let c = T.func (c, [| |]) in
@@ -893,7 +893,7 @@ let test_shared_eq_var_var () =
   ]
 
 let test_shared_eq_var_const () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = Symb.add_func db 0 in
   let c = T.func (c, [| |]) in
@@ -930,7 +930,7 @@ let test_shared_eq_var_const () =
   ]
 
 let test_distinct_consts () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let _ = Symb.add_func db 0 in
   let c = Symb.add_func db 0 in
@@ -981,7 +981,7 @@ let test_distinct_consts () =
   ]
 
 let test_hints () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = Symb.add_func db 0 in
   let c = T.func (c, [| |]) in

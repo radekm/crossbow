@@ -7,9 +7,9 @@ type table = {
   values : int array;
 }
 
-type 's t = {
+type t = {
   max_size : int;
-  symbs : ('s, table) Symb.Map.t;
+  symbs : table Symb.Map.t;
 }
 
 let equal a b =

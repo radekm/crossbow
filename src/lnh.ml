@@ -4,9 +4,9 @@ module IntSet = Sh.IntSet
 
 let (|>) = BatPervasives.(|>)
 
-type 's t = {
-  assig : 's Symred.cell * int;
-  required : 's Symred.cell array * int;
+type t = {
+  assig : Symred.cell * int;
+  required : Symred.cell array * int;
 }
 
 let lnh symbols sorts proc_cells ((symb, args), (lo, hi)) =
@@ -61,7 +61,7 @@ let lnh symbols sorts proc_cells ((symb, args), (lo, hi)) =
         let u = po_unused.(i+1) in
 
         (* Cells which can be assigned [prev]. *)
-        let cells : 's Symred.cell array =
+        let cells : Symred.cell array =
           let cond ((symb, _), (lo, hi)) =
             get_res_sort symb = sort && lo <= prev && prev <= hi in
           proc_cells

@@ -2,6 +2,7 @@
 
 let (%>) = BatPervasives.(%>)
 
+module S = Symb
 module T = Term
 module L = Lit
 module C = Clause2
@@ -16,16 +17,16 @@ type inf_sort = Equiv.item
 (* Inferred many-sorted signature.
    The equality is not part of the signature.
 *)
-type 's inferred = {
+type inferred = {
   (* Sorts of predicate and function symbols.
      A predicate symbol has [n] sorts and a function symbol has [n+1] sorts
      ([n] sorts for its parameters and [1] sort for its result)
      where [n] is the arity of the symbol.
      Predicate symbols must be disjoint from function symbols.
   *)
-  inf_symb_sorts : ('s Symb.id, inf_sort array) Hashtbl.t;
+  inf_symb_sorts : (S.id, inf_sort array) Hashtbl.t;
   (* Sorts of variables. *)
-  inf_var_sorts : (C.id * Term.var, inf_sort) Hashtbl.t;
+  inf_var_sorts : (C.id * T.var, inf_sort) Hashtbl.t;
   (* Equivalence on sorts. *)
   inf_equiv : Equiv.t;
 }
@@ -47,10 +48,10 @@ let init_inferred () = {
      (except for the equality which works on all sorts).
 *)
 let update_inferred
-    (symdb : 's Symb.db)
-    (sorts : 's inferred)
+    (symdb : S.db)
+    (sorts : inferred)
     (clause_id : C.id)
-    (lit : 's Lit.t)
+    (lit : Lit.t)
     : unit =
 
   let get_arg_sort = function
@@ -139,9 +140,9 @@ let update_inferred
    constants. Missing constants are added to the signature.
 *)
 let merge_sorts_of_constants
-    (symdb : 's Symb.db)
-    (sorts : 's inferred)
-    (consts : 's Symb.id BatEnum.t) =
+    (symdb : S.db)
+    (sorts : inferred)
+    (consts : S.id BatEnum.t) =
 
   let get_const_sort c =
     assert (Symb.arity c = 0);
@@ -164,23 +165,23 @@ let merge_sorts_of_constants
 
 type sort_id = int
 
-type 's t = {
-  symb_sorts : ('s Symb.id, sort_id array) Hashtbl.t;
-  var_sorts : (C.id * Term.var, sort_id) Hashtbl.t;
+type t = {
+  symb_sorts : (S.id, sort_id array) Hashtbl.t;
+  var_sorts : (C.id * T.var, sort_id) Hashtbl.t;
   adeq_sizes : int array;
-  consts : 's Symb.id array array;
+  consts : S.id array array;
   only_consts : bool ref;
 }
 
 (* Note: Only a many-sorted signature is computed.
    The other record fields have default values.
 *)
-let infer_sorts (p : 's Prob.t) : 's t =
+let infer_sorts (p : Prob.t) : t =
 
   (* Infer sorts. *)
 
   let inf_sorts = init_inferred () in
-  let each_clause (cl : 's C.t) : unit =
+  let each_clause (cl : C.t) : unit =
     List.iter
       (update_inferred p.Prob.symbols inf_sorts cl.C.cl_id)
       cl.C.cl_lits in

@@ -2,6 +2,7 @@
 
 open OUnit
 
+module S = Symb
 module T = Term
 module L = Lit
 module C2 = Clause2
@@ -14,7 +15,7 @@ end = struct
      not surjective: f(x) <> c
   *)
   let test_only_infinite_model () =
-    let Prob.Wr prob = Prob.create () in
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let f =
       let s = Symb.add_func db 1 in
@@ -46,7 +47,7 @@ end = struct
      f(x) = y -> f(y) = x
   *)
   let test_fin_models_even_size () =
-    let Prob.Wr prob = Prob.create () in
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let fsymb = Symb.add_func db 1 in
     let f a = T.func (fsymb, [| a |]) in
@@ -87,12 +88,8 @@ end = struct
         assert_equal Sh.Lfalse (Inst.solve i)
     done
 
-  type wrapped_group =
-    | Group_wr :
-        's Prob.t * 's Symb.id * 's Symb.id * 's Symb.id -> wrapped_group
-
-  let make_group () =
-    let Prob.Wr prob = Prob.create () in
+  let make_group () : Prob.t * S.id * S.id * S.id =
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let zero' = Symb.add_func db 0 in
     let zero = T.func (zero', [| |]) in
@@ -142,7 +139,7 @@ end = struct
     List.iter
       (BatDynArray.add prob.Prob.clauses)
       [clause; clause2; clause3; clause4; clause5; clause6; clause7];
-    Group_wr (prob, zero', g', f')
+    (prob, zero', g', f')
 
   let count_models prob max_size =
     let i = Inst.create prob max_size in
@@ -162,7 +159,7 @@ end = struct
     BatSet.PSet.cardinal !models
 
   let test_abelian_groups () =
-    let Group_wr (prob, _, _, f) = make_group () in
+    let (prob, _, _, f) = make_group () in
     Symb.set_commutative prob.Prob.symbols f true;
 
     let exp_counts = (* up to max_size = 16 *)
@@ -173,7 +170,7 @@ end = struct
     done
 
   let test_abelian_groups2 () =
-    let Group_wr (prob, _, _, f) = make_group () in
+    let (prob, _, _, f) = make_group () in
     BatDynArray.add
       prob.Prob.clauses
       {
@@ -194,7 +191,7 @@ end = struct
     done
 
   let test_groups () =
-    let Group_wr (prob, _, _, _) = make_group () in
+    let (prob, _, _, _) = make_group () in
 
     let exp_counts = (* up to max_size = 16 *)
       [| -1; 1; 1; 1; 2; 1; 2; 1; 5; 2; 2; 1; 5; 1; 2; 1; 14 |] in
@@ -207,7 +204,7 @@ end = struct
      f(x, x) <> c
   *)
   let test_solve_timed () =
-    let Prob.Wr prob = Prob.create () in
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let f =
       let s = Symb.add_func db 2 in

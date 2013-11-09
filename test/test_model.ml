@@ -27,7 +27,7 @@ let build_and_check_model prob ms_model exp_model =
   assert_equal ~cmp:M.equal ~printer:show_model exp_model model
 
 let test_nullary_pred () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 0 in
   let clause = {
@@ -56,7 +56,7 @@ let test_nullary_pred () =
   build_and_check_model prob ms_model exp_model
 
 let test_unary_func_one_sort_no_adeq_size () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 1 in
   let x = T.var 0 in
@@ -86,7 +86,7 @@ let test_unary_func_one_sort_no_adeq_size () =
   build_and_check_model prob ms_model exp_model
 
 let test_binary_pred_two_sorts_no_adeq_size () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 2 in
   let x = T.var 0 in
@@ -123,7 +123,7 @@ let test_binary_pred_two_sorts_no_adeq_size () =
   build_and_check_model prob ms_model exp_model
 
 let test_unary_pred_one_sort_adeq_size () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 1 in
   let c = Symb.add_func db 0 in
@@ -208,7 +208,7 @@ let test_unary_pred_one_sort_adeq_size () =
 
 (* Same as previous, but contains inequalities instead of equalities. *)
 let test_unary_pred_one_sort_adeq_size2 () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 1 in
   let c = Symb.add_func db 0 in
@@ -270,7 +270,7 @@ let test_unary_pred_one_sort_adeq_size2 () =
   build_and_check_model prob ms_model3 exp_model3
 
 let test_binary_func_two_sorts_one_adeq_size () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   let c = Symb.add_func db 0 in
@@ -354,7 +354,7 @@ let test_binary_func_two_sorts_one_adeq_size () =
    and the second argument has.
 *)
 let test_binary_func_two_sorts_one_adeq_size2 () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   let c = Symb.add_func db 0 in
@@ -435,7 +435,7 @@ let test_binary_func_two_sorts_one_adeq_size2 () =
   build_and_check_model prob ms_model3 exp_model3
 
 let test_binary_func_three_sorts_two_adeq_sizes () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   let c1 = Symb.add_func db 0 in
@@ -582,7 +582,7 @@ let test_binary_func_three_sorts_two_adeq_sizes () =
   build_and_check_model prob ms_model4 exp_model4
 
 let test_comm_func_two_sorts_one_adeq_size () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f = Symb.add_func db 2 in
   Symb.set_commutative db f true;
@@ -647,7 +647,7 @@ let test_comm_func_two_sorts_one_adeq_size () =
   build_and_check_model prob ms_model3 exp_model3
 
 let test_canonize () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let c = Symb.add_func db 0 in
   let f = Symb.add_func db 2 in
   let p = Symb.add_pred db 0 in
@@ -726,7 +726,7 @@ let test_canonize () =
     all_models
 
 let test_all_of_ms_model () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 1 in
   let f = Symb.add_func db 2 in

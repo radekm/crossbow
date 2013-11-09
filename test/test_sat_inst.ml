@@ -122,7 +122,7 @@ module L = Lit
 module C = Clause2
 
 let test_no_symbols_only_clause () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let x = T.var 0 in
   let y = T.var 1 in
   let z = T.var 2 in
@@ -204,7 +204,7 @@ let test_no_symbols_only_clause () =
     ]
 
 let test_nullary_preds () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = L.lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
   let q = L.lit (Sh.Pos, Symb.add_pred db 0, [| |]) in
@@ -275,7 +275,7 @@ let test_nullary_preds () =
     ]
 
 let test_constants () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = T.func (Symb.add_func db 0, [| |]) in
   let d = T.func (Symb.add_func db 0, [| |]) in
@@ -361,7 +361,7 @@ let test_constants () =
     ]
 
 let test_distinct_consts () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = T.func (Symb.add_func db 0, [| |]) in
   let d =
@@ -521,7 +521,7 @@ let test_distinct_consts () =
     ]
 
 let test_unary_func () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f =
     let s = Symb.add_func db 1 in
@@ -594,7 +594,7 @@ let test_unary_func () =
     ]
 
 let test_unary_pred () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = T.func (Symb.add_func db 0, [| |]) in
   let p =
@@ -664,7 +664,7 @@ let test_unary_pred () =
     ]
 
 let test_commutative_func () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let f =
     let s = Symb.add_func db 2 in
@@ -797,7 +797,7 @@ let test_commutative_func () =
     ]
 
 let test_symmetric_pred () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p =
     let s = Symb.add_pred db 2 in
@@ -868,7 +868,7 @@ let test_symmetric_pred () =
     ]
 
 let test_block_model () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = Symb.add_func db 0 in
   let p = Symb.add_pred db 1 in

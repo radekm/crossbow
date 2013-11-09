@@ -4,17 +4,17 @@ module S = Symb
 module T = Term
 
 module Inner : sig
-  type 's t = private
-    | Lit of Sh.sign * 's Symb.id * 's Term.t array
-  val lit : Sh.sign * 's Symb.id * 's Term.t array -> 's t
+  type t = private
+    | Lit of Sh.sign * S.id * T.t array
+  val lit : Sh.sign * S.id * T.t array -> t
 end = struct
-  type 's t =
-    | Lit of Sh.sign * 's Symb.id * 's Term.t array
+  type t =
+    | Lit of Sh.sign * S.id * T.t array
   let lit (sign, s, args) =
-    match Symb.kind s with
-      | Symb.Func -> failwith "lit: kind"
-      | Symb.Pred ->
-          if Symb.arity s <> Array.length args then
+    match S.kind s with
+      | S.Func -> failwith "lit: kind"
+      | S.Pred ->
+          if S.arity s <> Array.length args then
             failwith "lit: arity"
           else
             Lit (sign, s, args)

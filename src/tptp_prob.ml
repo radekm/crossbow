@@ -12,19 +12,16 @@ type tptp_symbol =
   | Number of Q.t
   | String of Ast.tptp_string
 
-type 's symb_map = {
-  of_tptp : (tptp_symbol, 's Symb.id) Hashtbl.t;
-  to_tptp : ('s Symb.id, tptp_symbol) Hashtbl.t;
+type symb_map = {
+  of_tptp : (tptp_symbol, S.id) Hashtbl.t;
+  to_tptp : (S.id, tptp_symbol) Hashtbl.t;
 }
 
-type 's t = {
-  smap : 's symb_map;
+type t = {
+  smap : symb_map;
   preds : (tptp_symbol, bool) Hashtbl.t;
-  prob : 's Prob.t;
+  prob : Prob.t;
 }
-
-type wt =
-  | Wr : 's t -> wt
 
 let (|>) = BatPervasives.(|>)
 
@@ -158,12 +155,12 @@ let combine_paths (a : string) (b : string) : string =
 
 let of_file ?(prob = None) base_dir file =
 
-  let Wr p =
+  let p =
     match prob with
       | Some p -> p
       | None ->
-          let Prob.Wr prob = Prob.create () in
-          Wr {
+          let prob = Prob.create () in
+          {
             smap = {
               of_tptp = Hashtbl.create 20;
               to_tptp = Hashtbl.create 20
@@ -193,7 +190,7 @@ let of_file ?(prob = None) base_dir file =
         (Tptp.create_in lexbuf)) in
 
   of_file file (fun _ -> true);
-  Wr p
+  p
 
 type commutativity =
   | Ignore

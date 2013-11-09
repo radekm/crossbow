@@ -11,8 +11,7 @@ module C = Clause2
 let base_dir = "test/data/tptp_prob/"
 
 let test_basic () =
-  let Tptp_prob.Wr p =
-    Tptp_prob.of_file base_dir (base_dir ^ "01_test_basic.p") in
+  let p = Tptp_prob.of_file base_dir (base_dir ^ "01_test_basic.p") in
 
   let q = Ast.Plain_word (Ast.to_plain_word "q") in
   let c = Ast.Plain_word (Ast.to_plain_word "c") in
@@ -124,8 +123,7 @@ let test_basic () =
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
 let test_include () =
-  let Tptp_prob.Wr p =
-    Tptp_prob.of_file base_dir (base_dir ^ "02_test_include.p") in
+  let p = Tptp_prob.of_file base_dir (base_dir ^ "02_test_include.p") in
 
   let q = Ast.Plain_word (Ast.to_plain_word "q") in
   let c = Ast.Plain_word (Ast.to_plain_word "c") in
@@ -213,7 +211,7 @@ let test_include () =
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
 let test_nested_include () =
-  let Tptp_prob.Wr p =
+  let p =
     Tptp_prob.of_file base_dir (base_dir ^ "03_test_nested_include.p") in
 
   let r = Ast.Plain_word (Ast.to_plain_word "r") in
@@ -265,7 +263,7 @@ let test_nested_include () =
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
 let test_nested_include_with_sel () =
-  let Tptp_prob.Wr prob =
+  let prob =
     Tptp_prob.of_file base_dir
       (base_dir ^ "04_test_nested_include_with_sel.p") in
 
@@ -343,7 +341,7 @@ let test_nested_include_with_sel () =
 let hashtbl_of_list xs = BatHashtbl.of_enum (BatList.enum xs)
 
 let test_prob_to_tptp_vars () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let fs = Symb.add_func db 2 in
   let f a b = T.func (fs, [| a; b |]) in
@@ -388,7 +386,7 @@ let test_prob_to_tptp_vars () =
   assert_equal exp (List.rev !res)
 
 let test_prob_to_tptp_aux_symbs () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   (* Auxiliary. *)
   let fs = Symb.add_func db 2 in
@@ -450,7 +448,7 @@ let test_prob_to_tptp_aux_symbs () =
   assert_equal exp (List.rev !res)
 
 let test_prob_to_tptp_commutativity () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let fs = Symb.add_func db 2 in
   Symb.set_commutative db fs true;
@@ -530,7 +528,7 @@ module M = Model
 let map_of_list xs = Symb.Map.of_enum (BatList.enum xs)
 
 let test_model_to_tptp () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let p = Symb.add_pred db 1 in
   let q = Symb.add_pred db 0 in

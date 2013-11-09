@@ -8,13 +8,10 @@
 *)
 
 (** Symbol database. *)
-type 's db
-
-type wdb =
-  | Wr : 's db -> wdb
+type db
 
 (** An identifier of a symbol in a database. *)
-type 's id
+type id
 
 (** Symbol arity. *)
 type arity = int
@@ -33,27 +30,27 @@ type hint =
   (** For binary functions. *)
 
 (** Creates a new symbol database containing only the predefined symbols. *)
-val create_db : unit -> wdb
+val create_db : unit -> db
 
 (** Adds a new function symbol into the database.
    The symbol is not commutative and not auxiliary.
 
    Raises [Invalid_argument] if the arity is out of the range.
 *)
-val add_func : 's db -> arity -> 's id
+val add_func : db -> arity -> id
 
 (** Adds a new predicate symbol into the database.
    The symbol is not commutative and not auxiliary.
 
    Raises [Invalid_argument] if the arity is out of the range.
 *)
-val add_pred : 's db -> arity -> 's id
+val add_pred : db -> arity -> id
 
 (** [iter f db] applies [f] to each symbol in the database [db]. *)
-val iter : ('s id -> unit) -> 's db -> unit
+val iter : (id -> unit) -> db -> unit
 
 (** Converts the identifier to integer. *)
-val id_to_int : 's id -> int
+val id_to_int : id -> int
 
 (** {6 Properties of symbols}
 
@@ -61,31 +58,31 @@ val id_to_int : 's id -> int
 *)
 
 (** Returns the arity. *)
-val arity : 's id -> arity
+val arity : id -> arity
 
-val kind : 's id -> kind
+val kind : id -> kind
 
 (** Returns whether the symbol is commutative. *)
-val commutative : 's db -> 's id -> bool
+val commutative : db -> id -> bool
 
 (** Sets commutativity of the binary symbol.
    Must not be used for predefined symbols.
 
    Raises [Failure] if the symbol is predefined or non-binary.
 *)
-val set_commutative : 's db -> 's id -> bool -> unit
+val set_commutative : db -> id -> bool -> unit
 
 (** Returns whether the symbol is auxiliary. *)
-val auxiliary : 's db -> 's id -> bool
+val auxiliary : db -> id -> bool
 
 (** Sets whether the symbol is auxiliary.
 
    Raises [Failure] if the symbol is predefined.
 *)
-val set_auxiliary : 's db -> 's id -> bool -> unit
+val set_auxiliary : db -> id -> bool -> unit
 
 (** Returns the hints of the given symbol. *)
-val hints : 's db -> 's id -> hint list
+val hints : db -> id -> hint list
 
 (** Records hint for the given symbol.
 
@@ -93,7 +90,7 @@ val hints : 's db -> 's id -> hint list
    or if the hint is not compatible with the kind
    or the arity of the symbol.
 *)
-val add_hint : 's db -> 's id -> hint -> unit
+val add_hint : db -> id -> hint -> unit
 
 (** {6 Predefined symbols}
 
@@ -101,19 +98,19 @@ val add_hint : 's db -> 's id -> hint -> unit
 *)
 
 (** The id of the equality symbol [=/2]. *)
-val sym_eq : 's id
+val sym_eq : id
 
 module Map : sig
-  type ('s, 'a) t
+  type 'a t
 
-  val empty : ('s, 'a) t
-  val add : 's id -> 'a -> ('s, 'a) t -> ('s, 'a) t
-  val find : 's id -> ('s, 'a) t -> 'a
-  val mem : 's id -> ('s, 'a) t -> bool
-  val iter : ('s id -> 'a -> unit) -> ('s, 'a) t -> unit
-  val mapi : ('s id -> 'a -> 'b) -> ('s, 'a) t -> ('s, 'b) t
-  val compare : ('a -> 'a -> int) -> ('s, 'a) t -> ('s, 'a) t -> int
-  val equal : ('a -> 'a -> bool) -> ('s, 'a) t -> ('s, 'a) t -> bool
-  val enum : ('s, 'a) t -> ('s id * 'a) BatEnum.t
-  val of_enum : ('s id * 'a) BatEnum.t -> ('s, 'a) t
+  val empty : 'a t
+  val add : id -> 'a -> 'a t -> 'a t
+  val find : id -> 'a t -> 'a
+  val mem : id -> 'a t -> bool
+  val iter : (id -> 'a -> unit) -> 'a t -> unit
+  val mapi : (id -> 'a -> 'b) -> 'a t -> 'b t
+  val compare : ('a -> 'a -> int) -> 'a t -> 'a t -> int
+  val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+  val enum : 'a t -> (id * 'a) BatEnum.t
+  val of_enum : (id * 'a) BatEnum.t -> 'a t
 end

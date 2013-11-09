@@ -10,7 +10,7 @@ module Ms = Ms_model
 let map_of_list xs = Symb.Map.of_enum (BatList.enum xs)
 
 let test_canonize_one_sort_size_one () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = Symb.add_func db 0 in
   let clause =
@@ -37,7 +37,7 @@ let test_canonize_one_sort_size_one () =
   assert_equal ~cmp:Ms.equal model (Ms.canonize model sorts)
 
 let test_canonize_one_sort_size_two () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = Symb.add_func db 0 in
   let p = Symb.add_pred db 1 in
@@ -109,7 +109,7 @@ let test_canonize_one_sort_size_two () =
   assert_equal ~cmp:Ms.equal m (Ms.canonize model2 sorts)
 
 let test_canonize_two_sorts_sizes_two_three () =
-  let Prob.Wr prob = Prob.create () in
+  let prob = Prob.create () in
   let db = prob.Prob.symbols in
   let c = Symb.add_func db 0 in
   let p = Symb.add_pred db 2 in

@@ -1,23 +1,22 @@
 (* Copyright (c) 2013 Radek Micek *)
 
+module S = Symb
 module T = Term
 module L = Lit
 module C = Clause
 
 let (|>) = BatPervasives.(|>)
 
-let define_ground_terms (type s) (symdb : s Symb.db) clauses =
+exception Term of T.t
 
-  let module M = struct
-    exception Term of s T.t
-  end in
+let define_ground_terms (symdb : S.db) clauses =
 
   let raise_when_ground_term_depth_two = function
     | T.Var _
     | T.Func (_, [| |]) -> ()
     | T.Func (_, args) as t ->
         if BatArray.for_all T.is_const args then
-          raise (M.Term t) in
+          raise (Term t) in
 
   let define_ground_term t cs =
     let s = Symb.add_func symdb 0 in
@@ -44,7 +43,7 @@ let define_ground_terms (type s) (symdb : s Symb.db) clauses =
       BatDynArray.iter (List.iter find_in_lit) cs;
       cs
     with
-      | M.Term t ->
+      | Term t ->
           define_ground_term t cs;
           define_nested (C.rewrite_ground_terms symdb cs) in
 
@@ -62,7 +61,7 @@ let define_ground_terms (type s) (symdb : s Symb.db) clauses =
         cs;
       cs
     with
-      | M.Term t ->
+      | Term t ->
           define_ground_term t cs;
           define_in_long_clauses (C.rewrite_ground_terms symdb cs) in
 
@@ -83,7 +82,7 @@ let define_ground_terms (type s) (symdb : s Symb.db) clauses =
         cs;
       cs
     with
-      | M.Term t ->
+      | Term t ->
           define_ground_term t cs;
           define_in_unit_eq_clauses sign (C.rewrite_ground_terms symdb cs) in
 

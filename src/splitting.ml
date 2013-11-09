@@ -1,5 +1,6 @@
 (* Copyright (c) 2013 Radek Micek *)
 
+module S = Symb
 module T = Term
 module L = Lit
 module C = Clause
@@ -27,7 +28,7 @@ let count_connections n norm_lits : int array =
   Array.init n (fun x -> Array.fold_left (+) 0 connected.(x))
 
 let paradox_binary_split
-    (partition_lits : T.var -> 's C.t -> 's C.t * 's C.t)
+    (partition_lits : T.var -> C.t -> C.t * C.t)
     new_pred
     lits =
   let lits, n = C.normalize_vars lits in
@@ -62,7 +63,7 @@ let paradox_binary_split
         L.lit (Sh.Pos, p, args) in
       ([], [lit :: left; L.neg lit :: right])
 
-type 's t = (int -> 's Symb.id) -> 's C.t -> 's C.t list
+type t = (int -> S.id) -> C.t -> C.t list
 
 (* Repeatedly apply splitting to the given clause. *)
 let binary_splitting split new_pred lits =

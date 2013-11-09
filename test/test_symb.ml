@@ -2,7 +2,7 @@
 open OUnit
 
 let test_ids_differ () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let s1 = Symb.add_func db 2 in
   let s2 = Symb.add_func db 2 in
   let s3 = Symb.add_pred db 2 in
@@ -16,7 +16,7 @@ let test_ids_differ () =
   assert_equal (List.length all) (List.length (BatList.unique all))
 
 let test_ids_order () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let s1 = Symb.add_func db 2 in
   let s2 = Symb.add_pred db 1 in
   let s3 = Symb.add_pred db 2 in
@@ -29,7 +29,7 @@ let test_ids_order () =
   assert_bool "" (s4 < s5)
 
 let test_arity_kind () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let s1 = Symb.add_pred db 3 in
   let s2 = Symb.add_func db 0 in
   let s3 = Symb.add_func db Symb.max_arity in
@@ -52,7 +52,7 @@ let test_arity_kind () =
   assert_equal Symb.Pred (Symb.kind s6)
 
 let test_iter () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let s1 = Symb.add_func db 2 in
   let s2 = Symb.add_pred db 1 in
   let s3 = Symb.add_func db 0 in
@@ -66,7 +66,7 @@ let test_iter () =
   assert_equal [] !symbs
 
 let test_set_commutative () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let s1 = Symb.add_func db 2 in
   let s2 = Symb.add_func db 2 in
   assert_bool "" (not (Symb.commutative db s1));
@@ -82,33 +82,33 @@ let test_set_commutative () =
   assert_bool "" (not (Symb.commutative db s2))
 
 let test_set_commutative_rejects_predefined_symbs () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   assert_raises
     (Failure "predefined symbol")
     (fun () -> Symb.set_commutative db Symb.sym_eq true)
 
 let test_set_commutative_rejects_nonbinary_symbs () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let s = Symb.add_pred db 3 in
   assert_raises
     (Failure "non-binary symbol")
     (fun () -> Symb.set_commutative db s true)
 
 let test_set_auxiliary () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let s = Symb.add_func db 2 in
   assert_bool "" (not (Symb.auxiliary db s));
   Symb.set_auxiliary db s true;
   assert_bool "" (Symb.auxiliary db s)
 
 let test_set_auxiliary_rejects_predefined_symbs () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   assert_raises
     (Failure "predefined symbol")
     (fun () -> Symb.set_auxiliary db Symb.sym_eq true)
 
 let test_add_hint () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let p = Symb.add_pred db 2 in
   let f = Symb.add_func db 2 in
   let g = Symb.add_func db 1 in
@@ -121,13 +121,13 @@ let test_add_hint () =
   assert_equal [] (Symb.hints db c)
 
 let test_add_hint_rejects_predefined_symbs () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   assert_raises
     (Failure "predefined symbol")
     (fun () -> Symb.add_hint db Symb.sym_eq Symb.Latin_square)
 
 let test_add_hint_rejects_incompatible_symbs () =
-  let Symb.Wr db = Symb.create_db () in
+  let db = Symb.create_db () in
   let p = Symb.add_pred db 2 in
   let f = Symb.add_func db 2 in
   let c = Symb.add_func db 0 in

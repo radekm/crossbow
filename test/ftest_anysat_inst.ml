@@ -2,6 +2,7 @@
 
 open OUnit
 
+module S = Symb
 module T = Term
 module L = Lit
 module C = Clause2
@@ -14,7 +15,7 @@ end = struct
      not surjective: f(x) <> c
   *)
   let test_only_infinite_model () =
-    let Prob.Wr prob = Prob.create () in
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let f =
       let s = Symb.add_func db 1 in
@@ -45,7 +46,7 @@ end = struct
     done
 
   let test_only_nullary_preds () =
-    let Prob.Wr prob = Prob.create () in
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let psymb = Symb.add_pred db 0 in
     let qsymb = Symb.add_pred db 0 in
@@ -122,7 +123,7 @@ end = struct
     done
 
   let test_symmetric_pred () =
-    let Prob.Wr prob = Prob.create () in
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let psymb = Symb.add_pred db 2 in
     let p a b = L.lit (Sh.Pos, psymb, [| a; b |]) in
@@ -198,7 +199,7 @@ end = struct
     done
 
   let test_latin_square () =
-    let Prob.Wr prob = Prob.create () in
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let fsymb = Symb.add_func db 2 in
     let f a b = T.func (fsymb, [| a; b |]) in
@@ -267,7 +268,7 @@ end = struct
      f(x) = y -> f(y) = x
   *)
   let test_fin_models_even_size () =
-    let Prob.Wr prob = Prob.create () in
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let fsymb = Symb.add_func db 1 in
     let f a = T.func (fsymb, [| a |]) in
@@ -309,12 +310,8 @@ end = struct
         assert_equal Sh.Lfalse (Inst.solve i)
     done
 
-  type wrapped_group =
-    | Group_wr :
-        's Prob.t * 's Symb.id * 's Symb.id * 's Symb.id -> wrapped_group
-
-  let make_group () =
-    let Prob.Wr prob = Prob.create () in
+  let make_group () : Prob.t * S.id * S.id * S.id =
+    let prob = Prob.create () in
     let db = prob.Prob.symbols in
     let zero' = Symb.add_func db 0 in
     let zero = T.func (zero', [| |]) in
@@ -372,7 +369,7 @@ end = struct
     List.iter
       (BatDynArray.add prob.Prob.clauses)
       [clause; clause2; clause3; clause4; clause5; clause6; clause7];
-    Group_wr (prob, zero', g', f')
+    (prob, zero', g', f')
 
   let count_models prob sorts max_size =
     let i = Inst.create prob sorts in
@@ -399,7 +396,7 @@ end = struct
     BatSet.PSet.cardinal !ms_models, !model_cnt
 
   let test_abelian_groups () =
-    let Group_wr (prob, _, _, f) = make_group () in
+    let (prob, _, _, f) = make_group () in
     Symb.set_commutative prob.Prob.symbols f true;
     let sorts = Sorts.of_problem prob in
 
@@ -412,7 +409,7 @@ end = struct
     done
 
   let test_abelian_groups2 () =
-    let Group_wr (prob, _, _, f) = make_group () in
+    let (prob, _, _, f) = make_group () in
     BatDynArray.add
       prob.Prob.clauses
       {
@@ -434,7 +431,7 @@ end = struct
     done
 
   let test_groups () =
-    let Group_wr (prob, _, _, _) = make_group () in
+    let (prob, _, _, _) = make_group () in
     let sorts = Sorts.of_problem prob in
 
     let exp_counts = (* up to max_size = 16 *)
