@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -51,6 +51,8 @@ class SQLStats;
 class ImplCache;
 class CompFinder;
 class CompHandler;
+class SubsumeStrengthen;
+class SubsumeImplicit;
 
 class LitReachData {
     public:
@@ -66,8 +68,8 @@ class LitReachData {
 class Solver : public Searcher
 {
     public:
-        Solver(const SolverConf& _conf);
-        ~Solver();
+        Solver(const SolverConf _conf = SolverConf());
+        virtual ~Solver();
 
         //////////
         //External stats
@@ -75,6 +77,8 @@ class Solver : public Searcher
 
         //////////////////////////////
         //Solving
+        //
+        bool addClauseOuter(const vector<Lit>& ps);
         lbool solve(const vector<Lit>* _assumptions = NULL);
         void        setNeedToInterrupt();
         vector<lbool>  model;
@@ -82,47 +86,27 @@ class Solver : public Searcher
 
         //////////////////////////////
         // Problem specification:
-        Var  newVar(const bool dvar = true); ///< Add new variable
-        bool addClause(const vector<Lit>& ps);  ///< Add clause to the solver
-        bool addXorClause(const vector<Var>& vars, bool rhs);
-        bool addLearntClause(
+        void new_external_var();
+        //bool addXorClause(const vector<Var>& vars, bool rhs);
+        /*bool addRedClause(
             const vector<Lit>& ps
             , const ClauseStats& stats = ClauseStats()
-        );
-
-        struct BinTriStats
-        {
-            BinTriStats() :
-                irredLits(0)
-                , redLits(0)
-                , irredBins(0)
-                , redBins(0)
-                , irredTris(0)
-                , redTris(0)
-                , numNewBinsSinceSCC(0)
-            {};
-
-            uint64_t irredLits;  ///< Number of literals in non-learnt clauses
-            uint64_t redLits;  ///< Number of literals in learnt clauses
-            uint64_t irredBins;
-            uint64_t redBins;
-            uint64_t irredTris;
-            uint64_t redTris;
-            uint64_t numNewBinsSinceSCC;
-        };
+        );*/
 
         //////////////////////////
         //Stats
         static const char* getVersion();
 
-        ///Return number of ALL clauses: non-learnt, learnt, bin
         uint64_t getNumLongClauses() const;
-        bool     getNeedToDumpLearnts() const;
-        bool     getNeedToDumpSimplified() const;
+        bool     getNeedToDumpReds() const;
+        bool     getNeedToDumpIrredundant() const;
+        void     open_dump_file(std::ofstream& outfile, std::string filename) const;
+        void     open_file_and_dump_irred_clauses() const;
+        void     open_file_and_dump_red_clauses() const;
         int      getVerbosity() const;
-        int      getverbStatsosity() const;
         void     printStats() const;
         void     printClauseStats() const;
+        void     print_value_kilo_mega(uint64_t value) const;
         void     addInPartialSolvingStat();
         size_t   getNumDecisionVars() const;
         size_t   getNumFreeVars() const;
@@ -131,11 +115,9 @@ class Solver : public Searcher
         const BinTriStats& getBinTriStats() const;
         size_t   getNumLongIrredCls() const;
         size_t   getNumLongRedCls() const;
-        const vector<Var>& getInterToOuterMain() const;
         size_t getNumVarsElimed() const;
         size_t getNumVarsReplaced() const;
         void dumpIfNeeded() const;
-        void print_elimed_vars() const;
         Var numActiveVars() const;
         void printMemStats() const;
         uint64_t printWatchMemUsed(uint64_t totalMem) const;
@@ -145,46 +127,50 @@ class Solver : public Searcher
         size_t getNewToReplaceVars() const;
         const Stats& getStats() const;
         uint64_t getNextCleanLimit() const;
-        bool     getSavedPolarity(Var var) const;
-        uint32_t getSavedActivity(const Var var) const;
-        uint32_t getSavedActivityInc() const;
 
         ///////////////////////////////////
         // State Dumping
         template<class T>
-        string clauseBackNumbered(const T& cl) const;
+        vector<Lit> clauseBackNumbered(const T& cl) const;
         void dumpUnitaryClauses(std::ostream* os) const;
         void dumpEquivalentLits(std::ostream* os) const;
         void dumpBinClauses(
-            const bool dumpLearnt
-            , const bool dumpNonLearnt
+            const bool dumpRed
+            , const bool dumpIrred
             , std::ostream* outfile
         ) const;
 
         void dumpTriClauses(
-            const bool alsoLearnt
-            , const bool alsoNonLearnt
+            const bool alsoRed
+            , const bool alsoIrred
             , std::ostream* outfile
         ) const;
 
-        ///Dump all irredundant(=learnt) clauses into file
+        ///Dump all redundant clauses into a file
         void dumpRedClauses(
             std::ostream* os
             , const uint32_t maxSize
         ) const;
 
-        ///Dump (simplified) irredundant system
+        ///Dump irredundant clasues intto a file
         void dumpIrredClauses(
             std::ostream* os
         ) const;
+        uint64_t count_irred_clauses_for_dump() const;
+        void dump_clauses(
+            const vector<ClOffset>& cls
+            , std::ostream* os
+            , size_t max_size = std::numeric_limits<size_t>::max()
+        ) const;
+        void dump_blocked_clauses(std::ostream* os) const;
+        void dump_component_clauses(std::ostream* os) const;
+        void write_irred_stats_to_cnf(std::ostream* os) const;
 
         struct SolveStats
         {
             SolveStats() :
                 numSimplify(0)
                 , nbReduceDB(0)
-                , subsBinWithBinTime(0)
-                , subsBinWithBin(0)
                 , numCallReachCalc(0)
             {}
 
@@ -192,8 +178,6 @@ class Solver : public Searcher
             {
                 numSimplify += other.numSimplify;
                 nbReduceDB += other.nbReduceDB;
-                subsBinWithBinTime += other.subsBinWithBinTime;
-                subsBinWithBin += other.subsBinWithBin;
                 numCallReachCalc += other.numCallReachCalc;
 
                 return *this;
@@ -201,8 +185,6 @@ class Solver : public Searcher
 
             uint64_t numSimplify;
             uint64_t nbReduceDB;
-            double subsBinWithBinTime;
-            uint64_t subsBinWithBin;
             uint64_t numCallReachCalc;
         };
         const SolveStats& getSolveStats() const;
@@ -282,9 +264,15 @@ class Solver : public Searcher
         //Checks
         void checkImplicitPropagated() const;
         void checkStats(const bool allowFreed = false) const;
+        uint64_t countLits(
+            const vector<ClOffset>& clause_array
+            , bool allowFreed
+        ) const;
         void checkImplicitStats() const;
 
     protected:
+        bool addClause(const vector<Lit>& ps);
+        virtual void newVar(const bool bva = false, const Var orig_outer = std::numeric_limits<Var>::max());
 
         //friend class SQLStats;
         SQLStats* sqlStats;
@@ -298,25 +286,25 @@ class Solver : public Searcher
         virtual void attachBinClause(
             const Lit lit1
             , const Lit lit2
-            , const bool learnt
+            , const bool red
             , const bool checkUnassignedFirst = true
         );
         virtual void attachTriClause(
             const Lit lit1
             , const Lit lit2
             , const Lit lit3
-            , const bool learnt
+            , const bool red
         );
         virtual void detachTriClause(
             const Lit lit1
             , const Lit lit2
             , const Lit lit3
-            , const bool learnt
+            , const bool red
         );
         virtual void detachBinClause(
             const Lit lit1
             , const Lit lit2
-            , const bool learnt
+            , const bool red
         );
         virtual void  detachClause(const Clause& c, const bool removeDrup = true);
         virtual void  detachClause(const ClOffset offset, const bool removeDrup = true);
@@ -328,7 +316,7 @@ class Solver : public Searcher
         );
         Clause* addClauseInt(
             const vector<Lit>& lits
-            , const bool learnt = false
+            , const bool red = false
             , const ClauseStats stats = ClauseStats()
             , const bool attach = true
             , vector<Lit>* finalLits = NULL
@@ -336,6 +324,10 @@ class Solver : public Searcher
         );
 
     private:
+        vector<Lit> back_number_from_caller(const vector<Lit>& lits) const;
+        void check_switchoff_limits_newvar();
+        vector<Lit> origAssumptions;
+        void checkDecisionVarCorrectness() const;
         bool enqueueThese(const vector<Lit>& toEnqueue);
 
         //Stats printing
@@ -347,14 +339,12 @@ class Solver : public Searcher
             , bool rhs
             , const bool attach
         );
+
         lbool simplifyProblem();
         SolveStats solveStats;
-
-        /////////////////////
-        //Stats
-        vector<uint32_t> backupActivity;
-        vector<bool>     backupPolarity;
-        uint32_t         backupActivityInc;
+        void check_minimization_effectiveness(lbool status);
+        void check_recursive_minimization_effectiveness(const lbool status);
+        void extend_solution();
 
         /////////////////////
         // Objects that help us accomplish the task
@@ -366,6 +356,7 @@ class Solver : public Searcher
         friend class Prober;
         friend class ClauseVivifier;
         friend class Simplifier;
+        friend class SubsumeStrengthen;
         friend class ClauseCleaner;
         friend class CompleteDetachReatacher;
         friend class CalcDefPolars;
@@ -376,6 +367,8 @@ class Solver : public Searcher
         friend class PropEngine;
         friend class CompFinder;
         friend class CompHandler;
+        friend class TransCache;
+        friend class SubsumeImplicit;
         Prober              *prober;
         Simplifier          *simplifier;
         SCCFinder           *sCCFinder;
@@ -383,75 +376,89 @@ class Solver : public Searcher
         ClauseCleaner       *clauseCleaner;
         VarReplacer         *varReplacer;
         CompHandler         *compHandler;
+        SubsumeImplicit     *subsumeImplicit;
         MTRand              mtrand;           ///< random number generator
 
         /////////////////////////////
         // Temporary datastructs -- must be cleared before use
         mutable std::vector<Lit> tmpCl;
-        vector<Lit> addClIntTmpLits;
 
         /////////////////////////////
         //Renumberer
-        vector<Var> outerToInterMain;
-        vector<Var> interToOuterMain;
-        vector<Var> outerToInter; //last renumber
-        vector<Var> interToOuter; //last renumber
-        vector<uint32_t> interToOuter2;
         void renumberVariables();
         void freeUnusedWatches();
         void saveVarMem(uint32_t newNumVars);
+        void unSaveVarMem();
+        size_t calculate_interToOuter_and_outerToInter(
+            vector<Var>& outerToInter
+            , vector<Var>& interToOuter
+        );
+        void renumber_clauses(const vector<Var>& outerToInter);
+        void test_renumbering() const;
+
+
 
         /////////////////////////////
         // SAT solution verification
-        bool verifyModel() const;                            ///<Verify model[]
-        bool verifyBinClauses() const;                       ///<Verify model[] for binary clauses
-        bool verifyClauses(const vector<ClOffset>& cs) const; ///<Verify model[] for normal clauses
+        bool verifyModel() const;
+        bool verifyImplicitClauses() const;
+        bool verifyClauses(const vector<ClOffset>& cs) const;
 
         ///////////////////////////
         // Clause cleaning
         void fullReduce();
         void clearClauseStats(vector<ClOffset>& clauseset);
-        CleaningStats reduceDB();           ///<Reduce the set of learnt clauses.
+        CleaningStats reduceDB();
+        void lock_most_UIP_used_clauses();
         struct reduceDBStructGlue
         {
-            reduceDBStructGlue(ClauseAllocator* _clAllocator) :
+            reduceDBStructGlue(ClauseAllocator& _clAllocator) :
                 clAllocator(_clAllocator)
             {}
-            ClauseAllocator* clAllocator;
+            ClauseAllocator& clAllocator;
 
             bool operator () (const ClOffset x, const ClOffset y);
         };
         struct reduceDBStructSize
         {
-            reduceDBStructSize(ClauseAllocator* _clAllocator) :
+            reduceDBStructSize(ClauseAllocator& _clAllocator) :
                 clAllocator(_clAllocator)
             {}
-            ClauseAllocator* clAllocator;
+            ClauseAllocator& clAllocator;
 
             bool operator () (const ClOffset x, const ClOffset y);
         };
         struct reduceDBStructActivity
         {
-            reduceDBStructActivity(ClauseAllocator* _clAllocator) :
+            reduceDBStructActivity(ClauseAllocator& _clAllocator) :
                 clAllocator(_clAllocator)
             {}
-            ClauseAllocator* clAllocator;
+            ClauseAllocator& clAllocator;
 
             bool operator () (const ClOffset x, const ClOffset y);
         };
         struct reduceDBStructPropConfl
         {
-            reduceDBStructPropConfl(ClauseAllocator* _clAllocator) :
+            reduceDBStructPropConfl(ClauseAllocator& _clAllocator) :
                 clAllocator(_clAllocator)
             {}
-            ClauseAllocator* clAllocator;
+            ClauseAllocator& clAllocator;
 
             bool operator () (const ClOffset x, const ClOffset y);
         };
+        void pre_clean_clause_db(CleaningStats& tmpStats, uint64_t sumConfl);
+        void real_clean_clause_db(
+            CleaningStats& tmpStats
+            , uint64_t sumConflicts
+            , uint64_t removeNum
+        );
+        uint64_t calc_how_many_to_remove();
+        void sort_red_cls_as_required(CleaningStats& tmpStats);
+        void print_best_irred_clauses_if_required() const;
+
 
         /////////////////////
         // Data
-        ImplCache            implCache;
         bool                 needToInterrupt;
         uint64_t             nextCleanLimit;
         uint64_t             nextCleanLimitInc;
@@ -472,20 +479,14 @@ class Solver : public Searcher
         /////////////////////
         // Clauses
         bool addClauseHelper(vector<Lit>& ps);
-        bool replacevar_uneliminate_clause(vector<Lit>& ps);
-        vector<char>        decisionVar;
-        vector<ClOffset>    longIrredCls;          ///< List of problem clauses that are larger than 2
-        vector<ClOffset>    longRedCls;          ///< List of learnt clauses.
-        BinTriStats binTri;
         void                reArrangeClauses();
         void                reArrangeClause(ClOffset offset);
-        void                checkLiteralCount() const;
         void                printAllClauses() const;
         void                consolidateMem();
 
         //////////////////
         // Stamping
-        Lit updateLit(Lit lit) const;
+        Lit updateLitForDomin(Lit lit) const;
         void updateDominators();
 
         /////////////////
@@ -496,45 +497,46 @@ class Solver : public Searcher
         void findAllAttach(const vector<ClOffset>& cs) const;
         bool findClause(const ClOffset offset) const;
         void checkNoWrongAttach() const;
-        void printWatchlist(const vec<Watched>& ws, const Lit lit) const;
+        void printWatchlist(watch_subarray_const ws, const Lit lit) const;
         void printClauseSizeDistrib();
         ClauseUsageStats sumClauseData(
             const vector<ClOffset>& toprint
-            , bool learnt
+            , bool red
         ) const;
         void printPropConflStats(
             std::string name
             , const vector<ClauseUsageStats>& stats
         ) const;
 
-        vector<Lit> assumptions;
+        void set_assumptions();
+        void check_model_for_assumptions() const;
 };
 
 inline void Solver::setDecisionVar(const uint32_t var)
 {
-    if (!decisionVar[var]) {
+    if (!varData[var].is_decision) {
         numDecisionVars++;
-        decisionVar[var] = true;
+        varData[var].is_decision = true;
         insertVarOrder(var);
     }
 }
 
 inline void Solver::unsetDecisionVar(const uint32_t var)
 {
-    if (decisionVar[var]) {
+    if (varData[var].is_decision) {
         numDecisionVars--;
-        decisionVar[var] = false;
+        varData[var].is_decision = false;
     }
 }
 
-inline bool Solver::getNeedToDumpLearnts() const
+inline bool Solver::getNeedToDumpReds() const
 {
-    return conf.needToDumpLearnts;
+    return !conf.redDumpFname.empty();
 }
 
-inline bool Solver::getNeedToDumpSimplified() const
+inline bool Solver::getNeedToDumpIrredundant() const
 {
-    return conf.needToDumpSimplified;
+    return !conf.irredDumpFname.empty();
 }
 
 inline uint64_t Solver::getNumLongClauses() const
@@ -547,11 +549,6 @@ inline int Solver::getVerbosity() const
     return conf.verbosity;
 }
 
-inline int Solver::getverbStatsosity() const
-{
-    return conf.verbStats;
-}
-
 inline const Searcher::Stats& Solver::getStats() const
 {
     return sumStats;
@@ -560,21 +557,6 @@ inline const Searcher::Stats& Solver::getStats() const
 inline uint64_t Solver::getNextCleanLimit() const
 {
     return nextCleanLimit;
-}
-
-inline bool Solver::getSavedPolarity(const Var var) const
-{
-    return backupPolarity[var];
-}
-
-inline uint32_t Solver::getSavedActivity(const Var var) const
-{
-    return backupActivity[var];
-}
-
-inline uint32_t Solver::getSavedActivityInc() const
-{
-    return backupActivityInc;
 }
 
 inline void Solver::addInPartialSolvingStat()
@@ -604,11 +586,6 @@ inline size_t Solver::getNumLongRedCls() const
     return longRedCls.size();
 }
 
-inline const vector<Var>& Solver::getInterToOuterMain() const
-{
-    return interToOuterMain;
-}
-
 inline const SolverConf& Solver::getConf() const
 {
     return conf;
@@ -625,32 +602,23 @@ inline const Solver::BinTriStats& Solver::getBinTriStats() const
 }
 
 template<class T>
-inline string Solver::clauseBackNumbered(const T& cl) const
+inline vector<Lit> Solver::clauseBackNumbered(const T& cl) const
 {
     tmpCl.clear();
     for(size_t i = 0; i < cl.size(); i++) {
-        tmpCl.push_back(getUpdatedLit(cl[i], interToOuterMain));
-    }
-    std::sort(tmpCl.begin(), tmpCl.end());
-
-    std::stringstream ss;
-    for(size_t i = 0; i < cl.size(); i++) {
-        ss << tmpCl[i];
-
-        if (i+1 != cl.size())
-            ss << " ";
+        tmpCl.push_back(map_inter_to_outer(cl[i]));
     }
 
-    return ss.str();
+    return tmpCl;
 }
 
 inline Var Solver::numActiveVars() const
 {
     Var numActive = 0;
     for(Var var = 0; var < solver->nVars(); var++) {
-        if (decisionVar[var]
-            && (varData[var].elimed == ELIMED_NONE
-                || varData[var].elimed == ELIMED_QUEUED_VARREPLACER)
+        if (varData[var].is_decision
+            && (varData[var].removed == Removed::none
+                || varData[var].removed == Removed::queued_replacer)
             && value(var) == l_Undef
         ) {
             numActive++;

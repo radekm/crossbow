@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -48,6 +48,11 @@ struct ResolutionTypes
         , irredL(0)
         , redL(0)
     {}
+
+    void clear()
+    {
+        *this = ResolutionTypes<T>();
+    }
 
     uint64_t sum() const
     {
@@ -94,6 +99,7 @@ struct ClauseStats
         , numLookedAt(0)
         #endif
         , numUsedUIP(0)
+        , locked(false)
     {}
 
     uint32_t numPropAndConfl() const
@@ -112,9 +118,10 @@ struct ClauseStats
     uint32_t numLookedAt; ///<Number of times the clause has been deferenced during propagation
     #endif
     uint32_t numUsedUIP; ///Number of times the claue was using during 1st UIP conflict generation
+    bool locked;
 
     ///Number of resolutions it took to make the clause when it was
-    ///originally learnt. Only makes sense for learnt clauses
+    ///originally learnt. Only makes sense for redundant clauses
     ResolutionTypes<uint16_t> resolutions;
 
     void clearAfterReduceDB()
@@ -145,6 +152,7 @@ struct ClauseStats
         ret.numLookedAt = first.numLookedAt + second.numLookedAt;
         #endif
         ret.numUsedUIP = first.numUsedUIP + second.numUsedUIP;
+        ret.locked = first.locked | second.locked;
 
         return ret;
     };
@@ -178,7 +186,7 @@ class Clause
 {
 protected:
 
-    uint16_t isLearnt:1; ///<Is the clause a learnt clause?
+    uint16_t isRed:1; ///<Is the clause a redundant clause?
     uint16_t isRemoved:1; ///<Is this clause queued for removal because of usless binary removal?
     uint16_t isFreed:1; ///<Has this clause been marked as freed by the ClauseAllocator ?
     uint16_t isAsymmed:1;
@@ -197,7 +205,7 @@ protected:
     }
 
 public:
-    char defOfOrGate; //TODO make it into a bitfield above
+    //char defOfOrGate; //TODO make it into a bitfield above
     CL_ABST_TYPE abst;
     ClauseStats stats;
 
@@ -208,10 +216,10 @@ public:
 
         stats.conflictNumIntroduced = _conflictNumIntroduced;
         stats.glue = std::min<uint16_t>(stats.glue, ps.size());
-        defOfOrGate = false;
+        //defOfOrGate = false;
         isFreed = false;
         mySize = ps.size();
-        isLearnt = false;
+        isRed = false;
         isRemoved = false;
         isAsymmed = false;
 
@@ -252,9 +260,9 @@ public:
         setStrenghtened();
     }
 
-    bool learnt() const
+    bool red() const
     {
-        return isLearnt;
+        return isRed;
     }
 
     bool freed() const
@@ -282,16 +290,16 @@ public:
         return *(getData() + i);
     }
 
-    void makeNonLearnt()
+    void makeIrred()
     {
-        assert(isLearnt);
-        isLearnt = false;
+        assert(isRed);
+        isRed = false;
     }
 
-    void makeLearnt(const uint32_t newGlue)
+    void makeRed(const uint32_t newGlue)
     {
         stats.glue = newGlue;
-        isLearnt = true;
+        isRed = true;
     }
 
     void strengthen(const Lit p)
@@ -371,6 +379,31 @@ public:
     {
         occurLinked = toset;
     }
+
+    void print_extra_stats() const
+    {
+        cout
+        << "Clause size " << std::setw(4) << size();
+        if (red()) {
+            cout << " glue : " << std::setw(4) << stats.glue;
+        }
+        cout
+        << " Props: " << std::setw(10) << stats.numProp
+        << " Confls: " << std::setw(10) << stats.numConfl
+        #ifdef STATS_NEEDED
+        << " Lit visited: " << std::setw(10)<< stats.numLitVisited
+        << " Looked at: " << std::setw(10)<< stats.numLookedAt
+        << " Props&confls/Litsvisited*10: ";
+        if (stats.numLitVisited > 0) {
+            cout
+            << std::setw(6) << std::fixed << std::setprecision(4)
+            << (10.0*(double)stats.numPropAndConfl()/(double)stats.numLitVisited);
+        }
+        #endif
+        ;
+        cout << " UIP used: " << std::setw(10)<< stats.numUsedUIP;
+        cout << endl;
+    }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Clause& cl)
@@ -431,16 +464,43 @@ struct ClauseUsageStats
         #endif
         sumUsedUIP += cl.stats.numUsedUIP;
     }
+
+    void print() const
+    {
+        cout
+        #ifdef STATS_NEEDED
+        << " lits visit: "
+        << std::setw(8) << sumLitVisited/1000UL
+        << "K"
+
+        << " cls visit: "
+        << std::setw(7) << sumLookedAt/1000UL
+        << "K"
+        #endif
+
+        << " prop: "
+        << std::setw(5) << sumProp/1000UL
+        << "K"
+
+        << " conf: "
+        << std::setw(5) << sumConfl/1000UL
+        << "K"
+
+        << " UIP used: "
+        << std::setw(5) << sumUsedUIP/1000UL
+        << "K"
+        << endl;
+    }
 };
 
-enum clauseCleaningTypes {
+enum ClauseCleaningTypes {
     CLEAN_CLAUSES_GLUE_BASED
     , CLEAN_CLAUSES_SIZE_BASED
     , CLEAN_CLAUSES_PROPCONFL_BASED
     ,  CLEAN_CLAUSES_ACTIVITY_BASED
 };
 
-inline std::string getNameOfCleanType(clauseCleaningTypes clauseCleaningType)
+inline std::string getNameOfCleanType(ClauseCleaningTypes clauseCleaningType)
 {
     switch(clauseCleaningType) {
         case CLEAN_CLAUSES_GLUE_BASED :
@@ -579,13 +639,13 @@ struct CleaningStats
         printStatsLine("c pre-removed"
             , preRemove.num
             , (double)preRemove.num/(double)origNumClauses*100.0
-            , "% long learnt clauses"
+            , "% long redundant clauses"
         );
 
         printStatsLine("c pre-removed lits"
             , preRemove.lits
             , (double)preRemove.lits/(double)origNumLits*100.0
-            , "% long learnt lits"
+            , "% long red lits"
         );
         printStatsLine("c pre-removed cl avg size"
             , (double)preRemove.lits/(double)preRemove.num
@@ -620,12 +680,12 @@ struct CleaningStats
         printStatsLine("c cleaned cls"
             , removed.num
             , (double)removed.num/(double)origNumClauses*100.0
-            , "% long learnt clauses"
+            , "% long redundant clauses"
         );
         printStatsLine("c cleaned lits"
             , removed.lits
             , (double)removed.lits/(double)origNumLits*100.0
-            , "% long learnt lits"
+            , "% long red lits"
         );
         printStatsLine("c cleaned cl avg size"
             , (double)removed.lits/(double)removed.num
@@ -638,12 +698,12 @@ struct CleaningStats
         printStatsLine("c remain cls"
             , remain.num
             , (double)remain.num/(double)origNumClauses*100.0
-            , "% long learnt clauses"
+            , "% long redundant clauses"
         );
         printStatsLine("c remain lits"
             , remain.lits
             , (double)remain.lits/(double)origNumLits*100.0
-            , "% long learnt lits"
+            , "% long red lits"
         );
         printStatsLine("c remain cl avg size"
             , (double)remain.lits/(double)remain.num
@@ -703,7 +763,7 @@ struct CleaningStats
     Data preRemove;
 
     //Clean type
-    clauseCleaningTypes clauseCleaningType;
+    ClauseCleaningTypes clauseCleaningType;
     size_t glueBasedClean;
     size_t sizeBasedClean;
     size_t propConflBasedClean;

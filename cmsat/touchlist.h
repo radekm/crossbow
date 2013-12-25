@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -35,7 +35,20 @@ public:
         touch(lit.var());
     }
 
-    void touch(const Var var)
+    template<typename T, typename... Targs>
+    void touch(T value, Targs... Fargs) // recursive variadic function
+    {
+        touch(value);
+        touch(Fargs...);
+    }
+
+    void touch(const vector<Lit>& lits)
+    {
+        for(const Lit lit: lits)
+            touch(lit.var());
+    }
+
+    void touch(const uint32_t var)
     {
         if (touchedBitset.size() <= var)
             touchedBitset.resize(var+1, 0);
@@ -46,7 +59,7 @@ public:
         }
     }
 
-    const vector<Var>& getTouchedList() const
+    const vector<uint32_t>& getTouchedList() const
     {
         return touched;
     }
@@ -54,7 +67,7 @@ public:
     void clear()
     {
         //Clear touchedBitset
-        for(vector<Var>::const_iterator
+        for(vector<uint32_t>::const_iterator
             it = touched.begin(), end = touched.end()
             ; it != end
             ; it++
@@ -66,17 +79,17 @@ public:
         touched.clear();
     }
 
-    uint64_t memUsed() const
+    size_t memUsed() const
     {
         uint64_t mem = 0;
-        mem += touched.capacity()*sizeof(Var);
+        mem += touched.capacity()*sizeof(uint32_t);
         mem += touchedBitset.capacity()*sizeof(char);
 
         return mem;
     }
 
 private:
-    vector<Var> touched;
+    vector<uint32_t> touched;
     vector<char> touchedBitset;
 };
 

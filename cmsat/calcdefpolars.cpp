@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -23,6 +23,7 @@
 #include "assert.h"
 #include "time_mem.h"
 #include "solver.h"
+#include "clauseallocator.h"
 
 using namespace CMSat;
 using std::cout;
@@ -46,10 +47,10 @@ void CalcDefPolars::tallyVotes(const vector<ClOffset>& cs)
         ; it != end
         ; it++
     ) {
-        const Clause& cl = *solver->clAllocator->getPointer(*it);
+        const Clause& cl = *solver->clAllocator.getPointer(*it);
 
-        //Only count non-learnt
-        if (cl.learnt())
+        //Only count irred
+        if (cl.red())
             continue;
 
         double divider;
@@ -63,46 +64,50 @@ void CalcDefPolars::tallyVotes(const vector<ClOffset>& cs)
     }
 }
 
-void CalcDefPolars::tallyVotesBinTri(const vector<vec<Watched> >& watches)
+void CalcDefPolars::tallyVotesBinTri(const watch_array& watches)
 {
     size_t wsLit = 0;
-    for (vector<vec<Watched> >::const_iterator
+    for (watch_array::const_iterator
         it = watches.begin(), end = watches.end()
         ; it != end
-        ; it++, wsLit++
+        ; ++it, wsLit++
     ) {
         Lit lit = Lit::toLit(wsLit);
-        const vec<Watched>& ws = *it;
-        for (vec<Watched>::const_iterator it2 = ws.begin(), end2 = ws.end(); it2 != end2; it2++) {
+        watch_subarray_const ws = *it;
+        for (watch_subarray_const::const_iterator
+            it2 = ws.begin(), end2 = ws.end()
+            ; it2 != end2
+            ; it2++
+        ) {
 
             //Only count bins once
             if (it2->isBinary()
-                && lit.toInt() < it2->lit1().toInt()
-                && !it2->learnt()
+                && lit < it2->lit2()
+                && !it2->red()
             ) {
 
                 if (lit.sign()) votes[lit.var()] += 0.5;
                 else votes[lit.var()] -= 0.5;
 
-                Lit lit2 = it2->lit1();
+                Lit lit2 = it2->lit2();
                 if (lit2.sign()) votes[lit2.var()] += 0.5;
                 else votes[lit2.var()] -= 0.5;
             }
 
             //Only count TRI-s once
             if (it2->isTri()
-                && lit.toInt() < it2->lit1().toInt()
-                && it2->lit1().toInt() < it2->lit2().toInt()
-                && it2->learnt()
+                && lit < it2->lit2()
+                && it2->lit2() < it2->lit3()
+                && it2->red()
             ) {
                 if (lit.sign()) votes[lit.var()] += 0.3;
                 else votes[lit.var()] -= 0.3;
 
-                Lit lit2 = it2->lit1();
+                Lit lit2 = it2->lit2();
                 if (lit2.sign()) votes[lit2.var()] += 0.3;
                 else votes[lit2.var()] -= 0.3;
 
-                Lit lit3 = it2->lit2();
+                Lit lit3 = it2->lit3();
                 if (lit3.sign()) votes[lit3.var()] += 0.3;
                 else votes[lit3.var()] -= 0.3;
             }
@@ -113,7 +118,7 @@ void CalcDefPolars::tallyVotesBinTri(const vector<vec<Watched> >& watches)
 /**
 @brief Tallies votes for a TRUE/FALSE default polarity using Jeroslow-Wang
 
-Voting is only used if polarity_mode is "polarity_auto". This is the default.
+Voting is only used if polarity_mode is "PolarityMode::automatic". This is the default.
 Uses the tallyVotes() functions to tally the votes
 */
 const vector<char> CalcDefPolars::calculate()

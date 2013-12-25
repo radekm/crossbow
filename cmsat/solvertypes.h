@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -31,6 +31,7 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <limits>
 #include "assert.h"
 
 namespace CMSat {
@@ -42,51 +43,87 @@ using std::string;
 
 //Typedefs
 typedef uint32_t Var;
-static const Var var_Undef(~0U);
-enum RestartType {
-    glue_restart
-    , glue_agility_restart
-    , geom_restart
-    , agility_restart
-    , no_restart
-    , auto_restart
+static const Var var_Undef(std::numeric_limits<Var>::max()>>1);
+enum class Restart {
+    glue
+    , glue_agility
+    , geom
+    , agility
+    , never
+    , automatic
 };
 
-inline std::string restart_type_to_string(const RestartType type)
+inline std::string restart_type_to_string(const Restart type)
 {
     switch(type) {
-        case glue_restart:
+        case Restart::glue:
             return "glue-based";
 
-        case glue_agility_restart:
+        case Restart::glue_agility:
             return "glue&agility based";
 
-        case geom_restart:
+        case Restart::geom:
             return "geometric";
 
-        case  agility_restart:
+        case  Restart::agility:
             return "agility-based";
 
-        case no_restart:
+        case Restart::never:
             return "never restart";
 
-        case auto_restart:
+        case Restart::automatic:
             return "automatic";
     }
 
     assert(false && "oops, one of the restart types has no string name");
 
-    return "Ooops, none defined!";
+    return "Ooops, undefined!";
 }
 
-enum { polarity_true = 0, polarity_false = 1, polarity_rnd = 3, polarity_auto = 4};
+//Removed by which algorithm. NONE = not eliminated
+enum class Removed : unsigned char {
+    none
+    , elimed
+    , replaced
+    , queued_replacer //Only queued for removal. NOT actually removed
+    , decomposed
+};
+
+inline std::string removed_type_to_string(const Removed removed) {
+    switch(removed) {
+        case Removed::none:
+            return "not removed";
+
+        case Removed::elimed:
+            return "variable elimination";
+
+        case Removed::replaced:
+            return "variable replacement";
+
+        case Removed::queued_replacer:
+            return "queued for replacement (but not yet replaced)";
+
+        case Removed::decomposed:
+            return "decomposed into another component";
+    }
+
+    assert(false && "oops, one of the elim types has no string name");
+    return "Oops, undefined!";
+}
+
+enum class PolarityMode {
+    pos
+    , neg
+    , rnd
+    , automatic
+};
 
 /**
 @brief A Literal, i.e. a variable with a sign
 */
 class Lit
 {
-    uint32_t     x;
+    uint32_t x;
     explicit Lit(uint32_t i) : x(i) { };
 public:
     Lit() : x(2*var_Undef) {}   // (lit_Undef)
@@ -165,7 +202,6 @@ inline std::ostream& operator<<(std::ostream& co, const std::vector<Lit>& lits)
     return co;
 }
 
-
 ///Class that can hold: True, False, Undef
 class lbool
 {
@@ -217,14 +253,18 @@ inline lbool toLbool(const char   v)
 {
     return lbool(v);
 }
-inline lbool boolToLBool(const bool b)
-{
-    return lbool(2*b-1);
-}
 
 const lbool l_True  = toLbool( 1);
 const lbool l_False = toLbool(-1);
 const lbool l_Undef = toLbool( 0);
+
+inline lbool boolToLBool(const bool b)
+{
+    if (b)
+        return l_True;
+    else
+        return l_False;
+}
 
 inline std::ostream& operator<<(std::ostream& cout, const lbool val)
 {
@@ -234,34 +274,12 @@ inline std::ostream& operator<<(std::ostream& cout, const lbool val)
     return cout;
 }
 
-struct BlockedClause {
-    BlockedClause()
-    {}
-
-    BlockedClause(const Lit _blockedOn, const vector<Lit>& _lits) :
-        blockedOn(_blockedOn)
-        , toRemove(false)
-        , lits(_lits)
-    {}
-
-    Lit blockedOn;
-    bool toRemove;
-    vector<Lit> lits;
-};
-
-inline std::ostream& operator<<(std::ostream& os, const BlockedClause& bl)
-{
-    os << bl.lits << " blocked on: " << bl.blockedOn;
-
-    return os;
-}
-
 class BinaryClause {
     public:
-        BinaryClause(const Lit _lit1, const Lit _lit2, const bool _learnt) :
+        BinaryClause(const Lit _lit1, const Lit _lit2, const bool _red) :
             lit1(_lit1)
             , lit2(_lit2)
-            , learnt(_learnt)
+            , red(_red)
         {
             if (lit1 > lit2) std::swap(lit1, lit2);
         }
@@ -273,14 +291,14 @@ class BinaryClause {
 
             if (lit2 < other.lit2) return true;
             if (lit2 > other.lit2) return false;
-            return (learnt && !other.learnt);
+            return (red && !other.red);
         }
 
         bool operator==(const BinaryClause& other) const
         {
             return (lit1 == other.lit1
                     && lit2 == other.lit2
-                    && learnt == other.learnt);
+                    && red == other.red);
         }
 
         const Lit getLit1() const
@@ -293,22 +311,22 @@ class BinaryClause {
             return lit2;
         }
 
-        bool getLearnt() const
+        bool isRed() const
         {
-            return learnt;
+            return red;
         }
 
     private:
         Lit lit1;
         Lit lit2;
-        bool learnt;
+        bool red;
 };
 
 
 inline std::ostream& operator<<(std::ostream& os, const BinaryClause val)
 {
     os << val.getLit1() << " , " << val.getLit2()
-    << " learnt: " << std::boolalpha << val.getLearnt() << std::noboolalpha;
+    << " red: " << std::boolalpha << val.isRed() << std::noboolalpha;
     return os;
 }
 
@@ -637,13 +655,13 @@ struct PropStats
     uint64_t varFlipped;
 };
 
-enum ConflCausedBy {
-    CONFL_BY_LONG_IRRED_CLAUSE
-    , CONFL_BY_LONG_RED_CLAUSE
-    , CONFL_BY_BIN_RED_CLAUSE
-    , CONFL_BY_BIN_IRRED_CLAUSE
-    , CONFL_BY_TRI_IRRED_CLAUSE
-    , CONFL_BY_TRI_RED_CLAUSE
+enum class ConflCausedBy {
+    longirred
+    , longred
+    , binred
+    , binirred
+    , triirred
+    , trired
 };
 
 struct ConflStats
@@ -695,22 +713,22 @@ struct ConflStats
     void update(const ConflCausedBy lastConflictCausedBy)
     {
         switch(lastConflictCausedBy) {
-            case CONFL_BY_BIN_IRRED_CLAUSE :
+            case ConflCausedBy::binirred :
                 conflsBinIrred++;
                 break;
-            case CONFL_BY_BIN_RED_CLAUSE :
+            case ConflCausedBy::binred :
                 conflsBinRed++;
                 break;
-            case CONFL_BY_TRI_IRRED_CLAUSE :
+            case ConflCausedBy::triirred :
                 conflsTriIrred++;
                 break;
-            case CONFL_BY_TRI_RED_CLAUSE :
+            case ConflCausedBy::trired :
                 conflsTriRed++;
                 break;
-            case CONFL_BY_LONG_IRRED_CLAUSE :
+            case ConflCausedBy::longirred :
                 conflsLongIrred++;
                 break;
-            case CONFL_BY_LONG_RED_CLAUSE :
+            case ConflCausedBy::longred :
                 conflsLongRed++;
                 break;
             default:
@@ -794,6 +812,34 @@ struct ConflStats
     ///Number of conflicts
     uint64_t  numConflicts;
 };
+
+inline void orderLits(
+    Lit& lit1
+    , Lit& lit2
+    , Lit& lit3
+ ) {
+    if (lit1 > lit3)
+        std::swap(lit1, lit3);
+
+    if (lit1 > lit2)
+        std::swap(lit1, lit2);
+
+    if (lit2 > lit3)
+        std::swap(lit2, lit3);
+
+    //They are now ordered
+    assert(lit1 < lit2);
+    assert(lit2 < lit3);
+}
+
+inline vector<Lit> sortLits(const vector<Lit>& lits)
+{
+    vector<Lit> tmp(lits);
+
+    std::sort(tmp.begin(), tmp.end());
+    return tmp;
+}
+
 
 } //end namespace
 

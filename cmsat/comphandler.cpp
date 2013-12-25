@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,6 +24,9 @@
 #include "varreplacer.h"
 #include "solver.h"
 #include "varupdatehelper.h"
+#include "watchalgos.h"
+#include "clauseallocator.h"
+#include "clausecleaner.h"
 #include <iostream>
 #include <assert.h>
 #include <iomanip>
@@ -48,6 +51,16 @@ CompHandler::~CompHandler()
     }
 }
 
+void CompHandler::newVar(const Var orig_outer)
+{
+    if (orig_outer == std::numeric_limits<Var>::max())
+        savedState.push_back(l_Undef);
+}
+
+void CompHandler::saveVarMem()
+{
+}
+
 void CompHandler::createRenumbering(const vector<Var>& vars)
 {
     interToOuter.resize(solver->nVars());
@@ -62,10 +75,23 @@ void CompHandler::createRenumbering(const vector<Var>& vars)
     }
 }
 
+bool CompHandler::assumpsInsideComponent(const vector<Var>& vars)
+{
+    for(Var var: vars) {
+        assert(solver->assumptionsSet.size() > var && "Variables that have been set must NOT be in a component");
+        if (solver->assumptionsSet[var]) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool CompHandler::handle()
 {
     assert(solver->okay());
     double myTime = cpuTime();
+    solver->clauseCleaner->removeAndCleanAll();
     compFinder = new CompFinder(solver);
     if (!compFinder->findComps()) {
         return false;
@@ -78,9 +104,9 @@ bool CompHandler::handle()
 
     //If there is only one big comp, we can't do anything
     if (num_comps <= 1) {
-        if (solver->conf.verbosity >= 2) {
+        if (solver->conf.verbosity >= 3) {
             cout
-            << "c Only one component, not handling it separately"
+            << "c [comp] Only one component, not handling it separately"
             << endl;
         }
         return true;
@@ -109,133 +135,24 @@ bool CompHandler::handle()
     size_t num_comps_solved = 0;
     size_t vars_solved = 0;
     for (uint32_t it = 0; it < sizes.size()-1; it++) {
-        //What are we solving?
         const uint32_t comp = sizes[it].first;
-        vector<Var> vars = reverseTable[comp];
-
-        //Don't move over variables already solved
-        vector<Var> tmp;
-        for(size_t i = 0; i < vars.size(); i++) {
-            Var var = vars[i];
-            if (solver->value(var) == l_Undef) {
-                tmp.push_back(var);
-            }
-        }
-        vars.swap(tmp);
-
-        //Are there too many variables? If so, don't create a sub-solver
-        //I'm afraid that we will memory-out
-        if (vars.size() > 100ULL*1000ULL) {
-            continue;
-        }
-
-        //Sort and renumber
-        std::sort(vars.begin(), vars.end());
-        createRenumbering(vars);
-
-        //Print what we are going to do
-        if (solver->conf.verbosity >= 1 && num_comps < 20) {
-            cout
-            << "c Solving component " << it
-            << " num vars: " << vars.size()
-            << " ======================================="
-            << endl;
-        }
-
-        //Set up new solver
-        SolverConf conf;
-        Solver newSolver(conf);
-        configureNewSolver(&newSolver, vars.size());
-        moveVariablesBetweenSolvers(&newSolver, vars, comp);
-
-        //Move clauses over
-        moveClausesImplicit(&newSolver, comp, vars);
-        moveClausesLong(solver->longIrredCls, &newSolver, comp);
-        moveClausesLong(solver->longRedCls, &newSolver, comp);
-
-        lbool status = newSolver.solve();
-        assert(status != l_Undef);
-        if (status == l_False) {
-            solver->ok = false;
-            if (solver->conf.verbosity >= 2) {
-                cout
-                << "c One of the sub-problems was UNSAT -> problem is unsat."
-                << endl;
-            }
-            return false;
-        }
-
-        //Check that the newly found solution is really unassigned in the
-        //original solver
-        for (size_t i = 0; i < vars.size(); i++) {
-            Var var = vars[i];
-            if (newSolver.model[updateVar(var)] != l_Undef) {
-                assert(solver->value(var) == l_Undef);
-            }
-        }
-
-        //Move decision level 0 vars over
-        assert(newSolver.decisionLevel() == 0);
-        assert(solver->decisionLevel() == 0);
-         for (size_t i = 0; i < vars.size(); i++) {
-
-            //This is *tricky*. The newSolver might have internally re-numbered
-            //the variables, so we must take this into account
-            Var newSolverInternalVar;
-            if (!newSolver.interToOuter.empty()) {
-                newSolverInternalVar = newSolver.interToOuterMain[i];
-            } else {
-                newSolverInternalVar = i;
-            }
-
-            //Is it 0-level assigned in newSolver?
-            lbool val = newSolver.value(newSolverInternalVar);
-            if (val != l_Undef) {
-                assert(newSolver.varData[newSolverInternalVar].level == 0);
-
-                //Use our 'solver'-s notation, i.e. 'var'
-                Var var = vars[i];
-                Lit lit(var, val == l_False);
-                solver->enqueue(lit);
-
-                /*cout
-                << "0-level enqueueing var "
-                << solver->interToOuterMain[var]
-                << endl;*/
-
-                //These vars are not meant to be in the orig solver
-                //so they cannot cause UNSAT
-                solver->ok = (solver->propagate().isNULL());
-                assert(solver->ok);
-            }
-        }
-
-        //Save the solution as savedState
-        for (size_t i = 0; i < vars.size(); i++) {
-            Var var = vars[i];
-            if (newSolver.model[updateVar(var)] != l_Undef) {
-                assert(savedState[var] == l_Undef);
-                assert(compFinder->getVarComp(var) == comp);
-
-                savedState[var] = newSolver.model[updateVar(var)];
-            }
-        }
-
-        if (solver->conf.verbosity >= 1 && num_comps < 20) {
-            cout
-            << "c Solved component " << it
-            << " ======================================="
-            << endl;
+        vector<Var>& vars = reverseTable[comp];
+        const bool cont = solve_component(it, comp, vars, num_comps);
+        if (!cont) {
+            break;
         }
         num_comps_solved++;
         vars_solved += vars.size();
     }
 
+    if (!solver->okay())
+        return false;
+
     //Coming back to the original instance now
     if (solver->conf.verbosity  >= 1) {
         cout
-        << "c Coming back to original instance, solved "
-        << num_comps_solved << " component, "
+        << "c [comp] Coming back to original instance, solved "
+        << num_comps_solved << " component(s), "
         << vars_solved << " vars"
         << " T: "
         << std::setprecision(2) << std::fixed
@@ -245,23 +162,171 @@ bool CompHandler::handle()
 
     //Filter out the variables that have been made non-decision
     solver->filterOrderHeap();
-
-    //Checking that all variables that are not in the remaining comp are all
-    //non-decision vars, and none have been assigned
-    for (Var var = 0; var < solver->nVars(); var++) {
-        if (savedState[var] != l_Undef) {
-            assert(solver->decisionVar[var] == false);
-            assert(solver->value(var) == l_Undef || solver->varData[var].level == 0);
-        }
-    }
-
-    //Checking that all remaining clauses contain only variables
-    //that are in the remaining comp
-    //assert(checkClauseMovement(solver, sizes[sizes.size()-1].first));
+    check_local_vardata_sanity();
 
     delete compFinder;
     compFinder = NULL;
     return true;
+}
+
+bool CompHandler::solve_component(
+    const uint32_t comp_at
+    , const uint32_t comp
+    , const vector<Var>& vars_orig
+    , const size_t num_comps
+) {
+    for(const Var var: vars_orig) {
+        assert(solver->value(var) == l_Undef);
+    }
+
+    if (vars_orig.size() > 100ULL*1000ULL) {
+        //There too many variables -- don't create a sub-solver
+        //I'm afraid that we will memory-out
+
+        return true;
+    }
+
+    //Components with assumptions should not be removed
+    if (assumpsInsideComponent(vars_orig))
+        return true;
+
+    vector<Var> vars(vars_orig);
+
+    //Sort and renumber
+    std::sort(vars.begin(), vars.end());
+    /*for(Var var: vars) {
+        cout << "var in component: " << solver->map_inter_to_outer(var) + 1 << endl;
+    }*/
+    createRenumbering(vars);
+
+    //Print what we are going to do
+    if (solver->conf.verbosity >= 1 && num_comps < 20) {
+        cout
+        << "c [comp] Solving component " << comp_at
+        << " num vars: " << vars.size()
+        << " ======================================="
+        << endl;
+    }
+
+    //Set up new solver
+    SolverConf conf;
+    Solver newSolver(conf);
+    configureNewSolver(&newSolver, vars.size());
+    moveVariablesBetweenSolvers(&newSolver, vars, comp);
+
+    //Move clauses over
+    moveClausesImplicit(&newSolver, comp, vars);
+    moveClausesLong(solver->longIrredCls, &newSolver, comp);
+    moveClausesLong(solver->longRedCls, &newSolver, comp);
+
+    const lbool status = newSolver.solve();
+    //Out of time
+    if (status == l_Undef) {
+        readdRemovedClauses();
+        return false;
+    }
+
+    if (status == l_False) {
+        solver->ok = false;
+        if (solver->conf.verbosity >= 2) {
+            cout
+            << "c [comp] The component is UNSAT -> problem is UNSAT"
+            << endl;
+        }
+        return false;
+    }
+
+    check_solution_is_unassigned_in_main_solver(&newSolver, vars);
+    save_solution_to_savedstate(&newSolver, vars, comp);
+    move_decision_level_zero_vars_here(&newSolver, vars);
+
+    if (solver->conf.verbosity >= 1 && num_comps < 20) {
+        cout
+        << "c [comp] Solved component " << comp_at
+        << " ======================================="
+        << endl;
+    }
+    return true;
+}
+
+void CompHandler::check_local_vardata_sanity()
+{
+    //Checking that all variables that are not in the remaining comp have
+    //correct 'removed' flags, and none have been assigned
+
+    for (Var var = 0; var < solver->nVars(); var++) {
+        const Var outerVar = solver->map_inter_to_outer(var);
+        if (savedState[outerVar] != l_Undef) {
+            assert(solver->varData[var].is_decision == false);
+            assert(solver->varData[var].removed == Removed::decomposed);
+            assert(solver->value(var) == l_Undef || solver->varData[var].level == 0);
+        }
+    }
+}
+
+void CompHandler::check_solution_is_unassigned_in_main_solver(
+    const Solver* newSolver
+    , const vector<Var>& vars
+) {
+    for (size_t i = 0; i < vars.size(); i++) {
+        Var var = vars[i];
+        if (newSolver->model[updateVar(var)] != l_Undef) {
+            assert(solver->value(var) == l_Undef);
+        }
+    }
+}
+
+void CompHandler::save_solution_to_savedstate(
+    const Solver* newSolver
+    , const vector<Var>& vars
+    , const uint32_t comp
+) {
+    assert(savedState.size() == solver->nVarsReal());
+    for (size_t i = 0; i < vars.size(); i++) {
+        Var var = vars[i];
+        Var outerVar = solver->map_inter_to_outer(var);
+        if (newSolver->model[updateVar(var)] != l_Undef) {
+            assert(savedState[outerVar] == l_Undef);
+            assert(compFinder->getVarComp(var) == comp);
+
+            savedState[outerVar] = newSolver->model[updateVar(var)];
+        }
+    }
+}
+
+void CompHandler::move_decision_level_zero_vars_here(
+    const Solver* newSolver
+    , const vector<Var>& vars
+) {
+    assert(newSolver->decisionLevel() == 0);
+    assert(solver->decisionLevel() == 0);
+    for (size_t i = 0; i < vars.size(); i++) {
+        Var newSolverInternalVar = newSolver->map_outer_to_inter(i);
+
+        //Is it 0-level assigned in newSolver?
+        lbool val = newSolver->value(newSolverInternalVar);
+        if (val != l_Undef) {
+            assert(newSolver->varData[newSolverInternalVar].level == 0);
+
+            //Use our 'solver'-s notation, i.e. 'var'
+            Var var = vars[i];
+            Lit lit(var, val == l_False);
+            solver->varData[var].removed = Removed::none;
+            const Var outer = solver->map_inter_to_outer(var);
+            savedState[outer] = l_Undef;
+            solver->enqueue(lit);
+
+            /*cout
+            << "0-level enqueueing var "
+            << outer + 1
+            << endl;*/
+
+            //These vars are not meant to be in the orig solver
+            //so they cannot cause UNSAT
+            solver->ok = (solver->propagate().isNULL());
+            assert(solver->ok);
+        }
+    }
 }
 
 /**
@@ -274,12 +339,12 @@ void CompHandler::configureNewSolver(
     newSolver->conf = solver->conf;
     newSolver->mtrand.seed(solver->mtrand.randInt());
     if (numVars < 60) {
-        newSolver->conf.doSchedSimpProblem = false;
+        newSolver->conf.regularly_simplify_problem = false;
         newSolver->conf.doStamp = false;
         newSolver->conf.doCache = false;
         newSolver->conf.doProbe = false;
         newSolver->conf.otfHyperbin = false;
-        newSolver->conf.verbosity = std::min(solver->conf.verbosity, 1);
+        newSolver->conf.verbosity = std::min(solver->conf.verbosity, 0);
     }
 
     //To small, don't clogger up the screen
@@ -299,15 +364,13 @@ and making it non-decision in the old solver.
 */
 void CompHandler::moveVariablesBetweenSolvers(
     Solver* newSolver
-    , vector<Var>& vars
+    , const vector<Var>& vars
     , const uint32_t comp
 ) {
-    for(size_t i = 0; i < vars.size(); i++) {
-        Var var = interToOuter[i];
-
+    for(const Var var: vars) {
         //Misc check
         #ifdef VERBOSE_DEBUG
-        if (!solver->decisionVar[var]) {
+        if (!solver->varData[var].is_decision) {
             cout
             << "var " << var + 1
             << " is non-decision, but in comp... strange."
@@ -315,16 +378,13 @@ void CompHandler::moveVariablesBetweenSolvers(
         }
         #endif //VERBOSE_DEBUG
 
-        //Add to new solver
-        newSolver->newVar(solver->decisionVar[var]);
+        newSolver->new_external_var();
         assert(compFinder->getVarComp(var) == comp);
 
-        //Remove from old solver
-        if (solver->decisionVar[var]) {
-            solver->unsetDecisionVar(var);
-            decisionVarRemoved.push_back(var);
-            solver->varData[var].elimed = ELIMED_DECOMPOSE;
-        }
+        assert(solver->varData[var].removed == Removed::none);
+        assert(solver->varData[var].is_decision);
+        solver->unsetDecisionVar(var);
+        solver->varData[var].removed = Removed::decomposed;
     }
 }
 
@@ -340,10 +400,10 @@ void CompHandler::moveClausesLong(
         ; i != end
         ; i++
     ) {
-        Clause& cl = *solver->clAllocator->getPointer(*i);
+        Clause& cl = *solver->clAllocator.getPointer(*i);
 
         //Irred, different comp
-        if (!cl.learnt()) {
+        if (!cl.red()) {
             if (compFinder->getVarComp(cl[0].var()) != comp) {
                 //different comp, move along
                 *j++ = *i;
@@ -351,7 +411,7 @@ void CompHandler::moveClausesLong(
             }
         }
 
-        if (cl.learnt()) {
+        if (cl.red()) {
             //Check which comp(s) it belongs to
             bool thisComp = false;
             bool otherComp = false;
@@ -366,7 +426,7 @@ void CompHandler::moveClausesLong(
             //In both comps, remove it
             if (thisComp && otherComp) {
                 solver->detachClause(cl);
-                solver->clAllocator->clauseFree(&cl);
+                solver->clAllocator.clauseFree(&cl);
                 continue;
             }
 
@@ -381,7 +441,7 @@ void CompHandler::moveClausesLong(
 
         //Let's move it to the other solver!
         #ifdef VERBOSE_DEBUG
-        cout << "clause in this comp:" << cl << endl;;
+        cout << "clause in this comp:" << cl << endl;
         #endif
 
         //Create temporary space 'tmp' and copy to backup
@@ -391,17 +451,17 @@ void CompHandler::moveClausesLong(
         }
 
         //Add 'tmp' to the new solver
-        if (cl.learnt()) {
+        if (cl.red()) {
             cl.stats.conflictNumIntroduced = 0;
-            newSolver->addLearntClause(tmp, cl.stats);
+            //newSolver->addRedClause(tmp, cl.stats);
         } else {
             saveClause(cl);
-            newSolver->addClause(tmp);
+            newSolver->addClauseOuter(tmp);
         }
 
         //Remove from here
         solver->detachClause(cl);
-        solver->clAllocator->clauseFree(&cl);
+        solver->clAllocator.clauseFree(&cl);
     }
     cs.resize(cs.size() - (i-j));
 }
@@ -412,19 +472,15 @@ void CompHandler::moveClausesImplicit(
     , const vector<Var>& vars
 ) {
     vector<Lit> lits;
-    uint32_t numRemovedHalfNonLearnt = 0;
-    uint32_t numRemovedHalfLearnt = 0;
-    uint32_t numRemovedThirdNonLearnt = 0;
-    uint32_t numRemovedThirdLearnt = 0;
+    uint32_t numRemovedHalfIrred = 0;
+    uint32_t numRemovedHalfRed = 0;
+    uint32_t numRemovedThirdIrred = 0;
+    uint32_t numRemovedThirdRed = 0;
 
-    for (vector<Var>::const_iterator
-        it = vars.begin(), end = vars.end()
-        ; it != end
-        ; it++
-    ) {
-        for(unsigned sign = 0; sign < 2; sign++) {
-        const Lit lit = Lit(*it, sign == 0);
-        vec<Watched>& ws = solver->watches[lit.toInt()];
+    for(const Var var: vars) {
+    for(unsigned sign = 0; sign < 2; sign++) {
+        const Lit lit = Lit(var, sign);
+        watch_subarray ws = solver->watches[lit.toInt()];
 
         //If empty, nothing to to, skip
         if (ws.empty()) {
@@ -440,24 +496,24 @@ void CompHandler::moveClausesImplicit(
             //At least one variable inside comp
             if (i->isBinary()
                 && (compFinder->getVarComp(lit.var()) == comp
-                    || compFinder->getVarComp(i->lit1().var()) == comp
+                    || compFinder->getVarComp(i->lit2().var()) == comp
                 )
             ) {
-                const Lit lit2 = i->lit1();
+                const Lit lit2 = i->lit2();
 
-                //Unless learnt, cannot be in 2 comps at once
+                //Unless redundant, cannot be in 2 comps at once
                 assert((compFinder->getVarComp(lit.var()) == comp
                             && compFinder->getVarComp(lit2.var()) == comp
-                       ) || i->learnt()
+                       ) || i->red()
                 );
 
-                //If it's learnt and the lits are in different comps, remove it.
+                //If it's redundant and the lits are in different comps, remove it.
                 if (compFinder->getVarComp(lit.var()) != comp
                     || compFinder->getVarComp(lit2.var()) != comp
                 ) {
-                    //Can only be learnt, otherwise it would be in the same
+                    //Can only be redundant, otherwise it would be in the same
                     //component
-                    assert(i->learnt());
+                    assert(i->red());
 
                     //The way we go through this, it's definitely going to be
                     //lit2 that's in the other component
@@ -467,7 +523,6 @@ void CompHandler::moveClausesImplicit(
 
                     //Update stats
                     solver->binTri.redBins--;
-                    solver->binTri.redLits -= 2;
 
                     //Not copy, that's the other Watched removed
                     continue;
@@ -482,23 +537,23 @@ void CompHandler::moveClausesImplicit(
                     assert(compFinder->getVarComp(lit2.var()) == comp);
 
                     //Add new clause
-                    if (i->learnt()) {
-                        newSolver->addLearntClause(lits);
-                        numRemovedHalfLearnt++;
+                    if (i->red()) {
+                        //newSolver->addRedClause(lits);
+                        numRemovedHalfRed++;
                     } else {
                         //Save backup
                         saveClause(vector<Lit>{lit, lit2});
 
-                        newSolver->addClause(lits);
-                        numRemovedHalfNonLearnt++;
+                        newSolver->addClauseOuter(lits);
+                        numRemovedHalfIrred++;
                     }
                 } else {
 
                     //Just remove, already added above
-                    if (i->learnt()) {
-                        numRemovedHalfLearnt++;
+                    if (i->red()) {
+                        numRemovedHalfRed++;
                     } else {
-                        numRemovedHalfNonLearnt++;
+                        numRemovedHalfIrred++;
                     }
                 }
 
@@ -508,26 +563,26 @@ void CompHandler::moveClausesImplicit(
 
             if (i->isTri()
                 && (compFinder->getVarComp(lit.var()) == comp
-                    || compFinder->getVarComp(i->lit1().var()) == comp
                     || compFinder->getVarComp(i->lit2().var()) == comp
+                    || compFinder->getVarComp(i->lit3().var()) == comp
                 )
             ) {
-                const Lit lit2 = i->lit1();
-                const Lit lit3 = i->lit2();
+                const Lit lit2 = i->lit2();
+                const Lit lit3 = i->lit3();
 
-                //Unless learnt, cannot be in 2 comps at once
+                //Unless redundant, cannot be in 2 comps at once
                 assert((compFinder->getVarComp(lit.var()) == comp
                             && compFinder->getVarComp(lit2.var()) == comp
                             && compFinder->getVarComp(lit3.var()) == comp
-                       ) || i->learnt()
+                       ) || i->red()
                 );
 
-                //If it's learnt and the lits are in different comps, remove it.
+                //If it's redundant and the lits are in different comps, remove it.
                 if (compFinder->getVarComp(lit.var()) != comp
                     || compFinder->getVarComp(lit2.var()) != comp
                     || compFinder->getVarComp(lit3.var()) != comp
                 ) {
-                    assert(i->learnt());
+                    assert(i->red());
 
                     //The way we go through this, it's definitely going to be
                     //either lit2 or lit3, not lit, that's in the other comp
@@ -537,7 +592,6 @@ void CompHandler::moveClausesImplicit(
 
                     //Update stats
                     solver->binTri.redTris--;
-                    solver->binTri.redLits -= 3;
 
                     //We need it sorted, because that's how we know what order
                     //it is in the Watched()
@@ -571,23 +625,23 @@ void CompHandler::moveClausesImplicit(
                     assert(compFinder->getVarComp(lit3.var()) == comp);
 
                     //Add new clause
-                    if (i->learnt()) {
-                        newSolver->addLearntClause(lits);
-                        numRemovedThirdLearnt++;
+                    if (i->red()) {
+                        //newSolver->addRedClause(lits);
+                        numRemovedThirdRed++;
                     } else {
                         //Save backup
                         saveClause(vector<Lit>{lit, lit2, lit3});
 
-                        newSolver->addClause(lits);
-                        numRemovedThirdNonLearnt++;
+                        newSolver->addClauseOuter(lits);
+                        numRemovedThirdIrred++;
                     }
                 } else {
 
                     //Just remove, already added above
-                    if (i->learnt()) {
-                        numRemovedThirdLearnt++;
+                    if (i->red()) {
+                        numRemovedThirdRed++;
                     } else {
-                        numRemovedThirdNonLearnt++;
+                        numRemovedThirdIrred++;
                     }
                 }
 
@@ -600,97 +654,102 @@ void CompHandler::moveClausesImplicit(
         ws.shrink_(i-j);
     }}
 
-    assert(numRemovedHalfNonLearnt % 2 == 0);
-    solver->binTri.irredBins -= numRemovedHalfNonLearnt/2;
-    solver->binTri.irredLits -= numRemovedHalfNonLearnt;
+    assert(numRemovedHalfIrred % 2 == 0);
+    solver->binTri.irredBins -= numRemovedHalfIrred/2;
 
-    assert(numRemovedThirdNonLearnt % 3 == 0);
-    solver->binTri.irredTris -= numRemovedThirdNonLearnt/3;
-    solver->binTri.irredLits -= numRemovedThirdNonLearnt;
+    assert(numRemovedThirdIrred % 3 == 0);
+    solver->binTri.irredTris -= numRemovedThirdIrred/3;
 
-    assert(numRemovedHalfLearnt % 2 == 0);
-    solver->binTri.redBins -= numRemovedHalfLearnt/2;
-    solver->binTri.redLits -= numRemovedHalfLearnt;
+    assert(numRemovedHalfRed % 2 == 0);
+    solver->binTri.redBins -= numRemovedHalfRed/2;
 
-    assert(numRemovedThirdLearnt % 3 == 0);
-    solver->binTri.redTris -= numRemovedThirdLearnt/3;
-    solver->binTri.redLits -= numRemovedThirdLearnt;
+    assert(numRemovedThirdRed % 3 == 0);
+    solver->binTri.redTris -= numRemovedThirdRed/3;
 }
 
 void CompHandler::addSavedState(vector<lbool>& solution)
 {
     //Enqueue them. They may need to be extended, so enqueue is needed
     //manipulating "model" may not be good enough
+    assert(savedState.size() == solver->nVarsReal());
+    assert(solution.size() == solver->nVarsReal());
     for (size_t var = 0; var < savedState.size(); var++) {
         if (savedState[var] != l_Undef) {
-            solution[var] = savedState[var];
-            solver->varData[var].polarity = (savedState[var] == l_True);
+            const Var interVar = solver->map_outer_to_inter(var);
+            assert(solver->varData[interVar].removed == Removed::decomposed);
+            assert(solver->varData[interVar].is_decision == false);
+
+            const lbool val = savedState[var];
+            assert(solution[var] == l_Undef);
+            solution[var] = val;
+            //cout << "Solution to var " << var + 1 << " has been added: " << val << endl;
+
+            solver->varData[interVar].polarity = (val == l_True);
         }
     }
-
-    //Re-set them to be decision vars
-    for (size_t i = 0; i < decisionVarRemoved.size(); i++) {
-        solver->setDecisionVar(decisionVarRemoved[i]);
-    }
-    decisionVarRemoved.clear();
-}
-
-void CompHandler::updateVars(const vector<Var>& interToOuter_nonlocal)
-{
-    updateArray(savedState, interToOuter_nonlocal);
 }
 
 template<class T>
 void CompHandler::saveClause(const T& lits)
 {
-    for (Lit lit : lits ) {
-        removedClauses.lits.push_back(getUpdatedLit(lit, solver->interToOuterMain));
+    //Update variable number to 'outer' number. This means we will not have
+    //to update the variables every time the internal variable numbering changes
+    for (const Lit lit : lits ) {
+        removedClauses.lits.push_back(
+            solver->map_inter_to_outer(lit)
+        );
     }
     removedClauses.sizes.push_back(lits.size());
-    needToReaddClauses = true;
-}
-
-bool CompHandler::getNeedToReaddClauses() const
-{
-    return needToReaddClauses;
-
 }
 
 void CompHandler::readdRemovedClauses()
 {
-    //Avoid recursion
-    needToReaddClauses = false;
+    assert(solver->okay());
+    double myTime = cpuTime();
 
-    //Clear saved state
-    for(lbool& val: savedState) {
-        val = l_Undef;
+    //Avoid recursion, clear 'removed' status
+    for(size_t i = 0; i < solver->nVarsReal(); i++) {
+        VarData& dat = solver->varData[i];
+        if (dat.removed == Removed::decomposed) {
+            dat.removed = Removed::none;
+            solver->setDecisionVar(i);
+        }
     }
 
-    //Clear varData 'elimed' status and set it as decision var
-    size_t var = 0;
-    for(VarData& dat: solver->varData) {
-        if (dat.elimed == ELIMED_DECOMPOSE) {
-            dat.elimed = ELIMED_NONE;
-            solver->setDecisionVar(var);
-        }
-        var++;
+     //Clear saved state
+    for(lbool& val: savedState) {
+        val = l_Undef;
     }
 
     vector<Lit> tmp;
     size_t at = 0;
     for (uint32_t sz: removedClauses.sizes) {
+
+        //addClause() needs *outer* literals, so just do that
         tmp.clear();
         for(size_t i = at; i < at + sz; i++) {
-            tmp.push_back(
-                getUpdatedLit(removedClauses.lits[i], solver->outerToInterMain)
-            );
+            tmp.push_back(removedClauses.lits[i]);
         }
-        solver->addClause(tmp);
+        if (solver->conf.verbosity >= 6) {
+            cout << "c [comp] Adding back component clause " << tmp << endl;
+        }
 
+        //Add the clause to the system
+        solver->addClause(tmp);
         assert(solver->okay());
 
         //Move 'at' along
         at += sz;
+    }
+
+    //Explain what we just did
+    if (solver->conf.verbosity >= 2) {
+        cout
+        << "c [comp] re-added components. Lits: "
+        << removedClauses.lits.size()
+        << " cls:" << removedClauses.sizes.size()
+        << " T: " << std::fixed << std::setprecision(2) << cpuTime() - myTime
+        << endl;
     }
 
     //Clear added data

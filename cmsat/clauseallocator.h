@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -32,7 +32,7 @@
 
 #include "watched.h"
 
-#define BASE_DATA_TYPE uint32_t
+#define BASE_DATA_TYPE uint64_t
 
 namespace CMSat {
 
@@ -86,7 +86,7 @@ class ClauseAllocator {
             , const bool force = false
         );
 
-        uint64_t getMemUsed() const;
+        size_t memUsed() const;
 
     private:
         void updateAllOffsetsAndPointers(

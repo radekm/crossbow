@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,7 +24,6 @@
 
 #include "constants.h"
 #include "simplifier.h"
-#include "solver.h"
 
 namespace CMSat {
 
@@ -39,56 +38,46 @@ class ClauseCleaner
         void cleanClauses(vector<ClOffset>& cs);
 
 
-        void treatImplicitClauses();
+        void clean_implicit_clauses();
         void removeAndCleanAll();
         bool satisfied(const Clause& c) const;
 
     private:
+        //Implicit cleaning
+        struct ImplicitData
+        {
+            uint64_t remNonLBin = 0;
+            uint64_t remLBin = 0;
+            uint64_t remNonLTri = 0;
+            uint64_t remLTri = 0;
+
+            //We can only attach these in delayed mode, otherwise we would
+            //need to manipulate the watchlist we are going through
+            vector<BinaryClause> toAttach;
+
+            void update_solver_stats(Solver* solver);
+        };
+        ImplicitData impl_data;
+        void clean_implicit_watchlist(
+            watch_subarray& watch_list
+            , const Lit lit
+        );
+        void clean_binary_implicit(
+           Watched& ws
+            , watch_subarray::iterator& j
+            , const Lit lit
+        );
+        void clean_tertiary_implicit(
+           Watched& ws
+            , watch_subarray::iterator& j
+            , const Lit lit
+        );
+
         bool satisfied(const Watched& watched, Lit lit);
         bool cleanClause(ClOffset c);
 
         Solver* solver;
 };
-
-/**
-@brief Removes all satisfied clauses, and cleans false literals
-
-There is a heuristic in place not to try to clean all the time. However,
-this limit can be overridden with "nolimit"
-@p nolimit set this to force cleaning&removing. Useful if a really clean
-state is needed, which is important for certain algorithms
-*/
-inline void ClauseCleaner::removeAndCleanAll()
-{
-    double myTime = cpuTime();
-    treatImplicitClauses();
-    cleanClauses(solver->longIrredCls);
-    cleanClauses(solver->longRedCls);
-
-#ifndef NDEBUG
-    //Once we have cleaned the watchlists
-    //no watchlist whose lit is set may be non-empty
-    size_t wsLit = 0;
-    for(vector<vec<Watched> >::const_iterator
-        it = solver->watches.begin(), end = solver->watches.end()
-        ; it != end
-        ; it++, wsLit++
-    ) {
-        const Lit lit = Lit::toLit(wsLit);
-        if (solver->value(lit) != l_Undef) {
-            assert(it->empty());
-        }
-    }
-#endif
-
-    if (solver->conf.verbosity >= 1) {
-        cout
-        << "c [clean] T: "
-        << std::fixed << std::setprecision(4)
-        << (cpuTime() - myTime)
-        << " s" << endl;
-    }
-}
 
 } //end namespace
 

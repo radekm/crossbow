@@ -1,11 +1,11 @@
+#ifndef __STAMP_H__
+#define __STAMP_H__
+
 #include <vector>
 #include <algorithm>
 #include "solvertypes.h"
 #include "clause.h"
 #include "constants.h"
-
-#ifndef __STAMP_H__
-#define __STAMP_H__
 
 namespace CMSat {
 
@@ -36,7 +36,7 @@ struct Timestamp
 
     Timestamp& operator=(const Timestamp& other)
     {
-        memcpy(this, &other, sizeof(Timestamp));
+        memmove(this, &other, sizeof(Timestamp));
 
         return *this;
     }
@@ -57,21 +57,22 @@ public:
         vector<Lit>& lits
         , StampType stampType
     ) const;
+    void updateVars(
+        const vector<Var>& outerToInter
+        , const vector<Var>& interToOuter2
+        , vector<uint16_t>& seen
+    );
     void updateDominators(const VarReplacer* replacer);
     void clearStamps();
-    void newNumVars(uint32_t newNumVars)
-    {
-        tstamp.resize(newNumVars*2);
-        tstamp.shrink_to_fit();
-    }
+    void saveVarMem(const uint32_t newNumVars);
 
     vector<Timestamp>   tstamp;
-    void newVar()
+    void newVar(const Var)
     {
         tstamp.push_back(Timestamp());
         tstamp.push_back(Timestamp());
     }
-    uint64_t getMemUsed() const
+    size_t memUsed() const
     {
         return tstamp.capacity()*sizeof(Timestamp);
     }

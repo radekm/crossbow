@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,11 +24,16 @@
 
 #include "solvertypes.h"
 #include "cset.h"
+#include <boost/array.hpp>
+#include <set>
+#include "watcharray.h"
+#include <array>
 
 namespace CMSat {
 
 class Solver;
 class Simplifier;
+using std::set;
 
 class NewGateData
 {
@@ -61,111 +66,82 @@ class NewGateData
         uint32_t numClRem;
 };
 
-struct SecondSorter
-{
-    bool operator() (const std::pair<Var, uint32_t> p1, const std::pair<Var, uint32_t> p2)
-    {
-        return p1.second > p2.second;
-    }
-};
-
 class OrGate {
     public:
-        OrGate(const std::vector<Lit>& _lits, const Lit& _eqLit, const bool _learnt) :
-            lits(_lits)
+        OrGate(const Lit& _eqLit, Lit _lit1, Lit _lit2, const bool _red) :
+            lit1(_lit1)
+            , lit2(_lit2)
             , eqLit(_eqLit)
-            , learnt(_learnt)
-            , removed(false)
+            , red(_red)
         {
-            std::sort(lits.begin(), lits.end());
+            if (lit1 > lit2)
+                std::swap(lit1, lit2);
+        }
+
+        bool operator<(const OrGate& other) const
+        {
+            if (eqLit != other.eqLit) {
+                return (eqLit < other.eqLit);
+            }
+
+            if (lit1 != other.lit1) {
+                return (lit1 < other.lit1);
+            }
+
+            return (lit2 < other.lit2);
         }
 
         bool operator==(const OrGate& other) const
         {
-            return (eqLit == other.eqLit && lits == other.lits);
+            return
+                eqLit == other.eqLit
+                && lit1 == other.lit1
+                && lit2 == other.lit2
+                ;
         }
-        std::vector<Lit> lits; //LHS
-        Lit eqLit; //RHS
-        bool learnt;
-        bool removed;
+        std::array<Lit, 2> getLits() const
+        {
+            return std::array<Lit, 2>{{lit1, lit2}};
+        }
+
+        //LHS
+        Lit lit1;
+        Lit lit2;
+
+        //RHS
+        Lit eqLit;
+
+        //Data about gate
+        bool red;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const OrGate& gate)
 {
-    os << " gate ";
-    //os << " no. " << std::setw(4) << gate.num;
-    os << " lits: ";
-    for (uint32_t i = 0; i < gate.lits.size(); i++) {
-        os << gate.lits[i] << " ";
-    }
-    os << " eqLit: " << gate.eqLit;
-    os << " learnt " << gate.learnt;
-    os << " removed: " << gate.removed;
+    os
+    << " gate "
+    << " lits: " << gate.lit1 << ", " << gate.lit2
+    << " eqLit: " << gate.eqLit
+    << " learnt " << gate.red
+    ;
     return os;
 }
-
-struct OrGateSorter2 {
-    bool operator() (const OrGate& gate1, const OrGate& gate2) {
-        if (gate1.lits.size() > gate2.lits.size()) return true;
-        if (gate1.lits.size() < gate2.lits.size()) return false;
-
-        assert(gate1.lits.size() == gate2.lits.size());
-        for (uint32_t i = 0; i < gate1.lits.size(); i++) {
-            if (gate1.lits[i] < gate2.lits[i]) return true;
-            if (gate1.lits[i] > gate2.lits[i]) return false;
-        }
-
-        return false;
-    }
-};
 
 class GateFinder
 {
 public:
     GateFinder(Simplifier *subsumer, Solver *control);
 
-    void newVar();
+    void newVar(const Var orig_outer);
+    void saveVarMem();
     bool doAll();
 
     //Getter functions
-    bool canElim(const Var var) const;
     void printGateStats() const;
     void printDot(); ///<Print Graphviz DOT file describing the gates
 
     //Stats
     struct Stats
     {
-        Stats() :
-            //Time
-            findGateTime(0)
-            , orBasedTime(0)
-            , varReplaceTime(0)
-            , andBasedTime(0)
-            , erTime(0)
-
-            //OR-gate
-            , orGateUseful(0)
-            , numLongCls(0)
-            , numLongClsLits(0)
-            , litsRem(0)
-
-            //Var-replace
-            , varReplaced(0)
-
-            //And-gate
-            , andGateUseful(0)
-            , clauseSizeRem(0)
-
-            //ER
-            , numERVars(0)
-
-            //Gate
-            , learntGatesSize(0)
-            , numLearnt(0)
-            , nonLearntGatesSize(0)
-            , numNonLearnt(0)
-        {}
-
         void clear()
         {
             Stats tmp;
@@ -177,168 +153,41 @@ public:
             return findGateTime + orBasedTime + varReplaceTime
                 + andBasedTime + erTime;
         }
-
-        Stats& operator+=(const Stats& other)
-        {
-            findGateTime += other.findGateTime;
-            orBasedTime += other.orBasedTime;
-            varReplaceTime += other.varReplaceTime;
-            andBasedTime += other.andBasedTime;
-            erTime += other.erTime;
-
-            //OR-gate
-            orGateUseful += other.orGateUseful;
-            numLongCls += other.numLongCls;
-            numLongClsLits += other.numLongClsLits;
-            litsRem += other.litsRem;
-            varReplaced += other.varReplaced;
-
-            //And-gate
-            andGateUseful += other.andGateUseful;
-            clauseSizeRem += other.clauseSizeRem;
-
-            //ER
-            numERVars += other.numERVars;
-
-            //Gates
-            learntGatesSize += other.learntGatesSize;
-            numLearnt += other.numLearnt;
-            nonLearntGatesSize += other.nonLearntGatesSize;
-            numNonLearnt += other.numNonLearnt;
-
-            return *this;
-        }
-
-        void print(const size_t nVars) const
-        {
-            cout << "c -------- GATE FINDING ----------" << endl;
-            printStatsLine("c time"
-                , totalTime()
-            );
-
-            printStatsLine("c find gate time"
-                , findGateTime
-                , findGateTime/totalTime()*100.0
-                , "% time"
-            );
-
-            printStatsLine("c gate-based cl-sh time"
-                , orBasedTime
-                , orBasedTime/totalTime()*100.0
-                , "% time"
-            );
-
-            printStatsLine("c gate-based cl-rem time"
-                , andBasedTime
-                , andBasedTime/totalTime()*100.0
-                , "% time"
-            );
-
-            printStatsLine("c gate-based varrep time"
-                , varReplaceTime
-                , varReplaceTime/totalTime()*100.0
-                , "% time"
-            );
-
-            printStatsLine("c gatefinder cl-short"
-                , orGateUseful
-                , (double)orGateUseful/(double)numLongCls
-                , "% long cls"
-            );
-
-            printStatsLine("c gatefinder lits-rem"
-                , litsRem
-                , (double)litsRem/(double)numLongClsLits
-                , "% long cls lits"
-            );
-
-            printStatsLine("c gatefinder cl-rem"
-                , andGateUseful
-                , (double)andGateUseful/(double)numLongCls
-                , "% long cls"
-            );
-
-            printStatsLine("c gatefinder cl-rem's lits"
-                , clauseSizeRem
-                , (double)clauseSizeRem/(double)numLongClsLits
-                , "% long cls lits"
-            );
-
-            printStatsLine("c gatefinder var-rep"
-                , varReplaced
-                , (double)varReplaced/(double)nVars
-                , "% vars"
-            );
-
-            cout << "c -------- GATE FINDING END ----------" << endl;
-        }
-
-        void printShort()
-        {
-            //Gate find
-            cout << "c Gate find"
-            << " nlearnt:" << numNonLearnt
-            << " avg-s: " << std::fixed << std::setprecision(1)
-            << ((double)nonLearntGatesSize/(double)numNonLearnt)
-            << " learnt: " << numLearnt
-            << " avg-s: " << std::fixed << std::setprecision(1)
-            << ((double)learntGatesSize/(double)numLearnt)
-            << " T: " << std::fixed << std::setprecision(2)
-            << findGateTime
-            << endl;
-
-            //gate-based shorten
-            cout << "c gate-based shorten"
-            << " cl-sh: " << std::setw(5) << orGateUseful
-            << " l-rem: " << std::setw(6) << litsRem
-            << " T: " << std::fixed << std::setw(7) << std::setprecision(2) <<
-            orBasedTime
-            << endl;
-
-            //gate-based cl-rem
-            cout << "c gate-based cl-rem"
-            << " cl-rem: " << andGateUseful
-            << " avg s: " << ((double)clauseSizeRem/(double)andGateUseful)
-            << " T: " << std::fixed << std::setprecision(2)
-            << andBasedTime
-            << endl;
-
-            //var-replace
-            cout << "c OR-based"
-            << " v-rep: " << std::setw(3) << varReplaced
-            << " T: " << std::fixed << std::setprecision(2)
-            << varReplaceTime
-            << endl;
-        }
+        Stats& operator+=(const Stats& other);
+        void print(const size_t nVars) const;
+        void printShort() const;
 
         //Time
-        double findGateTime;
-        double orBasedTime;
-        double varReplaceTime;
-        double andBasedTime;
-        double erTime;
+        double findGateTime = 0.0;
+        uint32_t find_gate_timeout = 0;
+        double orBasedTime = 0.0;
+        uint32_t or_based_timeout = 0;
+        double varReplaceTime = 0.0;
+        double andBasedTime = 0.0;
+        uint32_t and_based_timeout = 0;
+        double erTime = 0.0;
 
         //OR-gate
-        uint64_t orGateUseful;
-        uint64_t numLongCls;
-        uint64_t numLongClsLits;
-        int64_t  litsRem;
+        uint64_t orGateUseful = 0;
+        uint64_t numLongCls = 0;
+        uint64_t numLongClsLits = 0;
+        int64_t  litsRem = 0;
 
         //Var-replace
-        uint64_t varReplaced;
+        uint64_t varReplaced = 0;
 
         //And-gate
-        uint64_t andGateUseful;
-        uint64_t clauseSizeRem;
+        uint64_t andGateUseful = 0;
+        uint64_t clauseSizeRem = 0;
 
         //ER
-        uint64_t numERVars;
+        uint64_t numERVars = 0;
 
         //Gates
-        uint64_t learntGatesSize;
-        uint64_t numLearnt;
-        uint64_t nonLearntGatesSize;
-        uint64_t numNonLearnt;
+        uint64_t learntGatesSize = 0;
+        uint64_t numRed = 0;
+        uint64_t irredGatesSize = 0;
+        uint64_t numIrred = 0;
     };
 
     const Stats& getStats() const;
@@ -346,18 +195,17 @@ public:
 private:
     //Setup
     void clearIndexes();
+    void link_in_gate(const OrGate& gate);
 
-    //Each algo
-    void     findOrGates();
-    uint32_t createNewVars();
-
-    //Helpers to find
-    void findOrGates(const bool learntGatesToo);
+    //Finding
+    void findOrGates();
+    void findOrGates(const bool redGatesToo);
     void findOrGate(
         const Lit eqLit
-        , const ClOffset offset
-        , const bool learntGatesToo
-        , bool wasLearnt
+        , const Lit lit1
+        , const Lit lit2
+        , const bool redGatesToo
+        , bool wasRed
     );
 
     bool doAllOptimisationWithGates();
@@ -365,31 +213,78 @@ private:
     size_t findEqOrGates();
 
     //And gate treatment
-    bool    treatAndGate(
+    bool remove_clauses_using_and_gate(
         const OrGate& gate
         , const bool reallyRemove
-        , uint32_t& foundPotential
-        , uint64_t& numOp
+        , const bool only_irred
+        , uint32_t& reduction
     );
 
-    CL_ABST_TYPE  calculateSortedOcc(
+    CL_ABST_TYPE  calc_sorted_occ_and_set_seen2(
         const OrGate& gate
         , uint16_t& maxSize
-        , vector<size_t>& seen2Set
-        , uint64_t& numOp
+        , uint16_t& minSize
+        , const bool only_irred
+    );
+    void set_seen2_and_abstraction(
+        const Clause& cl
+        , CL_ABST_TYPE& abstraction
+    );
+    bool check_seen_and_gate_against_cl(
+        const Clause& this_cl
+        , const OrGate& gate
     );
 
     void treatAndGateClause(
-        const ClOffset offset
+        const ClOffset other_cl_offset
         , const OrGate& gate
-        , const Clause& cl
+        , const ClOffset this_cl_offset
+    );
+    CL_ABST_TYPE calc_abst_and_set_seen(
+       const Clause& cl
+        , const OrGate& gate
+    );
+    ClOffset find_pair_for_and_gate_reduction(
+        const Watched& ws
+        , const size_t minSize
+        , const size_t maxSize
+        , const CL_ABST_TYPE abstraction
+        , const OrGate& gate
+        , const bool only_irred
     );
 
-    bool findAndGateOtherCl(
+    ClOffset findAndGateOtherCl(
         const vector<ClOffset>& sizeSortedOcc
         , const Lit lit
         , const CL_ABST_TYPE abst2
-        , ClOffset& other
+        , const bool gate_is_red
+        , const bool only_irred
+    );
+    bool findAndGateOtherCl_tri(
+       watch_subarray_const ws_list
+       , const bool gate_is_red
+       , const bool only_irred
+       , Watched& ret
+    );
+    bool find_pair_for_and_gate_reduction_tri(
+        const Watched& ws
+        , const OrGate& gate
+        , const bool only_irred
+        , Watched& found_pair
+    );
+    bool remove_clauses_using_and_gate_tri(
+       const OrGate& gate
+        , const bool really_remove
+        , const bool only_irred
+        , uint32_t& reduction
+    );
+    void set_seen2_tri(
+       const OrGate& gate
+        , const bool only_irred
+    );
+    bool check_seen_and_gate_against_lit(
+        const Lit lit
+        , const OrGate& gate
     );
 
     ///temporary for and-gate treatment. Cleared at every treatAndGate() call
@@ -397,11 +292,34 @@ private:
 
     //Indexes, gate data
     vector<OrGate> orGates; //List of OR gates
-    vector<vector<uint32_t> > gateOcc; //LHS of every NON-LEARNT gate is in this occur list
-    vector<vector<uint32_t> > gateOccEq; //RHS of every gate is in this occur list
+    vector<vector<uint32_t> > gateOcc; //LHS of every NON-LEARNT gate is in this occur list (a = b V c, so 'a' is LHS)
+    vector<vector<uint32_t> > gateOccEq; //RHS of every gate is in this occur list (a = b V c, so 'b' and 'c' are LHS)
 
-    //Extended resolution
-    vector<char>   dontElim; ///<These vars should not be eliminated, because they have been added through ER
+    //For temporaries
+    vector<size_t> seen2Set; //Bits that have been set in seen2, and later need to be cleared
+    set<ClOffset> clToUnlink;
+    struct TriToUnlink
+    {
+        TriToUnlink(Lit _lit2, Lit _lit3, bool _red) :
+            lit2(_lit2)
+            , lit3(_lit3)
+            , red(_red)
+        {}
+
+        const Lit lit2;
+        const Lit lit3;
+        const bool red;
+
+        bool operator<(const TriToUnlink& other) const
+        {
+            if (lit2 != other.lit2)
+                return lit2 < other.lit2;
+            if (lit3 != other.lit3)
+                return lit3 < other.lit3;
+            return red < other.red;
+        }
+    };
+    set<TriToUnlink> tri_to_unlink;
 
     //Graph
     void printDot2(); ///<Print Graphviz DOT file describing the gates
@@ -412,7 +330,6 @@ private:
 
     //Limits
     int64_t  numMaxGateFinder;
-    int64_t  numMaxCreateNewVars;
     int64_t  numMaxShortenWithGates;
     int64_t  numMaxClRemWithGates;
 
@@ -420,16 +337,11 @@ private:
     uint64_t numDotPrinted;
 
     //Main data
-    Simplifier *subsumer;
+    Simplifier *simplifier;
     Solver *solver;
-    vector<unsigned char>& seen;
-    vector<unsigned char>& seen2;
+    vector<uint16_t>& seen;
+    vector<uint16_t>& seen2;
 };
-
-inline bool GateFinder::canElim(const Var var) const
-{
-    return !dontElim[var];
-}
 
 inline const GateFinder::Stats& GateFinder::getStats() const
 {

@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -20,6 +20,8 @@
 */
 
 #include "clausecleaner.h"
+#include "clauseallocator.h"
+#include "solver.h"
 
 using namespace CMSat;
 
@@ -35,181 +37,145 @@ bool ClauseCleaner::satisfied(const Watched& watched, Lit lit)
 {
     assert(watched.isBinary());
     if (solver->value(lit) == l_True) return true;
-    if (solver->value(watched.lit1()) == l_True) return true;
+    if (solver->value(watched.lit2()) == l_True) return true;
     return false;
 }
 
-void ClauseCleaner::treatImplicitClauses()
+void ClauseCleaner::clean_binary_implicit(
+    Watched& ws
+    , watch_subarray::iterator& j
+    , const Lit lit
+) {
+    if (satisfied(ws, lit)) {
+        //Only delete once
+        if (lit < ws.lit2()) {
+            (*solver->drup) << del << lit << ws.lit2() << fin;
+        }
+
+        if (ws.red()) {
+            impl_data.remLBin++;
+        } else {
+            impl_data.remNonLBin++;
+        }
+    } else {
+        assert(solver->value(ws.lit2()) == l_Undef);
+        assert(solver->value(lit) == l_Undef);
+        *j++ = ws;
+    }
+}
+
+void ClauseCleaner::clean_tertiary_implicit(
+    Watched& ws
+    , watch_subarray::iterator& j
+    , const Lit lit
+) {
+    bool remove = false;
+
+    //Satisfied?
+    if (solver->value(lit) == l_True
+        || solver->value(ws.lit2()) == l_True
+        || solver->value(ws.lit3()) == l_True
+    ) {
+        remove = true;
+    }
+
+    //Shortened -- attach bin, but only *once*
+    Lit lits[2];
+    bool needAttach = false;
+    if (!remove
+        && solver->value(lit) == l_False
+    ) {
+        if (lit < ws.lit2()) {
+            lits[0] = ws.lit2();
+            lits[1] = ws.lit3();
+            needAttach = true;
+        }
+        remove = true;
+    }
+    if (!remove
+        && solver->value(ws.lit2()) == l_False
+    ) {
+        if (lit < ws.lit2()) {
+            lits[0] = lit;
+            lits[1] = ws.lit3();
+            needAttach = true;
+        }
+        remove = true;
+    }
+    if (!remove
+        && solver->value(ws.lit3()) == l_False
+    ) {
+        if (lit < ws.lit2()) {
+            lits[0] = lit;
+            lits[1] = ws.lit2();
+            needAttach = true;
+        }
+        remove = true;
+    }
+    if (needAttach) {
+        impl_data.toAttach.push_back(BinaryClause(lits[0], lits[1], ws.red()));
+        (*solver->drup) << lits[0] << lits[1] << fin;
+    }
+
+    if (remove) {
+        //Drup
+        if (//Only remove once --> exactly when adding
+            lit < ws.lit2()
+            && ws.lit2() < ws.lit3()
+        ) {
+            (*solver->drup)
+            << del << lit << ws.lit2() << ws.lit3() << fin;
+        }
+
+        if (ws.red())
+            impl_data.remLTri++;
+        else
+            impl_data.remNonLTri++;
+    } else {
+        *j++ = ws;
+    }
+}
+
+void ClauseCleaner::clean_implicit_watchlist(
+    watch_subarray& watch_list
+    , const Lit lit
+) {
+    watch_subarray::iterator i = watch_list.begin();
+    watch_subarray::iterator j = i;
+    for (watch_subarray::iterator end2 = watch_list.end(); i != end2; i++) {
+        if (i->isClause()) {
+            *j++ = *i;
+            continue;
+        }
+
+        if (i->isBinary()) {
+            clean_binary_implicit(*i, j, lit);
+            continue;
+        }
+
+        assert(i->isTri());
+        clean_tertiary_implicit(*i, j, lit);
+    }
+    watch_list.shrink_(i - j);
+}
+
+void ClauseCleaner::clean_implicit_clauses()
 {
     assert(solver->decisionLevel() == 0);
-
-    uint64_t remNonLBin = 0;
-    uint64_t remLBin = 0;
-    uint64_t remNonLTri = 0;
-    uint64_t remLTri = 0;
-
-    //We can only attach these in delayed mode, otherwise we would
-    //need to manipulate the watchlist we are going through
-    vector<BinaryClause> toAttach;
-
+    impl_data = ImplicitData();
     size_t wsLit = 0;
     for (size_t end = solver->watches.size()
         ; wsLit != end
         ; wsLit++
     ) {
-        Lit lit = Lit::toLit(wsLit);
-        vec<Watched>& ws = solver->watches[wsLit];;
-        /*if (wsLit+5 < solver->watches.size()) {
-            __builtin_prefetch(solver->watches[wsLit+5].begin());
-        }*/
-
-        //If watchlist if empty, nothing to do
+        const Lit lit = Lit::toLit(wsLit);
+        watch_subarray ws = solver->watches[lit.toInt()];
         if (ws.empty())
             continue;
 
-        vec<Watched>::iterator i = ws.begin();
-        vec<Watched>::iterator j = i;
-        for (vec<Watched>::iterator end2 = ws.end(); i != end2; i++) {
-
-            //Skip clauses
-            if (i->isClause()) {
-                *j++ = *i;
-                continue;
-            }
-
-            //Treat binaries
-            if (i->isBinary()) {
-                if (satisfied(*i, lit)) {
-                    #ifdef DRUP
-                    if (solver->drup
-                        && lit < i->lit1()
-                    ) {
-                        (*solver->drup)
-                        << "d "
-                        << lit << " "
-                        << i->lit1()
-                        << " 0\n";
-                    }
-                    #endif
-
-                    if (i->learnt()) {
-                        remLBin++;
-                    } else {
-                        remNonLBin++;
-                    }
-                } else {
-                    assert(solver->value(i->lit1()) == l_Undef);
-                    assert(solver->value(lit) == l_Undef);
-                    *j++ = *i;
-                }
-                continue;
-            }
-
-            //Treat 3-long
-            assert(i->isTri());
-            bool remove = false;
-
-            //Satisfied?
-            if (solver->value(lit) == l_True
-                || solver->value(i->lit1()) == l_True
-                || solver->value(i->lit2()) == l_True
-            ) {
-                remove = true;
-            }
-
-            //Shortened -- attach bin, but only *once*
-            Lit lits[2];
-            bool needAttach = false;
-            if (!remove
-                && solver->value(lit) == l_False
-            ) {
-                if (lit < i->lit1()) {
-                    lits[0] = i->lit1();
-                    lits[1] = i->lit2();
-                    needAttach = true;
-                }
-                remove = true;
-            }
-            if (!remove
-                && solver->value(i->lit1()) == l_False
-            ) {
-                if (lit < i->lit1()) {
-                    lits[0] = lit;
-                    lits[1] = i->lit2();
-                    needAttach = true;
-                }
-                remove = true;
-            }
-            if (!remove
-                && solver->value(i->lit2()) == l_False
-            ) {
-                if (lit < i->lit1()) {
-                    lits[0] = lit;
-                    lits[1] = i->lit1();
-                    needAttach = true;
-                }
-                remove = true;
-            }
-            if (needAttach) {
-                toAttach.push_back(BinaryClause(lits[0], lits[1], i->learnt()));
-                #ifdef DRUP
-                if (solver->drup) {
-                    (*solver->drup)
-                    << lits[0] << " "
-                    << lits[1]
-                    << " 0\n";
-                }
-                #endif
-            }
-
-            if (remove) {
-                #ifdef DRUP
-                if (solver->drup
-                    //Only remove once --> exactly when adding
-                    && lit < i->lit1()
-                    && i->lit1() < i->lit2()
-                ) {
-                    (*solver->drup)
-                    << "d "
-                    << lit << " "
-                    << i->lit1() << " "
-                    << i->lit2()
-                    << " 0\n";
-                }
-                #endif
-
-                if (i->learnt())
-                    remLTri++;
-                else
-                    remNonLTri++;
-            } else {
-                *j++ = *i;
-            }
-        }
-        ws.shrink_(i - j);
+        clean_implicit_watchlist(ws, lit);
     }
-
-    //Attach delayed binary clauses
-    for(vector<BinaryClause>::const_iterator
-        it = toAttach.begin(), end = toAttach.end()
-        ; it != end
-        ; it++
-    ) {
-        assert(solver->value(it->getLit1()) == l_Undef);
-        assert(solver->value(it->getLit2()) == l_Undef);
-        solver->attachBinClause(it->getLit1(), it->getLit2(), it->getLearnt());
-    }
-
-    assert(remNonLBin % 2 == 0);
-    assert(remLBin % 2 == 0);
-    assert(remNonLTri % 3 == 0);
-    assert(remLTri % 3 == 0);
-    solver->binTri.irredLits -= remNonLBin + remNonLTri;
-    solver->binTri.redLits -= remLBin + remLTri;
-    solver->binTri.irredBins -= remNonLBin/2;
-    solver->binTri.redBins -= remLBin/2;
-    solver->binTri.irredTris -= remNonLTri/3;
-    solver->binTri.redTris -= remLTri/3;
+    impl_data.update_solver_stats(solver);
 
     #ifdef DEBUG_IMPLICIT_STATS
     solver->checkImplicitStats();
@@ -229,11 +195,11 @@ void ClauseCleaner::cleanClauses(vector<ClOffset>& cs)
     size_t at = 0;
     for (s = ss = cs.begin(), end = cs.end();  s != end; s++, at++) {
         if (at + 1 < cs.size()) {
-            Clause* cl = solver->clAllocator->getPointer(cs[at+1]);
+            Clause* cl = solver->clAllocator.getPointer(cs[at+1]);
             __builtin_prefetch(cl);
         }
         if (cleanClause(*s)) {
-            solver->clAllocator->clauseFree(*s);
+            solver->clAllocator.clauseFree(*s);
         } else {
             *ss++ = *s;
         }
@@ -247,14 +213,11 @@ void ClauseCleaner::cleanClauses(vector<ClOffset>& cs)
 
 inline bool ClauseCleaner::cleanClause(ClOffset offset)
 {
-    Clause& cl = *solver->clAllocator->getPointer(offset);
+    Clause& cl = *solver->clAllocator.getPointer(offset);
     assert(cl.size() > 3);
     const uint32_t origSize = cl.size();
-    #ifdef DRUP
-    vector<Lit> origCl(cl.size());
-    std::copy(cl.begin(), cl.end(), origCl.begin());
-    #endif
 
+    (*solver->drup) << deldelay << cl << fin;
     Lit origLit1 = cl[0];
     Lit origLit2 = cl[1];
 
@@ -269,39 +232,30 @@ inline bool ClauseCleaner::cleanClause(ClOffset offset)
 
         if (val == l_True) {
             solver->detachModifiedClause(origLit1, origLit2, origSize, &cl);
-            #ifdef DRUP
-            if (solver->drup) {
-                (*solver->drup) << "d " << origCl << " 0\n";
-            }
-            #endif
+            (*solver->drup) << findelay;
             return true;
         }
     }
-    cl.shrink(i-j);
-
-    #ifdef DRUP
-    if (solver->drup && i != j) {
-        (*solver->drup)
-        << cl << " 0\n"
-        << "d " << origCl << " 0\n";
+    if (i != j) {
+        cl.shrink(i-j);
+        (*solver->drup) << cl << fin << findelay;
     }
-    #endif
 
     assert(cl.size() > 1);
     if (i != j) {
         if (cl.size() == 2) {
             solver->detachModifiedClause(origLit1, origLit2, origSize, &cl);
-            solver->attachBinClause(cl[0], cl[1], cl.learnt());
+            solver->attachBinClause(cl[0], cl[1], cl.red());
             return true;
         } else if (cl.size() == 3) {
             solver->detachModifiedClause(origLit1, origLit2, origSize, &cl);
-            solver->attachTriClause(cl[0], cl[1], cl[2], cl.learnt());
+            solver->attachTriClause(cl[0], cl[1], cl[2], cl.red());
             return true;
         } else {
-            if (cl.learnt())
-                solver->binTri.redLits -= i-j;
+            if (cl.red())
+                solver->litStats.redLits -= i-j;
             else
-                solver->binTri.irredLits -= i-j;
+                solver->litStats.irredLits -= i-j;
         }
     }
 
@@ -314,4 +268,54 @@ bool ClauseCleaner::satisfied(const Clause& cl) const
         if (solver->value(cl[i]) == l_True)
             return true;
         return false;
+}
+
+void ClauseCleaner::ImplicitData::update_solver_stats(Solver* solver)
+{
+    for(const BinaryClause& bincl: toAttach) {
+        assert(solver->value(bincl.getLit1()) == l_Undef);
+        assert(solver->value(bincl.getLit2()) == l_Undef);
+        solver->attachBinClause(bincl.getLit1(), bincl.getLit2(), bincl.isRed());
+    }
+
+    assert(remNonLBin % 2 == 0);
+    assert(remLBin % 2 == 0);
+    assert(remNonLTri % 3 == 0);
+    assert(remLTri % 3 == 0);
+    solver->binTri.irredBins -= remNonLBin/2;
+    solver->binTri.redBins -= remLBin/2;
+    solver->binTri.irredTris -= remNonLTri/3;
+    solver->binTri.redTris -= remLTri/3;
+}
+
+void ClauseCleaner::removeAndCleanAll()
+{
+    double myTime = cpuTime();
+    clean_implicit_clauses();
+    cleanClauses(solver->longIrredCls);
+    cleanClauses(solver->longRedCls);
+
+    #ifndef NDEBUG
+    //Once we have cleaned the watchlists
+    //no watchlist whose lit is set may be non-empty
+    size_t wsLit = 0;
+    for(watch_array::iterator
+        it = solver->watches.begin(), end = solver->watches.end()
+        ; it != end
+        ; ++it, wsLit++
+    ) {
+        const Lit lit = Lit::toLit(wsLit);
+        if (solver->value(lit) != l_Undef) {
+            assert((*it).empty());
+        }
+    }
+    #endif
+
+    if (solver->conf.verbosity >= 2) {
+        cout
+        << "c [clean] T: "
+        << std::fixed << std::setprecision(4)
+        << (cpuTime() - myTime)
+        << " s" << endl;
+    }
 }

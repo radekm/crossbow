@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -39,7 +39,7 @@ public:
 
     LitExtra(const Lit l, const bool onlyNLBin)
     {
-        x = onlyNLBin + (l.toInt() << 1);
+        x = ((uint32_t)onlyNLBin) | (l.toInt() << 1);
     }
 
     const Lit getLit() const
@@ -47,20 +47,20 @@ public:
         return Lit::toLit(x>>1);
     }
 
-    bool getOnlyNLBin() const
+    bool getOnlyIrredBin() const
     {
         return x&1;
     }
 
-    void setOnlyNLBin()
+    void setOnlyIrredBin()
     {
         x  |= 0x1;
     }
 
     bool operator<(const LitExtra other) const
     {
-        if (getOnlyNLBin() && !other.getOnlyNLBin()) return false;
-        if (!getOnlyNLBin() && other.getOnlyNLBin()) return true;
+        if (getOnlyIrredBin() && !other.getOnlyIrredBin()) return false;
+        if (!getOnlyIrredBin() && other.getOnlyIrredBin()) return true;
         return (getLit() < other.getLit());
     }
 
@@ -87,20 +87,23 @@ public:
     bool merge(
         const vector<LitExtra>& otherLits
         , const Lit extraLit
-        , const bool learnt
+        , const bool red
         , const Var leaveOut
         , vector<uint16_t>& seen
     );
     bool merge(
         const vector<Lit>& otherLits //Lits to add
         , const Lit extraLit //Add this, too to the list of lits
-        , const bool learnt //The step was a learnt step?
+        , const bool red //The step was a redundant-dependent step?
         , const Var leaveOut //Leave this literal out
         , vector<uint16_t>& seen
     );
     void makeAllRed();
 
-    void updateVars(const std::vector< uint32_t >& outerToInter);
+    void updateVars(
+        const std::vector< uint32_t >& outerToInter
+        , const size_t newMaxVars
+    );
 
     std::vector<LitExtra> lits;
     //uint64_t conflictLastUpdated;
@@ -108,7 +111,7 @@ public:
 private:
     bool mergeHelper(
         const Lit extraLit //Add this, too to the list of lits
-        , const bool learnt //The step was a learnt step?
+        , const bool red //The step was a redundant-dependent step?
         , vector<uint16_t>& seen
     );
 };
@@ -117,7 +120,7 @@ inline std::ostream& operator<<(std::ostream& os, const TransCache& tc)
 {
     for (size_t i = 0; i < tc.lits.size(); i++) {
         os << tc.lits[i].getLit()
-        << "(" << (tc.lits[i].getOnlyNLBin() ? "NL" : "L") << ") ";
+        << "(" << (tc.lits[i].getOnlyIrredBin() ? "NL" : "L") << ") ";
     }
     return os;
 }
@@ -126,9 +129,9 @@ class ImplCache  {
 public:
     void printStats(const Solver* solver) const;
     void printStatsSort(const Solver* solver) const;
-    uint64_t memUsed() const;
+    size_t memUsed() const;
     void makeAllRed();
-    void newNumVars(uint32_t newNumVars)
+    void saveVarMems(uint32_t newNumVars)
     {
         implCache.resize(newNumVars*2);
         implCache.shrink_to_fit();
@@ -166,7 +169,7 @@ public:
         return implCache[at];
     }
 
-    void addNew()
+    void newVar(const Var)
     {
         implCache.push_back(TransCache());
         implCache.push_back(TransCache());
@@ -181,9 +184,10 @@ public:
         vector<uint16_t>& seen
         , const std::vector< uint32_t >& outerToInter
         , const std::vector< uint32_t >& interToOuter2
+        , const size_t newMaxVars
     );
 
-    bool clean(Solver* solver);
+    bool clean(Solver* solver, bool* setSomething = NULL);
     bool tryBoth(Solver* solver);
 
     struct TryBothStats
@@ -278,7 +282,7 @@ private:
 namespace std
 {
     template <>
-    inline void swap (CMSat::TransCache& m1, CMSat::TransCache& m2)
+    inline void swap (CMSat::TransCache& m1, CMSat::TransCache& m2) noexcept (true)
     {
          m1.lits.swap(m2.lits);
     }

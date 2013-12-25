@@ -31,14 +31,31 @@ using namespace CMSat;
 #define log_lits(v)
 #endif
 
-#define Solver_val(v) (*((Solver **) Data_custom_val(v)))
+struct WrappedSolver {
+  Solver * solver;
+  int nVars;
+
+  WrappedSolver(Solver * s) : solver(s), nVars(0) { }
+
+  Var newVar() {
+    solver->new_external_var();
+    return nVars++;
+  }
+
+  ~WrappedSolver() {
+    delete solver;
+    solver = 0;
+  }
+};
+
+#define WrappedSolver_val(v) (*((WrappedSolver **) Data_custom_val(v)))
 
 static void cmsat_finalize (value sv) {
-  Solver * s = Solver_val(sv);
+  WrappedSolver * ws = WrappedSolver_val(sv);
 
-  log("cmsat_finalize(%p)\n", (void *)s);
+  log("cmsat_finalize(%p)\n", (void *)ws->solver);
 
-  delete s;
+  delete ws;
 }
 
 static struct custom_operations cmsat_ops = {
@@ -57,15 +74,11 @@ CAMLprim value cmsat_create(value unit) {
   CAMLparam1 (unit);
   CAMLlocal1 (sv);
 
-  SolverConf conf;
-  conf.doRenumberVars = false;
-  conf.doSaveMem = false;
-  conf.doBlockClauses = false;
-  conf.doVarElim = false;
-  Solver * s = new Solver(conf);
+  Solver * s = new Solver();
+  WrappedSolver * ws = new WrappedSolver(s);
 
-  sv = caml_alloc_custom(&cmsat_ops, sizeof(Solver *), 0, 1);
-  Solver_val(sv) = s;
+  sv = caml_alloc_custom(&cmsat_ops, sizeof(WrappedSolver *), 0, 1);
+  WrappedSolver_val(sv) = ws;
 
   log("cmsat_create() = %p\n", (void *)s);
 
@@ -75,10 +88,10 @@ CAMLprim value cmsat_create(value unit) {
 CAMLprim value cmsat_new_var(value sv) {
   CAMLparam1 (sv);
 
-  Solver * s = Solver_val(sv);
-  Var var = s->newVar();
+  WrappedSolver * ws = WrappedSolver_val(sv);
+  Var var = ws->newVar();
 
-  //log("cmsat_new_var(%p) = %d\n", (void *)s, var);
+  //log("cmsat_new_var(%p) = %d\n", (void *)ws->solver, var);
 
   CAMLreturn (Val_int(var));
 }
@@ -86,7 +99,8 @@ CAMLprim value cmsat_new_var(value sv) {
 CAMLprim value cmsat_add_clause(value sv, value litsv, value lenv) {
   CAMLparam3 (sv, litsv, lenv);
 
-  Solver * s = Solver_val(sv);
+  WrappedSolver * ws = WrappedSolver_val(sv);
+  Solver * s = ws->solver;
   int len = Int_val(lenv);
 
   // Literals.
@@ -100,7 +114,7 @@ CAMLprim value cmsat_add_clause(value sv, value litsv, value lenv) {
   log_lits(lits);
   log(", %d) = ", len);
 
-  bool res = s->addClause(lits);
+  bool res = s->addClauseOuter(lits);
 
   log("%d\n", (int)res);
 
@@ -110,7 +124,8 @@ CAMLprim value cmsat_add_clause(value sv, value litsv, value lenv) {
 CAMLprim value cmsat_solve(value sv, value assumptsv) {
   CAMLparam2 (sv, assumptsv);
 
-  Solver * s = Solver_val(sv);
+  WrappedSolver * ws = WrappedSolver_val(sv);
+  Solver * s = ws->solver;
   int len = Wosize_val(assumptsv);
 
   // Assumptions.
@@ -139,7 +154,8 @@ CAMLprim value cmsat_solve(value sv, value assumptsv) {
 CAMLprim value cmsat_model_value(value sv, value varv) {
   CAMLparam2 (sv, varv);
 
-  Solver * s = Solver_val(sv);
+  WrappedSolver * ws = WrappedSolver_val(sv);
+  Solver * s = ws->solver;
   Var var = Int_val(varv);
   lbool lb = s->modelValue(Lit(var, false));
 
@@ -156,7 +172,8 @@ CAMLprim value cmsat_model_value(value sv, value varv) {
 CAMLprim value cmsat_interrupt(value sv) {
   CAMLparam1 (sv);
 
-  Solver * s = Solver_val(sv);
+  WrappedSolver * ws = WrappedSolver_val(sv);
+  Solver * s = ws->solver;
   s->setNeedToInterrupt();
 
   log("cmsat_interrupt(%p)\n", (void *)s);

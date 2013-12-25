@@ -78,23 +78,20 @@ static inline int memReadStat(int field)
     fclose(in);
     return value;
 }
-static inline uint64_t memUsed()
+static inline uint64_t memUsedTotal()
 {
     return (uint64_t)memReadStat(0) * (uint64_t)getpagesize();
 }
-
-
 #elif defined(__FreeBSD__)
-static inline uint64_t memUsed(void)
+#include <sys/types.h>
+inline uint64_t memUsedTotal(void)
 {
     struct rusage ru;
     getrusage(RUSAGE_SELF, &ru);
     return ru.ru_maxrss*1024;
 }
-
-
-#else
-static inline uint64_t memUsed()
+#else //Windows
+static inline size_t memUsedTotal()
 {
     return 0;
 }

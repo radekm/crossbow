@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -34,10 +34,11 @@ using std::cout;
 using std::endl;
 
 SCCFinder::SCCFinder(Solver* _solver) :
-    solver(_solver)
+    globalIndex(0)
+    , solver(_solver)
 {}
 
-bool SCCFinder::find2LongXors()
+bool SCCFinder::performSCC()
 {
     runStats.clear();
     runStats.numCalls = 1;
@@ -88,8 +89,8 @@ void SCCFinder::tarjan(const uint32_t vertex)
     stackIndicator[vertex] = true;
 
     Var vertexVar = Lit::toLit(vertex).var();
-    if (solver->varData[vertexVar].elimed == ELIMED_NONE
-        || solver->varData[vertexVar].elimed == ELIMED_QUEUED_VARREPLACER
+    if (solver->varData[vertexVar].removed == Removed::none
+        || solver->varData[vertexVar].removed == Removed::queued_replacer
     ) {
         Lit vertLit = Lit::toLit(vertex);
 
@@ -109,8 +110,8 @@ void SCCFinder::tarjan(const uint32_t vertex)
 
 
         //Go through the watch
-        const vec<Watched>& ws = solver->watches[(~vertLit).toInt()];
-        for (vec<Watched>::const_iterator
+        watch_subarray_const ws = solver->watches[(~vertLit).toInt()];
+        for (watch_subarray_const::const_iterator
             it = ws.begin(), end = ws.end()
             ; it != end
             ; it++
@@ -119,7 +120,7 @@ void SCCFinder::tarjan(const uint32_t vertex)
             if (!it->isBinary())
                 continue;
 
-            const Lit lit = it->lit1();
+            const Lit lit = it->lit2();
 
             doit(lit, vertex);
         }
@@ -151,31 +152,36 @@ void SCCFinder::tarjan(const uint32_t vertex)
         if (tmp.size() >= 2) {
             for (uint32_t i = 1; i < tmp.size(); i++) {
                 if (!solver->ok) break;
-                vector<Lit> lits(2);
-                lits[0] = Lit::toLit(tmp[0]).unsign();
-                lits[1] = Lit::toLit(tmp[i]).unsign();
-                const bool xorEqualsFalse = Lit::toLit(tmp[0]).sign()
-                                            ^ Lit::toLit(tmp[i]).sign()
-                                            ^ true;
+                Var vars[2];
+                vars[0] = Lit::toLit(tmp[0]).var();
+                vars[1] = Lit::toLit(tmp[i]).var();
+                const bool xorEqualsFalse =
+                    Lit::toLit(tmp[0]).sign()
+                    ^ Lit::toLit(tmp[i]).sign()
+                    ^ true;
 
                 //Both are UNDEF, so this is a proper binary XOR
-                if (solver->value(lits[0]) == l_Undef
-                    && solver->value(lits[1]) == l_Undef
+                if (solver->value(vars[0]) == l_Undef
+                    && solver->value(vars[1]) == l_Undef
                 ) {
                     runStats.foundXors++;
                     #ifdef VERBOSE_DEBUG
                     cout << "SCC says: "
-                    << lits[0]
+                    << vars[0] +1
                     << " XOR "
-                    << lits[1]
+                    << vars[1] +1
                     << " = " << !xorEqualsFalse
                     << endl;
                     #endif
                     solver->varReplacer->replace(
-                        lits[0]
-                        , lits[1]
+                        vars[0]
+                        , vars[1]
                         , xorEqualsFalse
-                        , solver->conf.doExtendedSCC || solver->conf.doStamp
+                        //Because otherwise queued varreplacer could be reducible
+                        //and during var-elim, we would remove one of the binary clauses
+                        //and then we would be in a giant mess: the equivalence is stored in replacer
+                        //but if its parent/child is set, the child/parent won't be set :S
+                        , true
                     );
                 }
             }
@@ -183,9 +189,9 @@ void SCCFinder::tarjan(const uint32_t vertex)
     }
 }
 
-uint64_t SCCFinder::memUsed() const
+size_t SCCFinder::memUsed() const
 {
-    uint64_t mem = 0;
+    size_t mem = 0;
     mem += index.capacity()*sizeof(uint32_t);
     mem += lowlink.capacity()*sizeof(uint32_t);
     mem += stack.size()*sizeof(uint32_t); //TODO under-estimates

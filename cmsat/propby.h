@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -67,7 +67,7 @@ class PropBy
         //For hyper-bin, etc.
         PropBy(
             const Lit lit
-            , bool learntStep //Step that lead here from ancestor is learnt
+            , bool redStep //Step that lead here from ancestor is redundant
             , bool hyperBin //It's a hyper-binary clause
             , bool hyperBinNotAdded //It's a hyper-binary clause, but was never added because all the rest was zero-level
         ) :
@@ -82,7 +82,7 @@ class PropBy
             if (lit == ~lit_Undef)
                 type = null_clause_t;
 
-            data2 = (uint32_t)learntStep
+            data2 = (uint32_t)redStep
                 | ((uint32_t)hyperBin) << 1
                 | ((uint32_t)hyperBinNotAdded) << 2;
         }
@@ -94,7 +94,7 @@ class PropBy
         {
         }
 
-        bool getLearntStep() const
+        bool isRedStep() const
         {
             return data2 & 1U;
         }
@@ -139,7 +139,7 @@ class PropBy
             return (PropByType)type;
         }
 
-        Lit lit1() const
+        Lit lit2() const
         {
             #ifdef DEBUG_PROPAGATEFROM
             assert(type == tertiary_t || type == binary_t);
@@ -147,7 +147,7 @@ class PropBy
             return Lit::toLit(data1);
         }
 
-        Lit lit2() const
+        Lit lit3() const
         {
             #ifdef DEBUG_PROPAGATEFROM
             assert(type == tertiary_t);
@@ -185,11 +185,11 @@ inline std::ostream& operator<<(std::ostream& os, const PropBy& pb)
 {
     switch (pb.getType()) {
         case binary_t :
-            os << " binary, other lit= " << pb.lit1();
+            os << " binary, other lit= " << pb.lit2();
             break;
 
         case tertiary_t :
-            os << " tri, other 2 lits= " << pb.lit1() << " , "<< pb.lit2();
+            os << " tri, other 2 lits= " << pb.lit2() << " , "<< pb.lit3();
             break;
 
         case clause_t :

@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -52,33 +52,35 @@ class SolverConf
         /**
          * Controls which polarity the decision heuristic chooses.
         **/
-        int       polarity_mode;
+        PolarityMode polarity_mode;
 
         //Clause cleaning
-        clauseCleaningTypes clauseCleaningType;
+        ClauseCleaningTypes clauseCleaningType;
         int       doPreClauseCleanPropAndConfl;
         uint32_t  preClauseCleanLimit;
         uint32_t  preCleanMinConflTime;
         int       doClearStatEveryClauseCleaning;
         double    ratioRemoveClauses; ///< Remove this ratio of clauses at every database reduction round
-        size_t    numCleanBetweenSimplify; ///<Number of cleaning operations between simplify operations
-        size_t    startClean;
+        uint64_t    numCleanBetweenSimplify; ///<Number of cleaning operations between simplify operations
+        uint64_t    startClean;
         double    increaseClean;
-        double    maxNumLearntsRatio; ///<Number of red clauses must not be more than red*maxNumLearntsRatio
+        double    maxNumRedsRatio; ///<Number of red clauses must not be more than red*maxNumRedsRatio
         double    clauseDecayActivity;
+        uint64_t min_time_in_db_before_eligible_for_cleaning;
+        size_t   lock_per_dbclean;
 
         //For restarting
-        size_t    restart_first;      ///<The initial restart limit.                                                                (default 100)
+        uint64_t    restart_first;      ///<The initial restart limit.                                                                (default 100)
         double    restart_inc;        ///<The factor with which the restart limit is multiplied in each restart.                    (default 1.5)
-        size_t    burstSearchLen;
-        RestartType  restartType;   ///<If set, the solver will always choose the given restart strategy
+        uint64_t    burstSearchLen;
+        Restart  restartType;   ///<If set, the solver will always choose the given restart strategy
         int       optimiseUnsat;
 
         //Clause minimisation
         int doRecursiveMinim;
-        int doMinimLearntMore;  ///<Perform learnt-clause minimisation using watchists' binary and tertiary clauses? ("strong minimization" in PrecoSat)
+        int doMinimRedMore;  ///<Perform learnt clause minimisation using watchists' binary and tertiary clauses? ("strong minimization" in PrecoSat)
         int doAlwaysFMinim; ///< Always try to minimise clause with cache&gates
-        size_t moreMinimLimit;
+        uint64_t moreMinimLimit;
 
         //Verbosity
         int  verbosity;  ///<Verbosity level. 0=silent, 1=some progress report, 2=lots of report, 3 = all report       (default 2) preferentiality is turned off (i.e. picked randomly between [0, all])
@@ -86,10 +88,12 @@ class SolverConf
         int  doPrintConflDot; ///< Print DOT file for each conflict
         int  printFullStats;
         int  verbStats;
+        uint32_t  doPrintLongestTrail;
+        int  doPrintBestRedClauses;
 
         //Limits
         double   maxTime;
-        size_t   maxConfl;
+        uint64_t   maxConfl;
 
         //Agility
         double    agilityG; ///See paper by Armin Biere on agilities
@@ -103,17 +107,18 @@ class SolverConf
         //OTF stuff
         int       otfHyperbin;
         int       doOTFSubsume;
-        int       doOTFGateShorten; ///<Shorten learnt clauses on the fly with gates
+        int       doOTFGateShorten; ///<Shorten redundant clauses on the fly with gates
         int       rewardShortenedClauseWithConfl; //Shortened through OTF subsumption
 
         //SQL
         int       doSQL;
-        size_t    dumpTopNVars; //Only dump information about the "top" N active variables
-        size_t    dumpClauseDistribPer;
-        size_t    dumpClauseDistribMaxSize;
-        size_t    dumpClauseDistribMaxGlue;
-        size_t    preparedDumpSizeScatter;
-        size_t    preparedDumpSizeVarData;
+        uint64_t    dumpTopNVars; //Only dump information about the "top" N active variables
+        int       dump_tree_variance_stats;
+        uint64_t    dumpClauseDistribPer;
+        uint64_t    dumpClauseDistribMaxSize;
+        uint64_t    dumpClauseDistribMaxGlue;
+        uint64_t    preparedDumpSizeScatter;
+        uint64_t    preparedDumpSizeVarData;
         string    sqlServer;
         string    sqlUser;
         string    sqlPass;
@@ -125,6 +130,7 @@ class SolverConf
         int      varelimStrategy; ///<Guess varelim order, or calculate?
         int      varElimCostEstimateStrategy;
         double    varElimRatioPerIter;
+        int      do_bounded_variable_addition;
 
         //Probing
         int      doProbe;
@@ -133,8 +139,8 @@ class SolverConf
         int      doTransRed;   ///<Should carry out transitive reduction
         int      doStamp;
         int      doCache;
-        size_t   cacheUpdateCutoff;
-        size_t   maxCacheSizeMB;
+        uint64_t   cacheUpdateCutoff;
+        uint64_t   maxCacheSizeMB;
 
         //XORs
         int      doFindXors;
@@ -155,11 +161,10 @@ class SolverConf
         uint32_t  flipPolarFreq;
 
         //Simplifier
-        int      doSimplify;         ///<Should try to subsume & self-subsuming resolve & variable-eliminate & block-clause eliminate?
-        int      doSchedSimpProblem;        ///<Should simplifyProblem() be scheduled regularly? (if set to FALSE, a lot of opmitisations are disabled)
-        int      doPreSchedSimpProblem;          //Perform simplification at startup
+        int      simplify_at_startup;
+        int      regularly_simplify_problem;
+        int      perform_occur_based_simp;
         int      doSubsume1;         ///<Perform self-subsuming resolution
-        int      doBlockClauses;    ///<Should try to remove blocked clauses
         int      doAsymmTE; ///< Do Asymtotic blocked clause elimination
         unsigned maxRedLinkInSize;
         uint64_t maxOccurIrredMB;
@@ -168,15 +173,14 @@ class SolverConf
 
 
         //Optimisations to do
-        bool      printAllRestarts;
         int       doRenumberVars;
         int       doSaveMem;
 
         //Component handling
         int       doFindComps;
         int       doCompHandler;
-        size_t    handlerFromSimpNum;
-        size_t    compVarLimit;
+        uint64_t    handlerFromSimpNum;
+        uint64_t    compVarLimit;
         uint64_t  compFindLimitMega;
 
 
@@ -188,9 +192,10 @@ class SolverConf
 
         //Gates
         int      doGateFind; ///< Find OR gates
-        size_t    maxGateSize;
+        uint64_t    maxGateSize;
+        unsigned maxGateBasedClReduceSize;
 
-        int      doER; ///< Perform Extended Resolution (ER)
+
         int      doCalcReach; ///<Calculate reachability, and influence variable decisions with that
 
 
@@ -200,15 +205,13 @@ class SolverConf
         int      doMixXorAndGates; ///<Try to gain knowledge by mixing XORs and gates
 
         //interrupting & dumping
-        bool      needToDumpLearnts;  ///<If set to TRUE, learnt clauses will be dumped to the file speified by "learntsFilename"
-        bool      needToDumpSimplified;     ///<If set to TRUE, a simplified version of the original clause-set will be dumped to the file speified by "origFilename". The solution to this file should perfectly satisfy the problem
         bool      needResultFile;     ///<If set to TRUE, result will be written to a file
         std::string resultFilename;    ///<Write result to this file. Only active if "needResultFile" is set to TRUE
-        std::string learntsDumpFilename;    ///<Dump sorted learnt clauses to this file. Only active if "needToDumpLearnts" is set to TRUE
-        std::string simplifiedDumpFilename;       ///<Dump simplified original problem CNF to this file. Only active if "needToDumpOrig" is set to TRUE
-        uint32_t  maxDumpLearntsSize; ///<When dumping the learnt clauses, this is the maximum clause size that should be dumped
-        bool      libraryUsage;       ///<Set to true if not used as a library. In fact, this is TRUE by default, and Main.cpp sets it to "FALSE". Disables some simplifications at the beginning of solving (mostly performStepsBeforeSolve() )
+        std::string redDumpFname;    ///<Dump sorted redundant clauses to this file. Only active if "needToDumpReds" is set to TRUE
+        std::string irredDumpFname;       ///<Dump irred original problem CNF to this file. Only active if "needToDumpOrig" is set to TRUE
+        uint32_t  maxDumpRedsSize; ///<When dumping the redundant clauses, this is the maximum clause size that should be dumped
 
+        int printAllRestarts;
         uint32_t origSeed;
 };
 

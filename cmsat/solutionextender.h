@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "solvertypes.h"
 #include "clause.h"
+#include "watcharray.h"
 
 namespace CMSat {
 
@@ -32,52 +33,18 @@ class Solver;
 class SolutionExtender
 {
     public:
-        SolutionExtender(Solver* _solver, const vector<lbool>& _assigns);
+        SolutionExtender(Solver* _solver);
         void extend();
-        bool addClause(const vector<Lit>& lits, const Lit blockedOn = lit_Undef);
-        void enqueue(const Lit lit);
-
-        lbool value(const Lit lit) const
-        {
-            return assigns[lit.var()] ^ lit.sign();
-        }
-
-        lbool value(const Var var) const
-        {
-            return assigns[var];
-        }
+        void addClause(const vector<Lit>& lits, const Lit blockedOn);
+        void dummyBlocked(const Lit blockedOn);
 
     private:
-        void replaceSet(Lit toSet);
-        void replaceBackwardSet(const Lit toSet);
-        bool propagateCl(const Clause* cl, const Lit blockedOn);
-        bool propagate();
-        bool propBinaryClause(
-            const vec<Watched>::const_iterator i
-            , const Lit p
-        );
-        bool propTriClause(
-            const vec<Watched>::const_iterator i
-            , const Lit p
-        );
-        bool satisfiedNorm(const vector<Lit>& lits) const;
-        bool satisfiedXor(const vector<Lit>& lits, const bool rhs) const;
-        Lit pickBranchLit();
-
-        uint32_t nVarsReal() const
-        {
-            return assigns.size();
-        }
-
-        //To reduce mem alloc overhead
-        vector<Lit> tmpLits;
-
-
         Solver* solver;
-        vector<ClOffset> clausesToFree;
-        uint32_t qhead;
-        vector<Lit> trail;
-        vector<lbool> assigns;
+        bool satisfied(const vector<Lit>& lits) const;
+        bool contains_lit(
+            const vector<Lit>& lits
+            , const Lit tocontain
+        ) const;
 };
 
 } //end namespace

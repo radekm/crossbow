@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -32,12 +32,18 @@
 #include "varupdatehelper.h"
 #include "gatefinder.h"
 #include "sqlstats.h"
-#include <fstream>
-#include <cmath>
-#include <fcntl.h>
 #include "completedetachreattacher.h"
 #include "compfinder.h"
 #include "comphandler.h"
+#include "subsumestrengthen.h"
+#include "varupdatehelper.h"
+#include "watchalgos.h"
+#include "clauseallocator.h"
+#include "subsumeimplicit.h"
+
+#include <fstream>
+#include <cmath>
+#include <fcntl.h>
 
 using namespace CMSat;
 using std::cout;
@@ -57,9 +63,8 @@ using std::endl;
 
 //#define DEBUG_TRI_SORTED_SANITY
 
-Solver::Solver(const SolverConf& _conf) :
+Solver::Solver(const SolverConf _conf) :
     Searcher(_conf, this)
-    , backupActivityInc(_conf.var_inc_start)
     , prober(NULL)
     , simplifier(NULL)
     , sCCFinder(NULL)
@@ -67,6 +72,7 @@ Solver::Solver(const SolverConf& _conf) :
     , clauseCleaner(NULL)
     , varReplacer(NULL)
     , compHandler(NULL)
+    , subsumeImplicit(NULL)
     , mtrand(_conf.origSeed)
     , needToInterrupt(false)
 
@@ -95,16 +101,18 @@ Solver::Solver(const SolverConf& _conf) :
     if (conf.doProbe) {
         prober = new Prober(this);
     }
-    if (conf.doSimplify) {
+    if (conf.perform_occur_based_simp) {
         simplifier = new Simplifier(this);
     }
     sCCFinder = new SCCFinder(this);
     clauseVivifier = new ClauseVivifier(this);
     clauseCleaner = new ClauseCleaner(this);
-    clAllocator = new ClauseAllocator;
     varReplacer = new VarReplacer(this);
     if (conf.doCompHandler) {
         compHandler = new CompHandler(this);
+    }
+    if (conf.doStrSubImplicit) {
+        subsumeImplicit = new SubsumeImplicit(this);
     }
     Searcher::solver = this;
 }
@@ -119,10 +127,10 @@ Solver::~Solver()
     delete clauseVivifier;
     delete clauseCleaner;
     delete varReplacer;
-    delete clAllocator;
+    delete subsumeImplicit;
 }
 
-bool Solver::addXorClause(const vector<Var>& vars, bool rhs)
+/*bool Solver::addXorClause(const vector<Var>& vars, bool rhs)
 {
     vector<Lit> ps(vars.size());
     for(size_t i = 0; i < vars.size(); i++) {
@@ -132,15 +140,11 @@ bool Solver::addXorClause(const vector<Var>& vars, bool rhs)
     if (!addClauseHelper(ps))
         return false;
 
-    if (!replacevar_uneliminate_clause(ps)) {
-        return false;
-    }
-
     if (!addXorClauseInt(ps, rhs, true))
         return false;
 
     return okay();
-}
+}*/
 
 bool Solver::addXorClauseInt(
     const vector< Lit >& lits
@@ -178,7 +182,7 @@ bool Solver::addXorClauseInt(
             //Add and remember as last one to have been added
             ps[j++] = p = ps[i];
 
-            assert(!conf.doSimplify || !simplifier->getVarElimed()[p.var()]);
+            assert(varData[p.var()].removed != Removed::elimed);
         } else {
             //modify rhs instead of adding
             assert(value(ps[i]) != l_Undef);
@@ -196,13 +200,7 @@ bool Solver::addXorClauseInt(
     switch(ps.size()) {
         case 0:
             if (rhs) {
-                #ifdef DRUP
-                if (drup) {
-                    *drup
-                    << "0\n";
-                }
-                #endif
-
+                *drup << fin;
                 ok = false;
             }
             return ok;
@@ -210,12 +208,7 @@ bool Solver::addXorClauseInt(
         case 1: {
             Lit lit = Lit(ps[0].var(), !rhs);
             enqueue(lit);
-            #ifdef DRUP
-            if (drup) {
-                *drup
-                << lit << " 0\n";
-            }
-            #endif
+            *drup << lit << fin;
 
             #ifdef STATS_NEEDED
             propStats.propsUnit++;
@@ -254,7 +247,7 @@ and only internally
 */
 Clause* Solver::addClauseInt(
     const vector<Lit>& lits
-    , const bool learnt
+    , const bool red
     , ClauseStats stats
     , const bool attach
     , vector<Lit>* finalLits
@@ -270,8 +263,7 @@ Clause* Solver::addClauseInt(
     //Make stats sane
     stats.conflictNumIntroduced = std::min<uint64_t>(Searcher::sumConflicts(), stats.conflictNumIntroduced);
 
-    vector<Lit>& ps = addClIntTmpLits;
-    ps = lits;
+    vector<Lit> ps = lits;
 
     std::sort(ps.begin(), ps.end());
     Lit p = lit_Undef;
@@ -282,19 +274,19 @@ Clause* Solver::addClauseInt(
         else if (value(ps[i]) != l_False && ps[i] != p) {
             ps[j++] = p = ps[i];
 
-            if (varData[p.var()].elimed != ELIMED_NONE
-                && varData[p.var()].elimed != ELIMED_QUEUED_VARREPLACER
+            if (varData[p.var()].removed != Removed::none
+                && varData[p.var()].removed != Removed::queued_replacer
             ) {
                 cout << "ERROR: clause " << lits << " contains literal "
                 << p << " whose variable has been eliminated (elim number "
-                << (int) (varData[p.var()].elimed) << " )"
+                << (int) (varData[p.var()].removed) << " )"
                 << endl;
             }
 
             //Variables that have been eliminated cannot be added internally
             //as part of a clause. That's a bug
-            assert(varData[p.var()].elimed == ELIMED_NONE
-                    || varData[p.var()].elimed == ELIMED_QUEUED_VARREPLACER);
+            assert(varData[p.var()].removed == Removed::none
+                    || varData[p.var()].removed == Removed::queued_replacer);
         }
     }
     ps.resize(ps.size() - (i - j));
@@ -308,16 +300,21 @@ Clause* Solver::addClauseInt(
         *finalLits = ps;
     }
 
-    #ifdef DRUP
-    if (drup && addDrup) {
-        (*drup) << ps << " 0\n";
+    if (addDrup) {
+        *drup << ps << fin;
     }
-    #endif
 
     //Handle special cases
     switch (ps.size()) {
         case 0:
             ok = false;
+            if (conf.verbosity >= 6) {
+                cout
+                << "c solver received clause through addClause(): "
+                << lits
+                << " that became an empty clause at toplevel --> UNSAT"
+                << endl;
+            }
             return NULL;
         case 1:
             enqueue(ps[0]);
@@ -330,7 +327,7 @@ Clause* Solver::addClauseInt(
 
             return NULL;
         case 2:
-            attachBinClause(ps[0], ps[1], learnt);
+            attachBinClause(ps[0], ps[1], red);
             return NULL;
 
         case 3:
@@ -340,23 +337,23 @@ Clause* Solver::addClauseInt(
             << ps[2]
             << endl;*/
 
-            attachTriClause(ps[0], ps[1], ps[2], learnt);
+            attachTriClause(ps[0], ps[1], ps[2], red);
             return NULL;
 
         default:
-            Clause* c = clAllocator->Clause_new(ps, sumStats.conflStats.numConflicts);
-            if (learnt)
-                c->makeLearnt(stats.glue);
+            Clause* c = clAllocator.Clause_new(ps, sumStats.conflStats.numConflicts);
+            if (red)
+                c->makeRed(stats.glue);
             c->stats = stats;
 
             //In class 'Simplifier' we don't need to attach normall
             if (attach)
                 attachClause(*c);
             else {
-                if (learnt)
-                    binTri.redLits += ps.size();
+                if (red)
+                    litStats.redLits += ps.size();
                 else
-                    binTri.irredLits += ps.size();
+                    litStats.irredLits += ps.size();
             }
 
             return c;
@@ -370,18 +367,17 @@ void Solver::attachClause(
     #if defined(DRUP_DEBUG) && defined(DRUP)
     if (drup) {
         for(size_t i = 0; i < cl.size(); i++) {
-            *drup
-            << cl[i] << " ";
+            *drup << cl[i];
         }
-        *drup << "0\n";
+        *drup << fin;
     }
     #endif
 
     //Update stats
-    if (cl.learnt())
-        binTri.redLits += cl.size();
+    if (cl.red())
+        litStats.redLits += cl.size();
     else
-        binTri.irredLits += cl.size();
+        litStats.irredLits += cl.size();
 
     //Call Solver's function for heavy-lifting
     PropEngine::attachClause(cl, checkAttach);
@@ -391,98 +387,81 @@ void Solver::attachTriClause(
     const Lit lit1
     , const Lit lit2
     , const Lit lit3
-    , const bool learnt
+    , const bool red
 ) {
     #if defined(DRUP_DEBUG) && defined(DRUP)
     if (drup) {
-        *drup
-        << lit1 << " "
-        << lit2 << " "
-        << lit3 << " 0\n";
+        *drup << lit1  << lit2  << lit3 << fin;
     }
     #endif
 
     //Update stats
-    if (learnt) {
-        binTri.redLits += 3;
+    if (red) {
         binTri.redTris++;
     } else {
-        binTri.irredLits += 3;
         binTri.irredTris++;
     }
 
     //Call Solver's function for heavy-lifting
-    PropEngine::attachTriClause(lit1, lit2, lit3, learnt);
+    PropEngine::attachTriClause(lit1, lit2, lit3, red);
 }
 
 void Solver::attachBinClause(
     const Lit lit1
     , const Lit lit2
-    , const bool learnt
+    , const bool red
     , const bool checkUnassignedFirst
 ) {
     #if defined(DRUP_DEBUG) && defined(DRUP)
-    if (drup) {
-        *drup
-        << lit1 << " "
-        << lit2 << " 0\n";
-    }
+    *drup << lit1 << lit2 << fin;
     #endif
 
     //Update stats
-    if (learnt) {
-        binTri.redLits += 2;
+    if (red) {
         binTri.redBins++;
     } else {
-        binTri.irredLits += 2;
         binTri.irredBins++;
     }
     binTri.numNewBinsSinceSCC++;
 
     //Call Solver's function for heavy-lifting
-    PropEngine::attachBinClause(lit1, lit2, learnt, checkUnassignedFirst);
+    PropEngine::attachBinClause(lit1, lit2, red, checkUnassignedFirst);
 }
 
 void Solver::detachTriClause(
     const Lit lit1
     , const Lit lit2
     , const Lit lit3
-    , const bool learnt
+    , const bool red
 ) {
-    if (learnt) {
-        binTri.redLits -= 3;
+    if (red) {
         binTri.redTris--;
     } else {
-        binTri.irredLits -= 3;
         binTri.irredTris--;
     }
 
-    PropEngine::detachTriClause(lit1, lit2, lit3, learnt);
+    PropEngine::detachTriClause(lit1, lit2, lit3, red);
 }
 
 void Solver::detachBinClause(
     const Lit lit1
     , const Lit lit2
-    , const bool learnt
+    , const bool red
 ) {
-    if (learnt) {
-        binTri.redLits -= 2;
+    if (red) {
         binTri.redBins--;
     } else {
-        binTri.irredLits -= 2;
         binTri.irredBins--;
     }
 
-    PropEngine::detachBinClause(lit1, lit2, learnt);
+    PropEngine::detachBinClause(lit1, lit2, red);
 }
 
 void Solver::detachClause(const Clause& cl, const bool removeDrup)
 {
-    #ifdef DRUP
-    if (drup && doDRUP) {
-        (*drup) << "d " << cl << " 0\n";
+    if (removeDrup) {
+        *drup << del << cl << fin;
     }
-    #endif
 
     assert(cl.size() > 3);
     detachModifiedClause(cl[0], cl[1], cl.size(), &cl);
@@ -490,7 +469,7 @@ void Solver::detachClause(const Clause& cl, const bool removeDrup)
 
 void Solver::detachClause(const ClOffset offset, const bool removeDrup)
 {
-    Clause* cl = clAllocator->getPointer(offset);
+    Clause* cl = clAllocator.getPointer(offset);
     detachClause(*cl, removeDrup);
 }
 
@@ -501,10 +480,10 @@ void Solver::detachModifiedClause(
     , const Clause* address
 ) {
     //Update stats
-    if (address->learnt())
-        binTri.redLits -= origSize;
+    if (address->red())
+        litStats.redLits -= origSize;
     else
-        binTri.irredLits -= origSize;
+        litStats.irredLits -= origSize;
 
     //Call heavy-lifter
     PropEngine::detachModifiedClause(lit1, lit2, origSize, address);
@@ -519,58 +498,70 @@ bool Solver::addClauseHelper(vector<Lit>& ps)
     //Sanity checks
     assert(decisionLevel() == 0);
     assert(qhead == trail.size());
+
+    //Check for too long clauses
     if (ps.size() > (0x01UL << 18)) {
         cout << "Too long clause!" << endl;
         exit(-1);
     }
-    for (Lit lit: ps) {
-        if (lit.var() >= nVars()) {
+
+    //Check for too large variable number
+    for (const Lit lit: ps) {
+        if (lit.var() >= nVarsReal()) {
             cout
-            << "Variable (internal numbering:)" << lit.var()
-            << " inserted, but max var (internal numbering) is "
-            << nVars()
+            << "ERROR: Variable " << lit.var() + 1
+            << " inserted, but max var is "
+            << nVarsReal()
             << endl;
+            assert(false);
+            exit(-1);
         }
-        release_assert(lit.var() < nVars()
+        assert(lit.var() < nVarsReal()
         && "Clause inserted, but variable inside has not been declared with PropEngine::newVar() !");
     }
 
-    for (size_t i = 0; i < ps.size(); i++) {
-        Lit origLit = ps[i];
+    //External var number -> Internal var number
+    for (Lit& lit: ps) {
+        const Lit origLit = lit;
 
         //Update variable numbering
-        ps[i] = Lit(outerToInterMain[ps[i].var()], ps[i].sign());
+        assert(lit.var() < nVarsReal());
+        lit = map_outer_to_inter(lit);
 
-        #ifdef VERBOSE_DEBUG
-        cout
-        << "var-renumber updating lit "
-        << origLit
-        << " to lit "
-        << ps[i]
-        << endl;
-        #endif
+        if (conf.verbosity >= 12) {
+            cout
+            << "var-renumber updating lit "
+            << origLit
+            << " to lit "
+            << lit
+            << endl;
+        }
     }
 
-    return true;
-}
-
-bool Solver::replacevar_uneliminate_clause(vector<Lit>& ps)
-{
-    //Update replace, uneliminate
+    //Undo var replacement
     for (Lit& lit: ps) {
-        //Update to correct lit -- replacer
-        Lit origLit = lit;
-        lit = varReplacer->getLitReplacedWith(lit);
+        const Lit updated_lit = varReplacer->getLitReplacedWith(lit);
         #ifdef VERBOSE_DEBUG
         cout
-        << "EqLit updating lit " << origLit
-        << " to lit " << lit
+        << "EqLit updating lit " << lit
+        << " to lit " << updated_lit
         << endl;
         #endif
+        lit = updated_lit;
+    }
 
-        //Uneliminate var if need be
-        if (conf.doSimplify
-            && simplifier->getVarElimed()[lit.var()]
+    for(Lit& lit: ps) {
+        if (lit.var() >= nVars()) {
+            const Var outer = map_inter_to_outer(lit.var());
+            newVar(false, outer);
+            lit = Lit(map_outer_to_inter(outer), lit.sign());
+        }
+    }
+
+    //Uneliminate vars
+    for (const Lit lit: ps) {
+        if (conf.perform_occur_based_simp
+            && varData[lit.var()].removed == Removed::elimed
         ) {
             #ifdef VERBOSE_DEBUG_RECONSTRUCT
             cout << "Uneliminating var " << lit.var() + 1 << endl;
@@ -578,10 +569,12 @@ bool Solver::replacevar_uneliminate_clause(vector<Lit>& ps)
             if (!simplifier->unEliminate(lit.var()))
                 return false;
         }
+    }
 
-        //Undo comp handler if need be
-        if (conf.doCompHandler) {
-            if (varData[lit.var()].elimed == ELIMED_DECOMPOSE) {
+    //Undo comp handler
+    if (conf.doCompHandler) {
+        for (const Lit lit: ps) {
+            if (varData[lit.var()].removed == Removed::decomposed) {
                 compHandler->readdRemovedClauses();
             }
         }
@@ -590,17 +583,42 @@ bool Solver::replacevar_uneliminate_clause(vector<Lit>& ps)
     return true;
 }
 
-/**
-@brief Adds a clause to the problem. Calls addClauseInt() for heavy-lifting
+bool Solver::addClauseOuter(const vector<Lit>& lits)
+{
+    //Check for too large variable number
+    for (const Lit lit: lits) {
+        if (lit.var() >= nVarsOutside()) {
+            cout
+            << "ERROR: Variable " << lit.var() + 1
+            << " inserted, but max var is "
+            << nVarsOutside()
+            << endl;
+            assert(false);
+            exit(-1);
+        }
+        release_assert(lit.var() < nVarsOutside()
+        && "Clause inserted, but variable inside has not been declared with PropEngine::newVar() !");
+    }
 
-Checks whether the
-variables of the literals in "ps" have been eliminated/replaced etc. If so,
-it acts on them such that they are correct, and calls addClauseInt() to do
-the heavy-lifting
-*/
+    vector<Lit> lits2 = back_number_from_caller(lits);
+    return addClause(lits2);
+}
+
+vector<Lit> Solver::back_number_from_caller(const vector<Lit>& lits) const
+{
+    vector<Lit> lits2(lits);
+    for (Lit& lit: lits2) {
+        assert(lit.var() < nVarsOutside());
+        lit = map_to_with_bva(lit);
+        assert(lit.var() < nVarsReal());
+    }
+
+    return lits2;
+}
+
 bool Solver::addClause(const vector<Lit>& lits)
 {
-    if (conf.doSimplify && simplifier->getAnythingHasBeenBlocked()) {
+    if (conf.perform_occur_based_simp && simplifier->getAnythingHasBeenBlocked()) {
         cout
         << "ERROR: Cannot add new clauses to the system if blocking was"
         << " enabled. Turn it off from conf.doBlockClauses"
@@ -614,53 +632,43 @@ bool Solver::addClause(const vector<Lit>& lits)
     const size_t origTrailSize = trail.size();
 
     vector<Lit> ps = lits;
-    if (!addClauseHelper(ps)) {
-        return false;
-    }
-    #ifdef DRUP
+
+    //Drup
     vector<Lit> origCl = ps;
     vector<Lit> finalCl;
-    #endif
 
-    if (!replacevar_uneliminate_clause(ps)) {
+    if (!addClauseHelper(ps)) {
         return false;
     }
 
     Clause* cl = addClauseInt(
         ps
-        , false //non-learnt
+        , false //irred
         , ClauseStats() //default stats
         , true //yes, attach
-        #ifdef DRUP
         , &finalCl
         , false
-        #endif
     );
 
-    #ifdef DRUP
-    //We manipulated the clause, delete
+    //Drup -- We manipulated the clause, delete
     std::sort(origCl.begin(), origCl.end());
-    if (drup
+    if (drup->enabled()
         && origCl != finalCl
     ) {
         //Dump only if non-empty (UNSAT handled later)
         if (!finalCl.empty()) {
-            (*drup)
-            << finalCl << " 0\n";
+            *drup << finalCl << fin;
         }
 
         //Empty clause, it's UNSAT
         if (!solver->okay()) {
-            (*drup)
-            << "0\n";
+            *drup << fin;
         }
-        (*drup)
-        << "d " << origCl << " 0\n";
+        *drup << del << origCl << fin;
     }
-    #endif
 
     if (cl != NULL) {
-        ClOffset offset = clAllocator->getOffset(cl);
+        ClOffset offset = clAllocator.getOffset(cl);
         longIrredCls.push_back(offset);
     }
 
@@ -669,7 +677,7 @@ bool Solver::addClause(const vector<Lit>& lits)
     return ok;
 }
 
-bool Solver::addLearntClause(
+/*bool Solver::addRedClause(
     const vector<Lit>& lits
     , const ClauseStats& stats
 ) {
@@ -681,16 +689,16 @@ bool Solver::addLearntClause(
 
     Clause* cl = addClauseInt(ps, true, stats);
     if (cl != NULL) {
-        ClOffset offset = clAllocator->getOffset(cl);
+        ClOffset offset = clAllocator.getOffset(cl);
         longRedCls.push_back(offset);
     }
 
     return ok;
-}
+}*/
 
 void Solver::reArrangeClause(ClOffset offset)
 {
-    Clause& cl = *clAllocator->getPointer(offset);
+    Clause& cl = *clAllocator.getPointer(offset);
     assert(cl.size() > 3);
     if (cl.size() == 3) return;
 
@@ -752,32 +760,68 @@ static void printArray(const vector<Var>& array, const std::string& str)
 }
 #endif
 
-//Beware. Cannot be called while Searcher is running.
-void Solver::renumberVariables()
+void Solver::test_renumbering() const
 {
-    double myTime = cpuTime();
-    clauseCleaner->removeAndCleanAll();
+    //Check if we renumbered the varibles in the order such as to make
+    //the unknown ones first and the known/eliminated ones second
+    bool uninteresting = false;
+    bool problem = false;
+    for(size_t i = 0; i < nVars(); i++) {
+        //cout << "val[" << i << "]: " << value(i);
 
-    //outerToInter[10] = 0 ---> what was 10 is now 0.
+        if (value(i)  != l_Undef)
+            uninteresting = true;
 
-    #ifdef DEBUG_RENUMBER
-    printArray(interToOuterMain, "interToOuterMain");
-    printArray(outerToInterMain, "outerToInterMain");
-    #endif
+        if (varData[i].removed == Removed::elimed
+            || varData[i].removed == Removed::replaced
+            || varData[i].removed == Removed::decomposed
+        ) {
+            uninteresting = true;
+            //cout << " removed" << endl;
+        } else {
+            //cout << " non-removed" << endl;
+        }
 
-    //Fill the first part of interToOuter with vars that are used
-    interToOuter.clear();
-    interToOuter.resize(nVarsReal());
-    outerToInter.clear();
-    outerToInter.resize(nVarsReal());
+        if (value(i) == l_Undef
+            && varData[i].removed != Removed::elimed
+            && varData[i].removed != Removed::replaced
+            && varData[i].removed != Removed::decomposed
+            && uninteresting
+        ) {
+            problem = true;
+        }
+    }
+    assert(!problem && "We renumbered the variables in the wrong order!");
+}
+
+void Solver::renumber_clauses(const vector<Var>& outerToInter)
+{
+    //Clauses' abstractions have to be re-calculated
+    for(size_t i = 0; i < longIrredCls.size(); i++) {
+        Clause* cl = clAllocator.getPointer(longIrredCls[i]);
+        updateLitsMap(*cl, outerToInter);
+        cl->reCalcAbstraction();
+    }
+
+    for(size_t i = 0; i < longRedCls.size(); i++) {
+        Clause* cl = clAllocator.getPointer(longRedCls[i]);
+        updateLitsMap(*cl, outerToInter);
+        cl->reCalcAbstraction();
+    }
+}
+
+size_t Solver::calculate_interToOuter_and_outerToInter(
+    vector<Var>& outerToInter
+    , vector<Var>& interToOuter
+) {
     size_t at = 0;
     vector<Var> useless;
     size_t numEffectiveVars = 0;
     for(size_t i = 0; i < nVars(); i++) {
         if (value(i) != l_Undef
-            || varData[i].elimed == ELIMED_VARELIM
-            || varData[i].elimed == ELIMED_VARREPLACER
-            || varData[i].elimed == ELIMED_DECOMPOSE
+            || varData[i].removed == Removed::elimed
+            || varData[i].removed == Removed::replaced
+            || varData[i].removed == Removed::decomposed
         ) {
             useless.push_back(i);
             continue;
@@ -807,106 +851,49 @@ void Solver::renumberVariables()
         interToOuter[i] = i;
     }
 
+    return numEffectiveVars;
+}
+
+//Beware. Cannot be called while Searcher is running.
+void Solver::renumberVariables()
+{
+    double myTime = cpuTime();
+    clauseCleaner->removeAndCleanAll();
+
+    //outerToInter[10] = 0 ---> what was 10 is now 0.
+    vector<Var> outerToInter(nVarsReal());
+    vector<Var> interToOuter(nVarsReal());
+    size_t numEffectiveVars =
+        calculate_interToOuter_and_outerToInter(outerToInter, interToOuter);
+
     //Create temporary outerToInter2
-    interToOuter2.clear();
-    interToOuter2.resize(interToOuter.size()*2);
-    for(size_t i = 0; i < interToOuter.size(); i++) {
+    vector<uint32_t> interToOuter2(nVarsReal()*2);
+    for(size_t i = 0; i < nVarsReal(); i++) {
         interToOuter2[i*2] = interToOuter[i]*2;
         interToOuter2[i*2+1] = interToOuter[i]*2+1;
     }
 
     //Update updater data
-    updateArray(interToOuterMain, interToOuter);
-    updateArrayMapCopy(outerToInterMain, outerToInter);
-
-    #ifdef DEBUG_RENUMBER
-    printArray(interToOuter, "interToOuter");
-    printArray(outerToInter, "outerToInter");
-    printArray(interToOuterMain, "interToOuterMain");
-    printArray(outerToInterMain, "outerToInterMain");
-    #endif
-
+    CNF::updateVars(outerToInter, interToOuter);
 
     //Update local data
-    updateArray(backupActivity, interToOuter);
-    updateArray(backupPolarity, interToOuter);
-    updateArray(decisionVar, interToOuter);
     PropEngine::updateVars(outerToInter, interToOuter, interToOuter2);
-    updateLitsMap(assumptions, outerToInter);
+    Searcher::updateVars(outerToInter, interToOuter);
 
-    //Update stamps
     if (conf.doStamp) {
-
-        //Update both dominators
-        for(size_t i = 0; i < stamp.tstamp.size(); i++) {
-            for(size_t i2 = 0; i2 < 2; i2++) {
-                if (stamp.tstamp[i].dominator[i2] != lit_Undef)
-                    stamp.tstamp[i].dominator[i2]
-                        = getUpdatedLit(stamp.tstamp[i].dominator[i2], outerToInter);
-            }
-        }
-
-        //Update the stamp. Stamp can be very large, so update by swapping
-        updateBySwap(stamp.tstamp, seen, interToOuter2);
+        stamp.updateVars(outerToInter, interToOuter2, seen);
     }
-
-    if (conf.doCompHandler) {
-        compHandler->updateVars(interToOuter);
-    }
-
-    //Update clauses
-    //Clauses' abstractions have to be re-calculated
-    for(size_t i = 0; i < longIrredCls.size(); i++) {
-        Clause* cl = clAllocator->getPointer(longIrredCls[i]);
-        updateLitsMap(*cl, outerToInter);
-        cl->reCalcAbstraction();
-    }
-
-    for(size_t i = 0; i < longRedCls.size(); i++) {
-        Clause* cl = clAllocator->getPointer(longRedCls[i]);
-        updateLitsMap(*cl, outerToInter);
-        cl->reCalcAbstraction();
-    }
+    renumber_clauses(outerToInter);
 
     //Update sub-elements' vars
-    if (conf.doSimplify) {
-        simplifier->updateVars(outerToInter, interToOuter);
-    }
     varReplacer->updateVars(outerToInter, interToOuter);
     if (conf.doCache) {
-        implCache.updateVars(seen, outerToInter, interToOuter2);
+        implCache.updateVars(seen, outerToInter, interToOuter2, numEffectiveVars);
     }
 
-    //Check if we renumbered the varibles in the order such as to make
-    //the unknown ones first and the known/eliminated ones second
-    bool uninteresting = false;
-    bool problem = false;
-    for(size_t i = 0; i < nVars(); i++) {
-        //cout << "val[" << i << "]: " << value(i);
-
-        if (value(i)  != l_Undef)
-            uninteresting = true;
-
-        if (varData[i].elimed == ELIMED_VARELIM
-            || varData[i].elimed == ELIMED_VARREPLACER
-            || varData[i].elimed == ELIMED_DECOMPOSE
-        ) {
-            uninteresting = true;
-            //cout << " elimed" << endl;
-        } else {
-            //cout << " non-elimed" << endl;
-        }
-
-        if (value(i) == l_Undef
-            && varData[i].elimed != ELIMED_VARELIM
-            && varData[i].elimed != ELIMED_VARREPLACER
-            && varData[i].elimed != ELIMED_DECOMPOSE
-            && uninteresting
-        ) {
-            problem = true;
-        }
-    }
-    assert(!problem && "We renumbered the variables in the wrong order!");
+    //Tests
+    test_renumbering();
+    test_reflectivity_of_renumbering();
 
     //Print results
     if (conf.verbosity >= 3) {
@@ -917,67 +904,16 @@ void Solver::renumberVariables()
         << endl;
     }
 
-    //Test for reflectivity of interToOuterMain & outerToInterMain
-    #ifndef NDEBUG
-    vector<Var> test(nVarsReal());
-    for(size_t i = 0; i  < nVarsReal(); i++) {
-        test[i] = i;
-    }
-    updateArrayRev(test, interToOuterMain);
-    #ifdef DEBUG_RENUMBER
-    for(size_t i = 0; i < nVarsReal(); i++) {
-        cout << i << ": "
-        << std::setw(2) << test[i] << ", "
-        << std::setw(2) << outerToInterMain[i]
-        << endl;
-    }
-    #endif
-    for(size_t i = 0; i < nVarsReal(); i++) {
-        assert(test[i] == outerToInterMain[i]);
-    }
-    #ifdef DEBUG_RENUMBER
-    cout << "Passed test" << endl;
-    #endif
-    #endif
-
     if (conf.doSaveMem) {
         saveVarMem(numEffectiveVars);
     }
 
-    //Update order heap -- needed due to decisionVar update
-    redoOrderHeap();
+    //NOTE order heap is now wrong, but that's OK, it will be restored from
+    //backed up activities and then rebuilt at the start of Searcher
 }
 
-void Solver::saveVarMem(const uint32_t newNumVars)
+void Solver::check_switchoff_limits_newvar()
 {
-    //never resize varData --> contains info about what is replaced/etc.
-    //never resize assigns --> contains 0-level assigns
-    //never resize interToOuterMain, outerToInterMain
-
-    //printMemStats();
-
-    watches.resize(newNumVars*2);
-    watches.shrink_to_fit();
-    implCache.newNumVars(newNumVars);
-    stamp.newNumVars(newNumVars);
-
-    //Resize 'seen'
-    seen.resize(newNumVars*2);
-    seen.shrink_to_fit();
-    seen2.resize(newNumVars*2);
-    seen2.shrink_to_fit();
-
-    activities.resize(newNumVars);
-    activities.shrink_to_fit();
-    minNumVars = newNumVars;
-
-    //printMemStats();
-}
-
-Var Solver::newVar(const bool dvar)
-{
-    const Var var = decisionVar.size();
-
     if (conf.doStamp
         && nVars() > 15ULL*1000ULL*1000ULL
     ) {
@@ -1003,7 +939,7 @@ Var Solver::newVar(const bool dvar)
         }
     }
 
-    if (conf.doSimplify
+    if (conf.perform_occur_based_simp
         && conf.doFindXors
         && nVars() > 1ULL*1000ULL*1000ULL
     ) {
@@ -1017,37 +953,51 @@ Var Solver::newVar(const bool dvar)
             << endl;
         }
     }
+}
 
-    if (conf.doStamp) {
-        stamp.newVar();
-    }
-
-    outerToInterMain.push_back(var);
-    interToOuterMain.push_back(var);
-    decisionVar.push_back(dvar);
-    numDecisionVars += dvar;
-
+void Solver::newVar(const bool bva, const Var orig_outer)
+{
+    check_switchoff_limits_newvar();
+    Searcher::newVar(bva, orig_outer);
+    numDecisionVars += 1;
     if (conf.doCache) {
-        implCache.addNew();
         litReachable.push_back(LitReachData());
         litReachable.push_back(LitReachData());
     }
 
-    backupActivity.push_back(0);
-    backupPolarity.push_back(false);
+    varReplacer->newVar(orig_outer);
 
-    Searcher::newVar(dvar);
-
-    varReplacer->newVar();
-    if (conf.doSimplify) {
-        simplifier->newVar();
+    if (conf.perform_occur_based_simp) {
+        simplifier->newVar(orig_outer);
     }
 
     if (conf.doCompHandler) {
-        compHandler->newVar();
+        compHandler->newVar(orig_outer);
     }
 
-    return decisionVar.size()-1;
+    //Too expensive
+    //test_reflectivity_of_renumbering();
+}
+
+void Solver::saveVarMem(const uint32_t newNumVars)
+{
+    //TODO should we resize assumptionsSet ??
+
+    //printMemStats();
+
+    minNumVars = newNumVars;
+    Searcher::saveVarMem();
+
+    litReachable.resize(nVars()*2);
+    litReachable.shrink_to_fit();
+    varReplacer->saveVarMem();
+    if (simplifier) {
+        simplifier->saveVarMem();
+    }
+    if (conf.doCompHandler) {
+        compHandler->saveVarMem();
+    }
+    //printMemStats();
 }
 
 /// @brief Sort clauses according to glues: large glues first
@@ -1056,8 +1006,8 @@ bool Solver::reduceDBStructGlue::operator () (
     , const ClOffset yOff
 ) {
     //Get their pointers
-    const Clause* x = clAllocator->getPointer(xOff);
-    const Clause* y = clAllocator->getPointer(yOff);
+    const Clause* x = clAllocator.getPointer(xOff);
+    const Clause* y = clAllocator.getPointer(yOff);
 
     const uint32_t xsize = x->size();
     const uint32_t ysize = y->size();
@@ -1078,8 +1028,8 @@ bool Solver::reduceDBStructActivity::operator () (
     , const ClOffset yOff
 ) {
     //Get their pointers
-    const Clause* x = clAllocator->getPointer(xOff);
-    const Clause* y = clAllocator->getPointer(yOff);
+    const Clause* x = clAllocator.getPointer(xOff);
+    const Clause* y = clAllocator.getPointer(yOff);
 
     const uint32_t xsize = x->size();
     const uint32_t ysize = y->size();
@@ -1102,8 +1052,8 @@ bool Solver::reduceDBStructSize::operator () (
     , const ClOffset yOff
 ) {
     //Get their pointers
-    const Clause* x = clAllocator->getPointer(xOff);
-    const Clause* y = clAllocator->getPointer(yOff);
+    const Clause* x = clAllocator.getPointer(xOff);
+    const Clause* y = clAllocator.getPointer(yOff);
 
     const uint32_t xsize = x->size();
     const uint32_t ysize = y->size();
@@ -1125,8 +1075,8 @@ bool Solver::reduceDBStructPropConfl::operator() (
     , const ClOffset yOff
 ) {
     //Get their pointers
-    const Clause* x = clAllocator->getPointer(xOff);
-    const Clause* y = clAllocator->getPointer(yOff);
+    const Clause* x = clAllocator.getPointer(xOff);
+    const Clause* y = clAllocator.getPointer(yOff);
 
     const uint32_t xsize = x->size();
     const uint32_t ysize = y->size();
@@ -1146,72 +1096,19 @@ bool Solver::reduceDBStructPropConfl::operator() (
     return x->size() > y->size();
 }
 
-/**
-@brief Removes learnt clauses that have been found not to be too good
-
-Either based on glue or MiniSat-style learnt clause activities, the clauses are
-sorted and then removed
-*/
-CleaningStats Solver::reduceDB()
-{
-    //Clean the clause database before doing cleaning
-    //varReplacer->performReplace();
-    clauseCleaner->removeAndCleanAll();
-
-    const double myTime = cpuTime();
-    solveStats.nbReduceDB++;
-    CleaningStats tmpStats;
-    tmpStats.origNumClauses = longRedCls.size();
-    tmpStats.origNumLits = binTri.redLits - binTri.redBins*2;
-
-    //Calculate how many to remove
-    uint64_t origRemoveNum = (double)longRedCls.size() *conf.ratioRemoveClauses;
-
-    //If there is a ratio limit, and we are over it
-    //then increase the removeNum accordingly
-    uint64_t maxToHave = (double)(longIrredCls.size() + binTri.irredTris + nVars() + 300ULL)
-        * (double)solveStats.nbReduceDB
-        * conf.maxNumLearntsRatio;
-    uint64_t removeNum = std::max<long long>(origRemoveNum, (long)longRedCls.size()-(long)maxToHave);
-
-    if (removeNum != origRemoveNum) {
-        if (conf.verbosity >= 2) {
-            cout
-            << "c [DBclean] Hard upper limit reached, removing more than normal: "
-            << origRemoveNum << " --> " << removeNum
-            << endl;
-        }
-    } else {
-        if (conf.verbosity >= 2) {
-        cout
-        << "c [DBclean] Hard limit would be: " << maxToHave
-        << endl;
-        }
-    }
-
-    //Subsume
-    uint64_t sumConfl = sumConflicts();
-    //simplifier->subsumeLearnts();
-    if (conf.verbosity >= 3) {
-        cout
-        << "c Time wasted on clean&replace&sub: "
-        << std::setprecision(3) << cpuTime()-myTime
-        << endl;
-    }
-
-    //Complete detach&reattach of OK clauses will be *much* faster
-    CompleteDetachReatacher detachReattach(this);
-    detachReattach.detachNonBinsNonTris();
-
-    //pre-remove
+void Solver::pre_clean_clause_db(
+    CleaningStats& tmpStats
+    , uint64_t sumConfl
+) {
     if (conf.doPreClauseCleanPropAndConfl) {
         //Reduce based on props&confls
         size_t i, j;
         for (i = j = 0; i < longRedCls.size(); i++) {
             ClOffset offset = longRedCls[i];
-            Clause* cl = clAllocator->getPointer(offset);
+            Clause* cl = clAllocator.getPointer(offset);
             assert(cl->size() > 3);
             if (cl->stats.numPropAndConfl() < conf.preClauseCleanLimit
+                && !cl->stats.locked
                 && cl->stats.conflictNumIntroduced + conf.preCleanMinConflTime
                     < sumStats.conflStats.numConflicts
             ) {
@@ -1231,15 +1128,8 @@ CleaningStats Solver::reduceDB()
                 }
 
                 //detach&free
-                #ifdef DRUP
-                if (drup) {
-                    (*drup)
-                    << "d "
-                    << *cl
-                    << " 0\n";
-                }
-                #endif
-                clAllocator->clauseFree(offset);
+                *drup << del << *cl << fin;
+                clAllocator.clauseFree(offset);
 
             } else {
                 longRedCls[j++] = offset;
@@ -1247,60 +1137,26 @@ CleaningStats Solver::reduceDB()
         }
         longRedCls.resize(longRedCls.size() -(i-j));
     }
+}
 
-    //Clean according to type
-    tmpStats.clauseCleaningType = conf.clauseCleaningType;
-    switch (conf.clauseCleaningType) {
-        case CLEAN_CLAUSES_GLUE_BASED :
-            //Sort for glue-based removal
-            std::sort(longRedCls.begin(), longRedCls.end()
-                , reduceDBStructGlue(clAllocator));
-            tmpStats.glueBasedClean = 1;
-            break;
-
-        case CLEAN_CLAUSES_SIZE_BASED :
-            //Sort for glue-based removal
-            std::sort(longRedCls.begin(), longRedCls.end()
-                , reduceDBStructSize(clAllocator));
-            tmpStats.sizeBasedClean = 1;
-            break;
-
-        case CLEAN_CLAUSES_ACTIVITY_BASED :
-            //Sort for glue-based removal
-            std::sort(longRedCls.begin(), longRedCls.end()
-                , reduceDBStructActivity(clAllocator));
-            tmpStats.actBasedClean = 1;
-            break;
-
-        case CLEAN_CLAUSES_PROPCONFL_BASED :
-            //Sort for glue-based removal
-            std::sort(longRedCls.begin(), longRedCls.end()
-                , reduceDBStructPropConfl(clAllocator));
-            tmpStats.propConflBasedClean = 1;
-            break;
-    }
-
-    #ifdef VERBOSE_DEBUG
-    cout << "Cleaning learnt clauses. Learnt clauses after sort: " << endl;
-    for (uint32_t i = 0; i != longRedCls.size(); i++) {
-        const Clause* cl = clAllocator->getPointer(longRedCls[i]);
-        cout << *cl << endl;
-    }
-    #endif
-
-    //Remove clauses
+void Solver::real_clean_clause_db(
+    CleaningStats& tmpStats
+    , uint64_t sumConfl
+    , uint64_t removeNum
+) {
     size_t i, j;
     for (i = j = 0
         ; i < longRedCls.size() && tmpStats.removed.num < removeNum
         ; i++
     ) {
         ClOffset offset = longRedCls[i];
-        Clause* cl = clAllocator->getPointer(offset);
+        Clause* cl = clAllocator.getPointer(offset);
         assert(cl->size() > 3);
 
-        //Don't delete if not aged long enough
-        if (cl->stats.conflictNumIntroduced + 1000
-             >= Searcher::sumConflicts()
+        //Don't delete if not aged long enough or locked
+        if (cl->stats.conflictNumIntroduced + conf.min_time_in_db_before_eligible_for_cleaning
+                >= Searcher::sumConflicts()
+             || cl->stats.locked
         ) {
             longRedCls[j++] = offset;
             tmpStats.remain.incorporate(cl);
@@ -1313,36 +1169,14 @@ CleaningStats Solver::reduceDB()
         tmpStats.removed.age += sumConfl - cl->stats.conflictNumIntroduced;
 
         //free clause
-        #ifdef DRUP
-        if (drup) {
-            (*drup)
-            << "d "
-            << *cl
-            << " 0\n";
-        }
-        #endif
-        clAllocator->clauseFree(offset);
+        *drup << del << *cl << fin;
+        clAllocator.clauseFree(offset);
     }
 
     //Count what is left
     for (; i < longRedCls.size(); i++) {
         ClOffset offset = longRedCls[i];
-        Clause* cl = clAllocator->getPointer(offset);
-
-        /*
-        //No use at all? Remove!
-        if (cl->stats.numPropAndConfl() == 0
-            && cl->stats.conflictNumIntroduced + 20000
-                < sumStats.conflStats.numConflicts
-        ) {
-            //Stats Update
-            tmpStats.removed.incorporate(cl);
-            tmpStats.removed.age += sumConfl - cl->stats.conflictNumIntroduced;
-
-            //free clause
-            clAllocator->clauseFree(offset);
-            continue;
-        }*/
+        Clause* cl = clAllocator.getPointer(offset);
 
         //Stats Update
         tmpStats.remain.incorporate(cl);
@@ -1360,8 +1194,131 @@ CleaningStats Solver::reduceDB()
         longRedCls[j++] = offset;
     }
 
-    //Resize learnt datastruct
+    //Resize long redundant clause array
     longRedCls.resize(longRedCls.size() - (i - j));
+}
+
+uint64_t Solver::calc_how_many_to_remove()
+{
+    //Calculate how many to remove
+    uint64_t origRemoveNum = (double)longRedCls.size() *conf.ratioRemoveClauses;
+
+    //If there is a ratio limit, and we are over it
+    //then increase the removeNum accordingly
+    uint64_t maxToHave = (double)(longIrredCls.size() + binTri.irredTris + nVars() + 300ULL)
+        * (double)solveStats.nbReduceDB
+        * conf.maxNumRedsRatio;
+    uint64_t removeNum = std::max<long long>(origRemoveNum, (long)longRedCls.size()-(long)maxToHave);
+
+    if (removeNum != origRemoveNum) {
+        if (conf.verbosity >= 2) {
+            cout
+            << "c [DBclean] Hard upper limit reached, removing more than normal: "
+            << origRemoveNum << " --> " << removeNum
+            << endl;
+        }
+    } else {
+        if (conf.verbosity >= 2) {
+        cout
+        << "c [DBclean] Hard long cls limit would be: " << maxToHave/1000 << "K"
+        << endl;
+        }
+    }
+
+    return removeNum;
+}
+
+void Solver::sort_red_cls_as_required(CleaningStats& tmpStats)
+{
+    switch (conf.clauseCleaningType) {
+    case CLEAN_CLAUSES_GLUE_BASED :
+        //Sort for glue-based removal
+        std::sort(longRedCls.begin(), longRedCls.end()
+            , reduceDBStructGlue(clAllocator));
+        tmpStats.glueBasedClean = 1;
+        break;
+
+    case CLEAN_CLAUSES_SIZE_BASED :
+        //Sort for glue-based removal
+        std::sort(longRedCls.begin(), longRedCls.end()
+            , reduceDBStructSize(clAllocator));
+        tmpStats.sizeBasedClean = 1;
+        break;
+
+    case CLEAN_CLAUSES_ACTIVITY_BASED :
+        //Sort for glue-based removal
+        std::sort(longRedCls.begin(), longRedCls.end()
+            , reduceDBStructActivity(clAllocator));
+        tmpStats.actBasedClean = 1;
+        break;
+
+    case CLEAN_CLAUSES_PROPCONFL_BASED :
+        //Sort for glue-based removal
+        std::sort(longRedCls.begin(), longRedCls.end()
+            , reduceDBStructPropConfl(clAllocator));
+        tmpStats.propConflBasedClean = 1;
+        break;
+    }
+}
+
+void Solver::print_best_irred_clauses_if_required() const
+{
+    if (longRedCls.empty()
+        || conf.doPrintBestRedClauses == 0
+    ) {
+        return;
+    }
+
+    size_t at = 0;
+    for(long i = ((long)longRedCls.size())-1
+        ; i > ((long)longRedCls.size())-1-conf.doPrintBestRedClauses && i >= 0
+        ; i--
+    ) {
+        ClOffset offset = longRedCls[i];
+        const Clause* cl = clAllocator.getPointer(offset);
+        cout
+        << "c [best-red-cl] Red " << solveStats.nbReduceDB
+        << " No. " << at << " > "
+        << clauseBackNumbered(*cl)
+        << endl;
+
+        at++;
+    }
+}
+
+CleaningStats Solver::reduceDB()
+{
+    //Clean the clause database before doing cleaning
+    //varReplacer->performReplace();
+    clauseCleaner->removeAndCleanAll();
+
+    const double myTime = cpuTime();
+    solveStats.nbReduceDB++;
+    CleaningStats tmpStats;
+    tmpStats.origNumClauses = longRedCls.size();
+    tmpStats.origNumLits = litStats.redLits;
+    uint64_t removeNum = calc_how_many_to_remove();
+
+    //Subsume
+    uint64_t sumConfl = sumConflicts();
+    //simplifier->subsumeReds();
+    if (conf.verbosity >= 3) {
+        cout
+        << "c Time wasted on clean&replace&sub: "
+        << std::setprecision(3) << cpuTime()-myTime
+        << endl;
+    }
+
+    //Complete detach&reattach of OK clauses will be *much* faster
+    CompleteDetachReatacher detachReattach(this);
+    detachReattach.detachNonBinsNonTris();
+
+    lock_most_UIP_used_clauses();
+    pre_clean_clause_db(tmpStats, sumConfl);
+    tmpStats.clauseCleaningType = conf.clauseCleaningType;
+    sort_red_cls_as_required(tmpStats);
+    print_best_irred_clauses_if_required();
+    real_clean_clause_db(tmpStats, sumConfl, removeNum);
 
     //Reattach what's left
     detachReattach.reattachLongs();
@@ -1377,6 +1334,183 @@ CleaningStats Solver::reduceDB()
     cleaningStats += tmpStats;
 
     return tmpStats;
+}
+
+void Solver::lock_most_UIP_used_clauses()
+{
+    std::function<bool (const ClOffset, const ClOffset)> uipsort
+        = [&] (const ClOffset a, const ClOffset b) -> bool {
+            const Clause& a_cl = *clAllocator.getPointer(a);
+            const Clause& b_cl = *clAllocator.getPointer(b);
+
+            return a_cl.stats.numUsedUIP > b_cl.stats.numUsedUIP;
+    };
+    std::sort(longRedCls.begin(), longRedCls.end(), uipsort);
+
+    size_t locked = 0;
+    size_t skipped = 0;
+    for(size_t i = 0
+        ; i < longRedCls.size() && locked < conf.lock_per_dbclean
+        ; i++
+    ) {
+        const ClOffset offs = longRedCls[i];
+        Clause& cl = *clAllocator.getPointer(offs);
+        if (!cl.stats.locked) {
+            cl.stats.locked = true;
+            locked++;
+        } else {
+            skipped++;
+        }
+    }
+
+    if (conf.verbosity >= 2) {
+        cout << "c [DBclean] Locked: " << locked << " skipped: " << skipped <<endl;
+    }
+}
+
+void Solver::set_assumptions()
+{
+    assert(solver->okay());
+    assumptions = back_number_from_caller(origAssumptions);
+    addClauseHelper(assumptions);
+    for(const Lit lit: assumptions) {
+        if (lit.var() < assumptionsSet.size()) {
+            if (assumptionsSet[lit.var()]) {
+                /*cout
+                << "ERROR, the assumptions have the same variable inside"
+                << " more than once!"
+                << endl;*/
+                //Yes, it can happen... due to variable replacement
+            } else {
+                assumptionsSet[lit.var()] = true;
+            }
+        } else {
+            if (solver->value(lit) == l_Undef) {
+                cout
+                << "ERROR: Lit " << lit
+                << " varData[lit.var()].removed: " << removed_type_to_string(varData[lit.var()].removed)
+                << " value: " << value(lit)
+                << " -- value should be l_Undef"
+                << endl;
+            }
+            assert(solver->value(lit) != l_Undef);
+        }
+    }
+}
+
+void Solver::check_model_for_assumptions() const
+{
+    for(const Lit lit: origAssumptions) {
+        assert(model.size() > lit.var());
+        if (modelValue(lit) == l_Undef) {
+            cout
+            << "ERROR, lit " << lit
+            << " was in the assumptions, but it wasn't set at all!"
+            << endl;
+        }
+        assert(model[lit.var()] != l_Undef);
+        if (modelValue(lit) != l_True) {
+            cout
+            << "ERROR, lit " << lit
+            << " was in the assumptions, but it was set to its opposite value!"
+            << endl;
+        }
+        assert(modelValue(lit) == l_True);
+    }
+}
+
+void Solver::check_recursive_minimization_effectiveness(const lbool status)
+{
+    if (status == l_Undef
+        && conf.doRecursiveMinim
+    ) {
+        const Searcher::Stats& stats = Searcher::getStats();
+        double remPercent =
+            (double)stats.recMinLitRem/(double)stats.litsRedNonMin*100.0;
+
+        double costPerGained = (double)stats.recMinimCost/remPercent;
+        if (costPerGained > 200ULL*1000ULL*1000ULL) {
+            conf.doRecursiveMinim = false;
+            if (conf.verbosity >= 2) {
+                cout
+                << "c recursive minimization too costly: "
+                << std::fixed << std::setprecision(0) << (costPerGained/1000.0)
+                << "Kcost/(% lits removed) --> disabling"
+                << endl;
+            }
+        } else {
+            if (conf.verbosity >= 2) {
+                cout
+                << "c recursive minimization cost OK: "
+                << std::fixed << std::setprecision(0) << (costPerGained/1000.0)
+                << "Kcost/(% lits removed)"
+                << endl;
+            }
+        }
+    }
+}
+
+void Solver::check_minimization_effectiveness(const lbool status)
+{
+ if (status == l_Undef
+        && conf.doMinimRedMore
+    ) {
+        const Searcher::Stats& stats = Searcher::getStats();
+        double remPercent =
+            (double)(stats.moreMinimLitsStart-stats.moreMinimLitsEnd)/
+                (double)(stats.moreMinimLitsStart)*100.0;
+
+        if (remPercent < 1.0) {
+            conf.doMinimRedMore = false;
+            if (conf.verbosity >= 2) {
+                cout
+                << "c more minimization effectiveness low: "
+                << std::fixed << std::setprecision(2) << remPercent
+                << " % lits removed --> disabling"
+                << endl;
+            }
+        } else if (remPercent > 7.0) {
+            conf.moreMinimLimit = 800;
+            if (conf.verbosity >= 2) {
+                cout
+                << "c more minimization effectiveness good: "
+                << std::fixed << std::setprecision(2) << remPercent
+                << " % --> increasing limit to " << conf.moreMinimLimit
+                << endl;
+            }
+        } else {
+            conf.moreMinimLimit = 300;
+            if (conf.verbosity >= 2) {
+                cout
+                << "c more minimization effectiveness OK: "
+                << std::fixed << std::setprecision(2) << remPercent
+                << " % --> setting limit to norm " << conf.moreMinimLimit
+                << endl;
+            }
+            conf.moreMinimLimit = 300;
+        }
+    }
+}
+
+void Solver::extend_solution()
+{
+    checkStats();
+    solution = solver->back_number_solution(solution);
+
+    //Extend solution to stored solution in component handler
+    if (conf.doCompHandler) {
+        compHandler->addSavedState(solution);
+    }
+
+    model = solution;
+    if (conf.perform_occur_based_simp
+        || conf.doFindAndReplaceEqLits
+    ) {
+        SolutionExtender extender(this);
+        extender.extend();
+    }
+    model = map_back_to_without_bva(model);
+    check_model_for_assumptions();
 }
 
 lbool Solver::solve(const vector<Lit>* _assumptions)
@@ -1395,18 +1529,6 @@ lbool Solver::solve(const vector<Lit>* _assumptions)
         << endl;
     }
 
-    //Set up SQL writer
-    if (conf.doSQL) {
-        sqlStats->setup(this);
-    }
-
-    //Initialise stuff
-    nextCleanLimitInc = conf.startClean;
-    nextCleanLimit += nextCleanLimitInc;
-    if (_assumptions != NULL) {
-        assumptions = *_assumptions;
-    }
-
     //Check if adding the clauses caused UNSAT
     lbool status = l_Undef;
     if (!ok) {
@@ -1416,13 +1538,31 @@ lbool Solver::solve(const vector<Lit>* _assumptions)
             << "c Solver status l_Fase on startup of solve()"
             << endl;
         }
+        return status;
+    }
+
+    //Set up SQL writer
+    if (conf.doSQL) {
+        sqlStats->setup(this);
+    }
+
+    //Initialise
+    nextCleanLimitInc = conf.startClean;
+    nextCleanLimit += nextCleanLimitInc;
+    if (_assumptions != NULL) {
+        origAssumptions = *_assumptions;
+        set_assumptions();
+    } else {
+        std::fill(assumptionsSet.begin(), assumptionsSet.end(), false);
+        origAssumptions.clear();
+        assumptions.clear();
     }
 
     //If still unknown, simplify
     if (status == l_Undef
+        && conf.simplify_at_startup
         && nVars() > 0
-        && conf.doPreSchedSimpProblem
-        && conf.doSchedSimpProblem
+        && conf.regularly_simplify_problem
     ) {
         status = simplifyProblem();
     }
@@ -1450,80 +1590,13 @@ lbool Solver::solve(const vector<Lit>* _assumptions)
 
         //Abide by maxConfl limit
         numConfls = std::min<uint32_t>(numConfls, conf.maxConfl - sumStats.conflStats.numConflicts);
+        status = Searcher::solve(numConfls);
 
-        //Solve and update stats
-        status = Searcher::solve(assumptions, numConfls);
+        //Check for effectiveness
+        check_recursive_minimization_effectiveness(status);
+        check_minimization_effectiveness(status);
 
-        //If stats indicate that recursive minimization is not helping
-        //turn it off
-        if (status == l_Undef
-            && conf.doRecursiveMinim
-        ) {
-            const Searcher::Stats& stats = Searcher::getStats();
-            double remPercent =
-                (double)stats.recMinLitRem/(double)stats.litsLearntNonMin*100.0;
-
-            double costPerGained = (double)stats.recMinimCost/remPercent;
-            if (costPerGained > 200ULL*1000ULL*1000ULL) {
-                conf.doRecursiveMinim = false;
-                if (conf.verbosity >= 2) {
-                    cout
-                    << "c recursive minimization too costly: "
-                    << std::fixed << std::setprecision(0) << (costPerGained/1000.0)
-                    << "Kcost/(% lits removed) --> disabling"
-                    << endl;
-                }
-            } else {
-                if (conf.verbosity >= 2) {
-                    cout
-                    << "c recursive minimization cost OK: "
-                    << std::fixed << std::setprecision(0) << (costPerGained/1000.0)
-                    << "Kcost/(% lits removed)"
-                    << endl;
-                }
-            }
-        }
-
-        //If more minimization isn't helping much, disable
-        if (status == l_Undef
-            && conf.doMinimLearntMore
-        ) {
-            const Searcher::Stats& stats = Searcher::getStats();
-            double remPercent =
-                (double)(stats.moreMinimLitsStart-stats.moreMinimLitsEnd)/
-                    (double)(stats.moreMinimLitsStart)*100.0;
-
-            if (remPercent < 1.0) {
-                conf.doMinimLearntMore = false;
-                if (conf.verbosity >= 2) {
-                    cout
-                    << "c more minimization effectiveness low: "
-                    << std::fixed << std::setprecision(2) << remPercent
-                    << " % lits removed --> disabling"
-                    << endl;
-                }
-            } else if (remPercent > 7.0) {
-                conf.moreMinimLimit = 800;
-                if (conf.verbosity >= 2) {
-                    cout
-                    << "c more minimization effectiveness good: "
-                    << std::fixed << std::setprecision(2) << remPercent
-                    << " % --> increasing limit to " << conf.moreMinimLimit
-                    << endl;
-                }
-            } else {
-                conf.moreMinimLimit = 300;
-                if (conf.verbosity >= 2) {
-                    cout
-                    << "c more minimization effectiveness OK: "
-                    << std::fixed << std::setprecision(2) << remPercent
-                    << " % --> setting limit to norm " << conf.moreMinimLimit
-                    << endl;
-                }
-                conf.moreMinimLimit = 300;
-            }
-        }
-
+        //Update stats
         sumStats += Searcher::getStats();
         sumPropStats += propStats;
         propStats.clear();
@@ -1541,17 +1614,6 @@ lbool Solver::solve(const vector<Lit>* _assumptions)
             break;
         }
 
-        //Back up activities, polairties and var_inc
-        backupActivity.clear();
-        backupPolarity.clear();
-        backupActivity.resize(nVarsReal(), 0);
-        backupPolarity.resize(nVarsReal(), false);
-        for (size_t i = 0; i < nVars(); i++) {
-            backupPolarity[i] = varData[i].polarity;
-            backupActivity[i] = Searcher::getSavedActivity(i);
-        }
-        backupActivityInc = Searcher::getVarInc();
-
         if (status != l_False) {
             Searcher::resetStats();
             fullReduce();
@@ -1560,39 +1622,38 @@ lbool Solver::solve(const vector<Lit>* _assumptions)
         zeroLevAssignsByThreads += trail.size() - origTrailSize;
 
         //Simplify
-        if (conf.doSchedSimpProblem) {
+        if (conf.regularly_simplify_problem) {
             status = simplifyProblem();
         }
     }
 
     //Handle found solution
-    if (status == l_False) {
-        //Not much to do
-    } else if (status == l_True) {
-        //If literal stats are wrong, the solution is probably wrong
-        checkStats();
-
-        //Extend solution to stored solution in component handler
-        if (conf.doCompHandler) {
-            compHandler->addSavedState(solution);
-        }
-
-        //Extend solution
-        if (conf.doSimplify
-            || conf.doFindAndReplaceEqLits
-        ) {
-            SolutionExtender extender(this, solution);
-            extender.extend();
-        } else {
-            model = solution;
-        }
+    if (status == l_True) {
+        extend_solution();
         cancelUntil(0);
+    } else {
+        //TODO
+        //update_conflict_to_orig_assumptions();
 
-        //Renumber model back to original variable numbering
-        updateArrayRev(model, interToOuterMain);
+        //Back-number the conflict
+        solver->map_inter_to_outer(conflict);
     }
+    checkDecisionVarCorrectness();
+    checkImplicitStats();
 
     return status;
+}
+
+void Solver::checkDecisionVarCorrectness() const
+{
+    //Check for var deicisonness
+    for(size_t var = 0; var < nVarsReal(); var++) {
+        if (varData[var].removed != Removed::none
+            && varData[var].removed != Removed::queued_replacer
+        ) {
+            assert(!varData[var].is_decision);
+        }
+    }
 }
 
 /**
@@ -1640,7 +1701,7 @@ lbool Solver::simplifyProblem()
     if (solveStats.numSimplify > 0
         && conf.doFindAndReplaceEqLits
     ) {
-        if (!sCCFinder->find2LongXors())
+        if (!sCCFinder->performSCC())
             goto end;
 
         if (varReplacer->getNewToReplaceVars() > ((double)getNumFreeVars()*0.001)) {
@@ -1660,7 +1721,7 @@ lbool Solver::simplifyProblem()
 
     //Treat implicits
     if (conf.doStrSubImplicit) {
-        clauseVivifier->subsumeImplicit();
+        subsumeImplicit->subsume_implicit();
     }
 
     //PROBE
@@ -1683,12 +1744,12 @@ lbool Solver::simplifyProblem()
 
     //Treat implicits
     if (conf.doStrSubImplicit) {
-        clauseVivifier->subsumeImplicit();
+        subsumeImplicit->subsume_implicit();
     }
 
     //SCC&VAR-REPL
     if (conf.doFindAndReplaceEqLits) {
-        if (!sCCFinder->find2LongXors())
+        if (!sCCFinder->performSCC())
             goto end;
 
         if (!varReplacer->performReplace())
@@ -1700,7 +1761,7 @@ lbool Solver::simplifyProblem()
         return l_Undef;
 
     //Var-elim, gates, subsumption, strengthening
-    if (conf.doSimplify && !simplifier->simplify())
+    if (conf.perform_occur_based_simp && !simplifier->simplify())
         goto end;
 
     //Treat implicits
@@ -1709,7 +1770,7 @@ lbool Solver::simplifyProblem()
             goto end;
         }
 
-        clauseVivifier->subsumeImplicit();
+        subsumeImplicit->subsume_implicit();
     }
 
     //Clean cache before vivif
@@ -1723,7 +1784,7 @@ lbool Solver::simplifyProblem()
 
     //Search & replace 2-long XORs
     if (conf.doFindAndReplaceEqLits) {
-        if (!sCCFinder->find2LongXors())
+        if (!sCCFinder->performSCC())
             goto end;
 
         if (varReplacer->getNewToReplaceVars() > ((double)getNumFreeVars()*0.001)) {
@@ -1734,11 +1795,6 @@ lbool Solver::simplifyProblem()
 
     if (conf.doSortWatched)
         sortWatched();
-
-    //Re-calculate reachability after re-numbering and new cache data
-    if (conf.doCache) {
-        calcReachability();
-    }
 
     //Delete and disable cache if too large
     if (conf.doCache) {
@@ -1761,10 +1817,20 @@ lbool Solver::simplifyProblem()
     if (conf.doRenumberVars) {
         //Clean cache before renumber -- very important, otherwise
         //we will be left with lits inside the cache that are out-of-bounds
-        if (conf.doCache && !implCache.clean(this))
-            goto end;
+        if (conf.doCache) {
+            bool setSomething = true;
+            while(setSomething) {
+                if (!implCache.clean(this, &setSomething))
+                    goto end;
+            }
+        }
 
         renumberVariables();
+    }
+
+    //Re-calculate reachability after re-numbering and new cache data
+    if (conf.doCache) {
+        calcReachability();
     }
 
     //Free unused watch memory
@@ -1801,7 +1867,7 @@ end:
 
 ClauseUsageStats Solver::sumClauseData(
     const vector<ClOffset>& toprint
-    , const bool learnt
+    , const bool red
 ) const {
     vector<ClauseUsageStats> perSizeStats;
     vector<ClauseUsageStats> perGlueStats;
@@ -1817,14 +1883,13 @@ ClauseUsageStats Solver::sumClauseData(
     ) {
         //Clause data
         ClOffset offset = *it;
-        Clause& cl = *clAllocator->getPointer(offset);
+        Clause& cl = *clAllocator.getPointer(offset);
         const uint32_t clause_size = cl.size();
 
         //We have stats on this clause
         if (cl.size() == 3)
             continue;
 
-        //Sum stats
         stats.addStat(cl);
 
         //Update size statistics
@@ -1833,8 +1898,8 @@ ClauseUsageStats Solver::sumClauseData(
 
         perSizeStats[clause_size].addStat(cl);
 
-        //If learnt, sum up GLUE-based stats
-        if (learnt) {
+        //If redundant, sum up GLUE-based stats
+        if (red) {
             const size_t glue = cl.stats.glue;
             assert(glue != std::numeric_limits<uint32_t>::max());
             if (perSizeStats.size() < glue + 1) {
@@ -1844,70 +1909,25 @@ ClauseUsageStats Solver::sumClauseData(
             perSizeStats[glue].addStat(cl);
         }
 
-        //If lots of verbosity, print clause's individual stat
-        if (conf.verbosity >= 4) {
-            //Print clause data
-            cout
-            << "Clause size " << std::setw(4) << cl.size();
-            if (cl.learnt()) {
-                cout << " glue : " << std::setw(4) << cl.stats.glue;
-            }
-            cout
-            << " Props: " << std::setw(10) << cl.stats.numProp
-            << " Confls: " << std::setw(10) << cl.stats.numConfl
-            #ifdef STATS_NEEDED
-            << " Lit visited: " << std::setw(10)<< cl.stats.numLitVisited
-            << " Looked at: " << std::setw(10)<< cl.stats.numLookedAt
-            << " Props&confls/Litsvisited*10: ";
-            if (cl.stats.numLitVisited > 0) {
-                cout
-                << std::setw(6) << std::fixed << std::setprecision(4)
-                << (10.0*(double)cl.stats.numPropAndConfl()/(double)cl.stats.numLitVisited);
-            }
-            #endif
-            ;
-            cout << " UIP used: " << std::setw(10)<< cl.stats.numUsedUIP;
-            cout << endl;
-        }
+        if (conf.verbosity >= 4)
+            cl.print_extra_stats();
     }
 
     if (conf.verbosity >= 1) {
         //Print SUM stats
-        if (learnt) {
+        if (red) {
             cout << "c red  ";
         } else {
             cout << "c irred";
         }
-        cout
-        #ifdef STATS_NEEDED
-        << " lits visit: "
-        << std::setw(8) << stats.sumLitVisited/1000UL
-        << "K"
-
-        << " cls visit: "
-        << std::setw(7) << stats.sumLookedAt/1000UL
-        << "K"
-        #endif
-
-        << " prop: "
-        << std::setw(5) << stats.sumProp/1000UL
-        << "K"
-
-        << " conf: "
-        << std::setw(5) << stats.sumConfl/1000UL
-        << "K"
-
-        << " UIP used: "
-        << std::setw(5) << stats.sumUsedUIP/1000UL
-        << "K"
-        << endl;
+        stats.print();
     }
 
     //Print more stats
     if (conf.verbosity >= 4) {
         printPropConflStats("clause-len", perSizeStats);
 
-        if (learnt) {
+        if (red) {
             printPropConflStats("clause-glue", perGlueStats);
         }
     }
@@ -1969,7 +1989,7 @@ void Solver::clearClauseStats(vector<ClOffset>& clauseset)
         ; it != end
         ; it++
     ) {
-        Clause* cl = clAllocator->getPointer(*it);
+        Clause* cl = clAllocator.getPointer(*it);
         cl->stats.clearAfterReduceDB();
     }
 }
@@ -2034,13 +2054,13 @@ void Solver::fullReduce()
 
 void Solver::consolidateMem()
 {
-    clAllocator->consolidate(this, true);
+    clAllocator.consolidate(this, true);
 }
 
 void Solver::printStats() const
 {
     const double cpu_time = cpuTime();
-    cout << "c ------- FINAL TOTAL SOLVING STATS ---------" << endl;
+    cout << "c ------- FINAL TOTAL SEARCH STATS ---------" << endl;
     printStatsLine("c UIP search time"
         , sumStats.cpu_time
         , sumStats.cpu_time/cpu_time*100.0
@@ -2091,7 +2111,7 @@ void Solver::printMinStats() const
         prober->getStats().printShort();
     }
     //Simplifier stats
-    if (conf.doSimplify) {
+    if (conf.perform_occur_based_simp) {
         printStatsLine("c Simplifier time"
             , simplifier->getStats().totalTime()
             , simplifier->getStats().totalTime()/cpu_time*100.0
@@ -2105,21 +2125,8 @@ void Solver::printMinStats() const
         , "% time"
     );
     sCCFinder->getStats().printShort();
-    printStatsLine("c vrep replace time"
-        , varReplacer->getStats().cpu_time
-        , varReplacer->getStats().cpu_time/cpu_time*100.0
-        , "% time"
-    );
+    varReplacer->print_some_stats(cpu_time);
 
-    printStatsLine("c vrep tree roots"
-        , varReplacer->getNumTrees()
-    );
-
-    printStatsLine("c vrep trees' crown"
-        , varReplacer->getNumReplacedVars()
-        , (double)varReplacer->getNumReplacedVars()/(double)varReplacer->getNumTrees()
-        , "leafs/tree"
-    );
     //varReplacer->getStats().printShort(nVars());
     printStatsLine("c asymm time"
                     , clauseVivifier->getStats().timeNorm
@@ -2206,7 +2213,7 @@ void Solver::printFullStats() const
     }
 
     //Simplifier stats
-    if (conf.doSimplify) {
+    if (conf.perform_occur_based_simp) {
         printStatsLine("c Simplifier time"
             , simplifier->getStats().totalTime()
             , simplifier->getStats().totalTime()/cpu_time*100.0
@@ -2216,13 +2223,14 @@ void Solver::printFullStats() const
         simplifier->getStats().print(nVars());
     }
 
-    //GateFinder stats
-    /*printStatsLine("c gatefinder time"
-                    , subsumer->getGateFinder()->getStats().totalTime()
-                    , subsumer->getGateFinder()->getStats().totalTime()/cpu_time*100.0
-                    , "% time");
-    subsumer->getGateFinder()->getStats().print(nVars());
+    if (simplifier && conf.doGateFind) {
+        simplifier->printGateFinderStats();
+    }
 
+    //GateFinder stats
+
+
+    /*
     //XOR stats
     printStatsLine("c XOR time"
         , subsumer->getXorFinder()->getStats().totalTime()
@@ -2241,23 +2249,8 @@ void Solver::printFullStats() const
     );
     sCCFinder->getStats().print();
 
-
-    printStatsLine("c vrep replace time"
-        , varReplacer->getStats().cpu_time
-        , varReplacer->getStats().cpu_time/cpu_time*100.0
-        , "% time"
-    );
-
-    printStatsLine("c vrep tree roots"
-        , varReplacer->getNumTrees()
-    );
-
-    printStatsLine("c vrep trees' crown"
-        , varReplacer->getNumReplacedVars()
-        , (double)varReplacer->getNumReplacedVars()/(double)varReplacer->getNumTrees()
-        , "leafs/tree"
-    );
     varReplacer->getStats().print(nVars());
+    varReplacer->print_some_stats(cpu_time);
 
     //Vivifier-ASYMM stats
     printStatsLine("c vivif time"
@@ -2273,6 +2266,10 @@ void Solver::printFullStats() const
                     , clauseVivifier->getStats().redCacheBased.cpu_time/cpu_time*100.0
                     , "% time");
     clauseVivifier->getStats().print(nVars());
+
+    if (conf.doStrSubImplicit) {
+        subsumeImplicit->getStats().print();
+    }
 
     if (conf.doCache) {
         implCache.printStats(this);
@@ -2290,53 +2287,43 @@ void Solver::printFullStats() const
 
 uint64_t Solver::printWatchMemUsed(const uint64_t totalMem) const
 {
-    size_t mem = 0;
-    mem += watches.capacity()*sizeof(vec<Watched>);
-    for(size_t i = 0; i < watches.size(); i++) {
-        mem += watches[i].capacity()*sizeof(Watched);
-    }
-    printStatsLine("c Mem for watches"
-        , mem/(1024UL*1024UL)
+    size_t alloc = watches.mem_used_alloc();
+    printStatsLine("c Mem for watch alloc"
+        , alloc/(1024UL*1024UL)
         , "MB"
-        , (double)mem/(double)totalMem*100.0
+        , (double)alloc/(double)totalMem*100.0
         , "%"
     );
 
-    return mem;
+    size_t array = watches.mem_used_array();
+    printStatsLine("c Mem for watch array"
+        , array/(1024UL*1024UL)
+        , "MB"
+        , (double)array/(double)totalMem*100.0
+        , "%"
+    );
+
+    return alloc + array;
 }
 
 void Solver::printMemStats() const
 {
-    const uint64_t totalMem = memUsed();
+    const uint64_t totalMem = memUsedTotal();
     printStatsLine("c Mem used"
         , totalMem/(1024UL*1024UL)
         , "MB"
     );
     uint64_t account = 0;
 
-    size_t mem = 0;
-    mem += clAllocator->getMemUsed();
-    mem += longIrredCls.capacity()*sizeof(ClOffset);
-    mem += longRedCls.capacity()*sizeof(ClOffset);
-    printStatsLine("c Mem for longclauses"
-        , mem/(1024UL*1024UL)
-        , "MB"
-        , (double)mem/(double)totalMem*100.0
-        , "%"
-    );
-    account += mem;
-
+    account += print_mem_used_longclauses(totalMem);
     account += printWatchMemUsed(totalMem);
 
-    mem = 0;
+    size_t mem = 0;
     mem += assigns.capacity()*sizeof(lbool);
     mem += varData.capacity()*sizeof(VarData);
-    #ifdef STATS_NEEDED
+    #ifdef STATS_NEEDED_EXTRA
     mem += varDataLT.capacity()*sizeof(VarData::Stats);
     #endif
-    mem += backupActivity.capacity()*sizeof(uint32_t);
-    mem += backupPolarity.capacity()*sizeof(bool);
-    mem += decisionVar.capacity()*sizeof(char);
     mem += assumptions.capacity()*sizeof(Lit);
     printStatsLine("c Mem for vars"
         , mem/(1024UL*1024UL)
@@ -2347,18 +2334,7 @@ void Solver::printMemStats() const
     );
     account += mem;
 
-    mem = 0;
-    mem += toPropNorm.capacity()*sizeof(Lit);
-    mem += toPropBin.capacity()*sizeof(Lit);
-    mem += toPropRedBin.capacity()*sizeof(Lit);
-    mem += stamp.getMemUsed();
-    printStatsLine("c Mem for stamps"
-        , mem/(1024UL*1024UL)
-        , "MB"
-        , (double)mem/(double)totalMem*100.0
-        , "%"
-    );
-    account += mem;
+    account += print_stamp_mem(totalMem);
 
     mem = implCache.memUsed();
     mem += litReachable.capacity()*sizeof(LitReachData);
@@ -2370,7 +2346,7 @@ void Solver::printMemStats() const
     );
     account += mem;
 
-    mem = hist.getMemUsed();
+    mem = hist.memUsed();
     printStatsLine("c Mem for history stats"
         , mem/(1024UL*1024UL)
         , "MB"
@@ -2379,14 +2355,14 @@ void Solver::printMemStats() const
     );
     account += mem;
 
-    mem = memUsedSearch();
+    mem = memUsed();
     mem += model.capacity()*sizeof(lbool);
     if (conf.verbosity >= 3) {
         cout << "model bytes: "
         << model.capacity()*sizeof(lbool)
         << endl;
     }
-    printStatsLine("c Mem for search"
+    printStatsLine("c Mem for search&solve"
         , mem/(1024UL*1024UL)
         , "MB"
         , (double)mem/(double)totalMem*100.0
@@ -2407,12 +2383,7 @@ void Solver::printMemStats() const
     );
     account += mem;
 
-    mem = 0;
-    mem += interToOuterMain.capacity()*sizeof(Var);
-    mem += interToOuter.capacity()*sizeof(Var);
-    mem += interToOuter2.capacity()*sizeof(Var);
-    mem += outerToInter.capacity()*sizeof(Var);
-    mem += outerToInterMain.capacity()*sizeof(Var);
+    mem = CNF::get_renumber_mem();
     printStatsLine("c Mem for renumberer"
         , mem/(1024UL*1024UL)
         , "MB"
@@ -2421,7 +2392,7 @@ void Solver::printMemStats() const
     );
     account += mem;
 
-    if (conf.doSimplify) {
+    if (conf.perform_occur_based_simp) {
         mem = simplifier->memUsed();
         printStatsLine("c Mem for simplifier"
             , mem/(1024UL*1024UL)
@@ -2441,7 +2412,7 @@ void Solver::printMemStats() const
         account += mem;
     }
 
-    mem = varReplacer->bytesMemUsed();
+    mem = varReplacer->memUsed();
     printStatsLine("c Mem for varReplacer"
         , mem/(1024UL*1024UL)
         , "MB"
@@ -2477,36 +2448,36 @@ void Solver::printMemStats() const
 }
 
 void Solver::dumpBinClauses(
-    const bool dumpLearnt
-    , const bool dumpNonLearnt
+    const bool dumpRed
+    , const bool dumpIrred
     , std::ostream* outfile
 ) const {
     //Go trough each watchlist
     size_t wsLit = 0;
-    for (vector<vec<Watched> >::const_iterator
+    for (watch_array::const_iterator
         it = watches.begin(), end = watches.end()
         ; it != end
-        ; it++, wsLit++
+        ; ++it, wsLit++
     ) {
         Lit lit = Lit::toLit(wsLit);
-        const vec<Watched>& ws = *it;
+        watch_subarray_const ws = *it;
 
         //Each element in the watchlist
-        for (vec<Watched>::const_iterator
+        for (watch_subarray_const::const_iterator
             it2 = ws.begin(), end2 = ws.end()
             ; it2 != end2
             ; it2++
         ) {
             //Only dump binaries
-            if (it2->isBinary() && lit < it2->lit1()) {
+            if (it2->isBinary() && lit < it2->lit2()) {
                 bool toDump = false;
-                if (it2->learnt() && dumpLearnt) toDump = true;
-                if (!it2->learnt() && dumpNonLearnt) toDump = true;
+                if (it2->red() && dumpRed) toDump = true;
+                if (!it2->red() && dumpIrred) toDump = true;
 
                 if (toDump) {
                     tmpCl.clear();
-                    tmpCl.push_back(getUpdatedLit(it2->lit1(), interToOuterMain));
-                    tmpCl.push_back(getUpdatedLit(lit, interToOuterMain));
+                    tmpCl.push_back(map_inter_to_outer(it2->lit2()));
+                    tmpCl.push_back(map_inter_to_outer(lit));
                     std::sort(tmpCl.begin(), tmpCl.end());
 
                     *outfile
@@ -2520,30 +2491,34 @@ void Solver::dumpBinClauses(
 }
 
 void Solver::dumpTriClauses(
-    const bool alsoLearnt
-    , const bool alsoNonLearnt
+    const bool alsoRed
+    , const bool alsoIrred
     , std::ostream* outfile
 ) const {
     uint32_t wsLit = 0;
-    for (vector<vec<Watched> >::const_iterator
+    for (watch_array::const_iterator
         it = watches.begin(), end = watches.end()
         ; it != end
-        ; it++, wsLit++
+        ; ++it, wsLit++
     ) {
         Lit lit = Lit::toLit(wsLit);
-        const vec<Watched>& ws = *it;
-        for (vec<Watched>::const_iterator it2 = ws.begin(), end2 = ws.end(); it2 != end2; it2++) {
+        watch_subarray_const ws = *it;
+        for (watch_subarray_const::const_iterator
+            it2 = ws.begin(), end2 = ws.end()
+            ; it2 != end2
+            ; it2++
+        ) {
             //Only one instance of tri clause
-            if (it2->isTri() && lit < it2->lit1()) {
+            if (it2->isTri() && lit < it2->lit2()) {
                 bool toDump = false;
-                if (it2->learnt() && alsoLearnt) toDump = true;
-                if (!it2->learnt() && alsoNonLearnt) toDump = true;
+                if (it2->red() && alsoRed) toDump = true;
+                if (!it2->red() && alsoIrred) toDump = true;
 
                 if (toDump) {
                     tmpCl.clear();
-                    tmpCl.push_back(getUpdatedLit(it2->lit1(), interToOuterMain));
-                    tmpCl.push_back(getUpdatedLit(it2->lit2(), interToOuterMain));
-                    tmpCl.push_back(getUpdatedLit(lit, interToOuterMain));
+                    tmpCl.push_back(map_inter_to_outer(it2->lit2()));
+                    tmpCl.push_back(map_inter_to_outer(it2->lit3()));
+                    tmpCl.push_back(map_inter_to_outer(lit));
                     std::sort(tmpCl.begin(), tmpCl.end());
 
                     *outfile
@@ -2567,7 +2542,7 @@ void Solver::printClauseSizeDistrib()
         ; it != end
         ; it++
     ) {
-        Clause* cl = clAllocator->getPointer(*it);
+        Clause* cl = clAllocator.getPointer(*it);
         switch(cl->size()) {
             case 0:
             case 1:
@@ -2589,30 +2564,8 @@ void Solver::printClauseSizeDistrib()
         }
     }
 
-    /*for(vector<Clause*>::const_iterator it = learnts.begin(), end = learnts.end(); it != end; it++) {
-        switch((*it)->size()) {
-            case 0:
-            case 1:
-            case 2:
-                assert(false);
-                break;
-            case 3:
-                size3++;
-                break;
-            case 4:
-                size4++;
-                break;
-            case 5:
-                size5++;
-                break;
-            default:
-                sizeLarge++;
-                break;
-        }
-    }*/
-
     cout
-    << "c"
+    << "c clause size stats."
     << " size4: " << size4
     << " size5: " << size5
     << " larger: " << sizeLarge << endl;
@@ -2623,32 +2576,10 @@ void Solver::dumpEquivalentLits(std::ostream* os) const
     *os
     << "c " << endl
     << "c ---------------------------------------" << endl
-    << "c clauses representing 2-long XOR clauses" << endl
+    << "c equivalent literals" << endl
     << "c ---------------------------------------" << endl;
-    const vector<Lit>& table = varReplacer->getReplaceTable();
-    for (Var var = 0; var != table.size(); var++) {
-        Lit lit = table[var];
-        if (lit.var() == var)
-            continue;
 
-        tmpCl.clear();
-        tmpCl.push_back(getUpdatedLit((~lit), interToOuterMain));
-        tmpCl.push_back(getUpdatedLit(Lit(var, false), interToOuterMain));
-        std::sort(tmpCl.begin(), tmpCl.end());
-
-        *os
-        << tmpCl[0] << " "
-        << tmpCl[1]
-        << " 0\n";
-
-        tmpCl[0] ^= true;
-        tmpCl[1] ^= true;
-
-        *os
-        << tmpCl[0] << " "
-        << tmpCl[1]
-        << " 0\n";
-    }
+    varReplacer->print_equivalent_literals(os);
 }
 
 void Solver::dumpUnitaryClauses(std::ostream* os) const
@@ -2658,10 +2589,15 @@ void Solver::dumpUnitaryClauses(std::ostream* os) const
     << "c ---------" << endl
     << "c unitaries" << endl
     << "c ---------" << endl;
-    for (uint32_t i = 0, end = (trail_lim.size() > 0) ? trail_lim[0] : trail.size() ; i < end; i++) {
-        *os
-        << getUpdatedLit(trail[i], interToOuterMain)
-        << " 0\n";
+
+    //'trail' cannot be trusted between 0....size()
+    assert(decisionLevel() == 0);
+    for(size_t i = 0; i < assigns.size(); i++) {
+        if (assigns[i] != l_Undef) {
+            Lit lit(i, assigns[i] == l_False);
+            lit = map_inter_to_outer(lit);
+            *os << lit << " 0\n";
+        }
     }
 }
 
@@ -2669,13 +2605,12 @@ void Solver::dumpRedClauses(
     std::ostream* os
     , const uint32_t maxSize
 ) const {
-
     dumpUnitaryClauses(os);
 
     *os
     << "c " << endl
     << "c ---------------------------------" << endl
-    << "c learnt binary clauses (extracted from watchlists)" << endl
+    << "c redundant binary clauses (extracted from watchlists)" << endl
     << "c ---------------------------------" << endl;
     if (maxSize >= 2) {
         dumpBinClauses(true, false, os);
@@ -2684,9 +2619,9 @@ void Solver::dumpRedClauses(
     *os
     << "c " << endl
     << "c ---------------------------------" << endl
-    << "c learnt tertiary clauses (extracted from watchlists)" << endl
+    << "c redundant tertiary clauses (extracted from watchlists)" << endl
     << "c ---------------------------------" << endl;
-    if (maxSize >= 2) {
+    if (maxSize >= 3) {
         dumpTriClauses(true, false, os);
     }
 
@@ -2697,30 +2632,14 @@ void Solver::dumpRedClauses(
     *os
     << "c " << endl
     << "c --------------------" << endl
-    << "c clauses from learnts" << endl
+    << "c redundant long clauses" << endl
     << "c --------------------" << endl;
-    for (vector<ClOffset>::const_iterator
-        it = longRedCls.begin(), end = longRedCls.end()
-        ; it != end
-        ; it++
-    ) {
-        const Clause* cl = clAllocator->getPointer(*it);
-
-        if (cl->size() <= maxSize) {
-            *os << clauseBackNumbered(*cl) << " 0" << endl;
-
-            //Dump the information about the clause
-            *os
-            << "c clause learnt "
-            << (cl->learnt() ? "yes" : "no")
-            << " stats "  << cl->stats << endl;
-        }
-    }
+    dump_clauses(longRedCls, os, maxSize);
 }
 
-void Solver::dumpIrredClauses(std::ostream* os) const
+uint64_t Solver::count_irred_clauses_for_dump() const
 {
-    size_t numClauses = 0;
+    uint64_t numClauses = 0;
 
     //unitary clauses
     for (size_t
@@ -2732,13 +2651,7 @@ void Solver::dumpIrredClauses(std::ostream* os) const
 
     //binary XOR clauses
     if (varReplacer) {
-        const vector<Lit>& table = varReplacer->getReplaceTable();
-        for (Var var = 0; var != table.size(); var++) {
-            Lit lit = table[var];
-            if (lit.var() == var)
-                continue;
-            numClauses += 2;
-        }
+        varReplacer->get_num_bin_clauses();
     }
 
     //Normal clauses
@@ -2750,17 +2663,88 @@ void Solver::dumpIrredClauses(std::ostream* os) const
     }
 
     //previously eliminated clauses
-    if (conf.doSimplify) {
+    if (conf.perform_occur_based_simp) {
         const vector<BlockedClause>& blockedClauses = simplifier->getBlockedClauses();
         numClauses += blockedClauses.size();
     }
 
-    *os << "p cnf " << nVars() << " " << numClauses << endl;
+    return numClauses;
+}
 
-    ////////////////////////////////////////////////////////////////////
+void Solver::dump_clauses(
+    const vector<ClOffset>& cls
+    , std::ostream* os
+    , size_t max_size
+) const {
+    for(vector<ClOffset>::const_iterator
+        it = cls.begin(), end = cls.end()
+        ; it != end
+        ; it++
+    ) {
+        Clause* cl = clAllocator.getPointer(*it);
+        if (cl->size() <= max_size)
+            *os << sortLits(clauseBackNumbered(*cl)) << " 0\n";
+    }
+}
+
+void Solver::dump_blocked_clauses(std::ostream* os) const
+{
+    if (conf.perform_occur_based_simp) {
+        const vector<BlockedClause>& blockedClauses
+            = simplifier->getBlockedClauses();
+
+        for (vector<BlockedClause>::const_iterator
+            it = blockedClauses.begin(); it != blockedClauses.end()
+            ; it++
+        ) {
+            if (it->dummy)
+                continue;
+
+            //Print info about clause
+            *os
+            << "c next clause is eliminated/blocked on lit "
+            << it->blockedOn
+            << endl;
+
+            //Print clause
+            *os
+            << sortLits(it->lits)
+            << " 0"
+            << endl;
+        }
+    }
+}
+
+void Solver::dump_component_clauses(std::ostream* os) const
+{
+    if (conf.doCompHandler) {
+        const CompHandler::RemovedClauses& removedClauses = compHandler->getRemovedClauses();
+
+        vector<Lit> tmp;
+        size_t at = 0;
+        for (uint32_t size :removedClauses.sizes) {
+            tmp.clear();
+            for(size_t i = at; i < at + size; i++) {
+                tmp.push_back(removedClauses.lits[i]);
+            }
+            std::sort(tmp.begin(), tmp.end());
+            *os << tmp << " 0" << endl;
+
+            //Move 'at' along
+            at += size;
+        }
+    }
+}
+
+void Solver::dumpIrredClauses(std::ostream* os) const
+{
+    *os
+    << "p cnf "
+    << nVarsReal()
+    << " " << count_irred_clauses_for_dump()
+    << endl;
 
     dumpUnitaryClauses(os);
-
     dumpEquivalentLits(os);
 
     *os
@@ -2782,66 +2766,42 @@ void Solver::dumpIrredClauses(std::ostream* os) const
     << "c ---------------" << endl
     << "c normal clauses" << endl
     << "c ---------------" << endl;
-    for(vector<ClOffset>::const_iterator
-        it = longIrredCls.begin(), end = longIrredCls.end()
-        ; it != end
-        ; it++
-    ) {
-        Clause* cl = clAllocator->getPointer(*it);
-        assert(!cl->learnt());
-        *os << clauseBackNumbered(*cl) << " 0" << endl;
+    dump_clauses(longIrredCls, os);
+
+    *os
+    << "c " << endl
+    << "c -------------------------------" << endl
+    << "c previously eliminated variables" << endl
+    << "c -------------------------------" << endl;
+    dump_blocked_clauses(os);
+
+    *os
+    << "c " << endl
+    << "c ---------------" << endl
+    << "c clauses in components" << endl
+    << "c ---------------" << endl;
+    dump_component_clauses(os);
+
+    write_irred_stats_to_cnf(os);
+}
+
+void Solver::write_irred_stats_to_cnf(std::ostream* os) const
+{
+    *os << "c units: " << ((trail_lim.size() > 0) ? trail_lim[0] : trail.size()) << endl;
+    if (varReplacer) {
+        *os << "c binaries related to binary XORs: " << varReplacer->get_num_bin_clauses() << endl;
     }
-
-    if (conf.doSimplify) {
-        const vector<BlockedClause>& blockedClauses
-            = simplifier->getBlockedClauses();
-
-        *os
-        << "c " << endl
-        << "c -------------------------------" << endl
-        << "c previously eliminated variables" << endl
-        << "c -------------------------------" << endl;
-        for (vector<BlockedClause>::const_iterator
-            it = blockedClauses.begin(); it != blockedClauses.end()
-            ; it++
-        ) {
-
-            //Print info about clause
-            *os
-            << "c next clause is eliminated/blocked on lit "
-            << getUpdatedLit(it->blockedOn, interToOuterMain)
-            << endl;
-
-            //Print clause
-            *os
-            << clauseBackNumbered(it->lits)
-            << " 0"
-            << endl;
-        }
-    }
-
+    *os << "c normal binary cls: " << binTri.irredBins << endl;
+    *os << "c normal tertiary cls: " << binTri.irredTris << endl;
+    *os << "c normal long cls: " << longIrredCls.size() << endl;
     if (conf.doCompHandler) {
-        *os
-        << "c " << endl
-        << "c ---------------" << endl
-        << "c clauses in components" << endl
-        << "c ---------------" << endl;
-
-        const CompHandler::RemovedClauses& removedClauses = compHandler->getRemovedClauses();
-
-        vector<Lit> tmp;
-        size_t at = 0;
-        for (uint32_t size :removedClauses.sizes) {
-            tmp.clear();
-            for(size_t i = at; i < at + size; i++) {
-                tmp.push_back(removedClauses.lits[i]);
-            }
-            std::sort(tmp.begin(), tmp.end());
-            *os << tmp << " 0" << endl;
-
-            //Move 'at' along
-            at += size;
-        }
+        *os << "c disconnected component cls: "
+        << compHandler->getRemovedClauses().sizes.size()
+        << endl;
+    }
+    if (conf.perform_occur_based_simp) {
+        const vector<BlockedClause>& blockedClauses = simplifier->getBlockedClauses();
+        *os << "c blocked cls: " << blockedClauses.size() << endl;
     }
 }
 
@@ -2852,7 +2812,7 @@ void Solver::printAllClauses() const
         ; it != end
         ; it++
     ) {
-        Clause* cl = clAllocator->getPointer(*it);
+        Clause* cl = clAllocator.getPointer(*it);
         cout
         << "Normal clause offs " << *it
         << " cl: " << *cl
@@ -2861,54 +2821,81 @@ void Solver::printAllClauses() const
 
 
     uint32_t wsLit = 0;
-    for (vector<vec<Watched> >::const_iterator
+    for (watch_array::const_iterator
         it = watches.begin(), end = watches.end()
         ; it != end
-        ; it++, wsLit++
+        ; ++it, wsLit++
     ) {
         Lit lit = Lit::toLit(wsLit);
-        const vec<Watched>& ws = *it;
+        watch_subarray_const ws = *it;
         cout << "watches[" << lit << "]" << endl;
-        for (vec<Watched>::const_iterator it2 = ws.begin(), end2 = ws.end(); it2 != end2; it2++) {
+        for (watch_subarray_const::const_iterator
+            it2 = ws.begin(), end2 = ws.end()
+            ; it2 != end2
+            ; it2++
+        ) {
             if (it2->isBinary()) {
-                cout << "Binary clause part: " << lit << " , " << it2->lit1() << endl;
+                cout << "Binary clause part: " << lit << " , " << it2->lit2() << endl;
             } else if (it2->isClause()) {
                 cout << "Normal clause offs " << it2->getOffset() << endl;
             } else if (it2->isTri()) {
                 cout << "Tri clause:"
                 << lit << " , "
-                << it2->lit1() << " , "
-                << it2->lit2() << endl;
+                << it2->lit2() << " , "
+                << it2->lit3() << endl;
             }
         }
     }
 }
 
-bool Solver::verifyBinClauses() const
+bool Solver::verifyImplicitClauses() const
 {
     uint32_t wsLit = 0;
-    for (vector<vec<Watched> >::const_iterator
+    for (watch_array::const_iterator
         it = watches.begin(), end = watches.end()
         ; it != end
-        ; it++, wsLit++
+        ; ++it, wsLit++
     ) {
         Lit lit = Lit::toLit(wsLit);
-        const vec<Watched>& ws = *it;
+        watch_subarray_const ws = *it;
 
-        for (vec<Watched>::const_iterator i = ws.begin(), end = ws.end() ; i != end; i++) {
-            if (i->isBinary()
+        for (Watched w: ws) {
+            if (w.isBinary()
                 && modelValue(lit) != l_True
-                && modelValue(i->lit1()) != l_True
+                && modelValue(w.lit2()) != l_True
             ) {
                 cout
                 << "bin clause: "
-                << lit << " , " << i->lit1()
+                << lit << " , " << w.lit2()
                 << " not satisfied!"
                 << endl;
 
                 cout
                 << "value of unsat bin clause: "
-                << value(lit) << " , " << value(i->lit1())
+                << value(lit) << " , " << value(w.lit2())
+                << endl;
+
+                return false;
+            }
+
+             if (w.isTri()
+                && modelValue(lit) != l_True
+                && modelValue(w.lit2()) != l_True
+                && modelValue(w.lit3()) != l_True
+            ) {
+                cout
+                << "tri clause: "
+                << lit
+                << " , " << w.lit2()
+                << " , " << w.lit3()
+                << " not satisfied!"
+                << endl;
+
+                cout
+                << "value of unsat tri clause: "
+                << value(lit)
+                << " , " << value(w.lit2())
+                << " , " << value(w.lit3())
                 << endl;
 
                 return false;
@@ -2922,7 +2909,7 @@ bool Solver::verifyBinClauses() const
 bool Solver::verifyClauses(const vector<ClOffset>& cs) const
 {
     #ifdef VERBOSE_DEBUG
-    cout << "Checking clauses whether they have been properly satisfied." << endl;;
+    cout << "Checking clauses whether they have been properly satisfied." << endl;
     #endif
 
     bool verificationOK = true;
@@ -2932,7 +2919,7 @@ bool Solver::verifyClauses(const vector<ClOffset>& cs) const
         ; it != end
         ; it++
     ) {
-        Clause& cl = *clAllocator->getPointer(*it);
+        Clause& cl = *clAllocator.getPointer(*it);
         for (uint32_t j = 0; j < cl.size(); j++)
             if (modelValue(cl[j]) == l_True)
                 goto next;
@@ -2951,41 +2938,19 @@ bool Solver::verifyModel() const
     bool verificationOK = true;
     verificationOK &= verifyClauses(longIrredCls);
     verificationOK &= verifyClauses(longRedCls);
-    verificationOK &= verifyBinClauses();
+    verificationOK &= verifyImplicitClauses();
 
     if (conf.verbosity >= 1 && verificationOK) {
         cout
-        << "c Verified " << longIrredCls.size() << " clauses."
+        << "c Verified "
+        << longIrredCls.size() + longRedCls.size()
+            + binTri.irredBins + binTri.redBins
+            + binTri.irredTris + binTri.redTris
+        << " clause(s)."
         << endl;
     }
 
     return verificationOK;
-}
-
-
-void Solver::checkLiteralCount() const
-{
-    // Check that sizes are calculated correctly:
-    uint64_t cnt = 0;
-    for(vector<ClOffset>::const_iterator
-        it = longIrredCls.begin(), end = longIrredCls.end()
-        ; it != end
-        ; it++
-    ) {
-        const Clause* cl = clAllocator->getPointer(*it);
-        cnt += cl->size();
-    }
-
-    if (binTri.irredLits != cnt) {
-        cout
-        << "c ERROR! literal count: "
-        << binTri.irredLits
-        << " , real value = "
-        << cnt
-        << endl;
-
-        assert(binTri.irredLits == cnt);
-    }
 }
 
 size_t Solver::getNumDecisionVars() const
@@ -3023,7 +2988,7 @@ void Solver::testAllClauseAttach() const
 bool Solver::normClauseIsAttached(const ClOffset offset) const
 {
     bool attached = true;
-    const Clause& cl = *clAllocator->getPointer(offset);
+    const Clause& cl = *clAllocator.getPointer(offset);
     assert(cl.size() > 3);
 
     attached &= findWCl(watches[cl[0].toInt()], offset);
@@ -3047,7 +3012,7 @@ void Solver::findAllAttach() const
                 continue;
 
             //Get clause
-            Clause* cl = clAllocator->getPointer(w.getOffset());
+            Clause* cl = clAllocator.getPointer(w.getOffset());
             assert(!cl->getFreed());
 
             //Assert watch correctness
@@ -3086,12 +3051,12 @@ void Solver::findAllAttach(const vector<ClOffset>& cs) const
         ; it != end
         ; it++
     ) {
-        Clause& cl = *clAllocator->getPointer(*it);
+        Clause& cl = *clAllocator.getPointer(*it);
         bool ret = findWCl(watches[cl[0].toInt()], *it);
         if (!ret) {
             cout
             << "Clause " << cl
-            << " (learnt: " << cl.learnt() << ")"
+            << " (red: " << cl.red() << ")"
             << " doesn't have its 1st watch attached!"
             << endl;
 
@@ -3103,7 +3068,7 @@ void Solver::findAllAttach(const vector<ClOffset>& cs) const
         if (!ret) {
             cout
             << "Clause " << cl
-            << " (learnt: " << cl.learnt() << ")"
+            << " (red: " << cl.red() << ")"
             << " doesn't have its 2nd watch attached!"
             << endl;
 
@@ -3139,7 +3104,7 @@ void Solver::checkNoWrongAttach() const
         ; it != end
         ; it++
     ) {
-        const Clause& cl = *clAllocator->getPointer(*it);
+        const Clause& cl = *clAllocator.getPointer(*it);
         for (uint32_t i = 0; i < cl.size(); i++) {
             if (i > 0)
                 assert(cl[i-1].var() != cl[i].var());
@@ -3149,10 +3114,14 @@ void Solver::checkNoWrongAttach() const
 
 size_t Solver::getNumFreeVars() const
 {
-    assert(decisionLevel() == 0);
     uint32_t freeVars = nVarsReal();
-    freeVars -= trail.size();
-    if (conf.doSimplify) {
+    if (decisionLevel() == 0) {
+        freeVars -= trail.size();
+    } else {
+        freeVars -= trail_lim[0];
+    }
+
+    if (conf.perform_occur_based_simp) {
         freeVars -= simplifier->getStats().numVarsElimed;
     }
     freeVars -= varReplacer->getNumReplacedVars();
@@ -3160,73 +3129,34 @@ size_t Solver::getNumFreeVars() const
     return freeVars;
 }
 
+void Solver::print_value_kilo_mega(const uint64_t value) const
+{
+    if (value > 20*1000ULL*1000ULL) {
+        cout << " " << std::setw(4) << value/(1000ULL*1000ULL) << "M";
+    } else if (value > 20ULL*1000ULL) {
+        cout << " " << std::setw(4) << value/1000 << "K";
+    } else {
+        cout << " " << std::setw(5) << value;
+    }
+}
+
 void Solver::printClauseStats() const
 {
-    //LONG irred
-    if (longIrredCls.size() > 20000) {
-        cout
-        << " " << std::setw(4) << longIrredCls.size()/1000 << "K";
-    } else {
-        cout
-        << " " << std::setw(5) << longIrredCls.size();
-    }
-
-    //TRI irred
-    if (binTri.irredTris > 20000) {
-        cout
-        << " " << std::setw(4) << binTri.irredTris/1000 << "K";
-    } else {
-        cout
-        << " " << std::setw(5) << binTri.irredTris;
-    }
-
-    //BIN irred
-    if (binTri.irredBins > 20000) {
-        cout
-        << " " << std::setw(4) << binTri.irredBins/1000 << "K";
-    } else {
-        cout
-        << " " << std::setw(5) << binTri.irredBins;
-    }
-
-    //LITERALS irred
+    //Irredundant
+    print_value_kilo_mega(longIrredCls.size());
+    print_value_kilo_mega(binTri.irredTris);
+    print_value_kilo_mega(binTri.irredBins);
     cout
     << " " << std::setw(5) << std::fixed << std::setprecision(1)
-    << (double)(binTri.irredLits - binTri.irredBins*2 - binTri.irredTris*3)
-    /(double)(longIrredCls.size());
+    << (double)litStats.irredLits/(double)(longIrredCls.size());
 
-    //LONG red
-    if (longRedCls.size() > 20000) {
-        cout
-        << " " << std::setw(4) << longRedCls.size()/1000 << "K";
-    } else {
-        cout
-        << " " << std::setw(5) << longRedCls.size();
-    }
-
-    //TRI red
-    if (binTri.redTris > 20000) {
-        cout
-        << " " << std::setw(4) << binTri.redTris/1000 << "K";
-    } else {
-        cout
-        << " " << std::setw(5) << binTri.redTris;
-    }
-
-    //BIN red
-    if (binTri.redBins > 20000) {
-        cout
-        << " " << std::setw(4) << binTri.redBins/1000 << "K";
-    } else {
-        cout
-        << " " << std::setw(5) << binTri.redBins;
-    }
-
-    //LITERALS red
+    //Redundant
+    print_value_kilo_mega(longRedCls.size());
+    print_value_kilo_mega(binTri.redTris);
+    print_value_kilo_mega(binTri.redBins);
     cout
     << " " << std::setw(5) << std::fixed << std::setprecision(1)
-    << (double)(binTri.redLits - binTri.redBins*2 - binTri.redTris*3)
-        /(double)(longRedCls.size())
+    << (double)litStats.redLits/(double)(longRedCls.size())
     ;
 }
 
@@ -3237,102 +3167,123 @@ void Solver::checkImplicitStats() const
     return;
     #endif
 
-    //Check number of learnt & non-learnt binary clauses
-    uint64_t thisNumLearntBins = 0;
-    uint64_t thisNumNonLearntBins = 0;
-    uint64_t thisNumLearntTris = 0;
-    uint64_t thisNumNonLearntTris = 0;
+    //Check number of red & irred binary clauses
+    uint64_t thisNumRedBins = 0;
+    uint64_t thisNumIrredBins = 0;
+    uint64_t thisNumRedTris = 0;
+    uint64_t thisNumIrredTris = 0;
 
     size_t wsLit = 0;
-    for(vector<vec<Watched> >::const_iterator
+    for(watch_array::const_iterator
         it = watches.begin(), end = watches.end()
         ; it != end
-        ; it++, wsLit++
+        ; ++it, wsLit++
     ) {
         #ifdef DEBUG_TRI_SORTED_SANITY
         const Lit lit = Lit::toLit(wsLit);
         #endif //DEBUG_TRI_SORTED_SANITY
 
-        const vec<Watched>& ws = *it;
-        for(vec<Watched>::const_iterator
+        watch_subarray_const ws = *it;
+        for(watch_subarray_const::const_iterator
             it2 = ws.begin(), end2 = ws.end()
             ; it2 != end2
             ; it2++
         ) {
             if (it2->isBinary()) {
-                if (it2->learnt())
-                    thisNumLearntBins++;
+                if (it2->red())
+                    thisNumRedBins++;
                 else
-                    thisNumNonLearntBins++;
+                    thisNumIrredBins++;
 
                 continue;
             }
 
             if (it2->isTri()) {
-                assert(it2->lit1() < it2->lit2());
-                assert(it2->lit1().var() != it2->lit2().var());
+                assert(it2->lit2() < it2->lit3());
+                assert(it2->lit2().var() != it2->lit3().var());
 
                 #ifdef DEBUG_TRI_SORTED_SANITY
                 Lit lits[3];
                 lits[0] = lit;
-                lits[1] = it2->lit1();
-                lits[2] = it2->lit2();
+                lits[1] = it2->lit2();
+                lits[2] = it2->lit3();
                 std::sort(lits, lits + 3);
-                findWatchedOfTri(watches, lits[0], lits[1], lits[2], it2->learnt());
-                findWatchedOfTri(watches, lits[1], lits[0], lits[2], it2->learnt());
-                findWatchedOfTri(watches, lits[2], lits[0], lits[1], it2->learnt());
+                findWatchedOfTri(watches, lits[0], lits[1], lits[2], it2->red());
+                findWatchedOfTri(watches, lits[1], lits[0], lits[2], it2->red());
+                findWatchedOfTri(watches, lits[2], lits[0], lits[1], it2->red());
                 #endif //DEBUG_TRI_SORTED_SANITY
 
-                if (it2->learnt())
-                    thisNumLearntTris++;
+                if (it2->red())
+                    thisNumRedTris++;
                 else
-                    thisNumNonLearntTris++;
+                    thisNumIrredTris++;
 
                 continue;
             }
         }
     }
 
-    if (thisNumNonLearntBins/2 != binTri.irredBins) {
+    if (thisNumIrredBins/2 != binTri.irredBins) {
         cout
         << "ERROR:"
-        << " thisNumNonLearntBins/2: " << thisNumNonLearntBins/2
+        << " thisNumIrredBins/2: " << thisNumIrredBins/2
         << " binTri.irredBins: " << binTri.irredBins
-        << "thisNumNonLearntBins: " << thisNumNonLearntBins
-        << "thisNumLearntBins: " << thisNumLearntBins << endl;
+        << "thisNumIrredBins: " << thisNumIrredBins
+        << "thisNumRedBins: " << thisNumRedBins << endl;
     }
-    assert(thisNumNonLearntBins % 2 == 0);
-    assert(thisNumNonLearntBins/2 == binTri.irredBins);
+    assert(thisNumIrredBins % 2 == 0);
+    assert(thisNumIrredBins/2 == binTri.irredBins);
 
-    if (thisNumLearntBins/2 != binTri.redBins) {
+    if (thisNumRedBins/2 != binTri.redBins) {
         cout
         << "ERROR:"
-        << " thisNumLearntBins/2: " << thisNumLearntBins/2
+        << " thisNumRedBins/2: " << thisNumRedBins/2
         << " binTri.redBins: " << binTri.redBins
         << endl;
     }
-    assert(thisNumLearntBins % 2 == 0);
-    assert(thisNumLearntBins/2 == binTri.redBins);
+    assert(thisNumRedBins % 2 == 0);
+    assert(thisNumRedBins/2 == binTri.redBins);
 
-    if (thisNumNonLearntTris/3 != binTri.irredTris) {
+    if (thisNumIrredTris/3 != binTri.irredTris) {
         cout
         << "ERROR:"
-        << " thisNumNonLearntTris/3: " << thisNumNonLearntTris/3
+        << " thisNumIrredTris/3: " << thisNumIrredTris/3
         << " binTri.irredTris: " << binTri.irredTris
         << endl;
     }
-    assert(thisNumNonLearntTris % 3 == 0);
-    assert(thisNumNonLearntTris/3 == binTri.irredTris);
+    assert(thisNumIrredTris % 3 == 0);
+    assert(thisNumIrredTris/3 == binTri.irredTris);
 
-    if (thisNumLearntTris/3 != binTri.redTris) {
+    if (thisNumRedTris/3 != binTri.redTris) {
         cout
         << "ERROR:"
-        << " thisNumLearntTris/3: " << thisNumLearntTris/3
+        << " thisNumRedTris/3: " << thisNumRedTris/3
         << " binTri.redTris: " << binTri.redTris
         << endl;
     }
-    assert(thisNumLearntTris % 3 == 0);
-    assert(thisNumLearntTris/3 == binTri.redTris);
+    assert(thisNumRedTris % 3 == 0);
+    assert(thisNumRedTris/3 == binTri.redTris);
+}
+
+uint64_t Solver::countLits(
+    const vector<ClOffset>& clause_array
+    , bool allowFreed
+) const {
+    uint64_t lits = 0;
+    for(vector<ClOffset>::const_iterator
+        it = clause_array.begin(), end = clause_array.end()
+        ; it != end
+        ; it++
+    ) {
+        const Clause& cl = *clAllocator.getPointer(*it);
+        if (cl.freed()) {
+            assert(allowFreed);
+        } else {
+            lits += cl.size();
+        }
+    }
+
+    return lits;
 }
 
 void Solver::checkStats(const bool allowFreed) const
@@ -3344,49 +3295,21 @@ void Solver::checkStats(const bool allowFreed) const
 
     checkImplicitStats();
 
-    //Count number of non-learnt literals
-    uint64_t numLitsNonLearnt = binTri.irredBins*2 + binTri.irredTris*3;
-    for(vector<ClOffset>::const_iterator
-        it = longIrredCls.begin(), end = longIrredCls.end()
-        ; it != end
-        ; it++
-    ) {
-        const Clause& cl = *clAllocator->getPointer(*it);
-        if (cl.freed()) {
-            assert(allowFreed);
-        } else {
-            numLitsNonLearnt += cl.size();
-        }
-    }
-
-    //Count number of learnt literals
-    uint64_t numLitsLearnt = binTri.redBins*2 + binTri.redTris*3;
-    for(vector<ClOffset>::const_iterator
-        it = longRedCls.begin(), end = longRedCls.end()
-        ; it != end
-        ; it++
-    ) {
-        const Clause& cl = *clAllocator->getPointer(*it);
-        if (cl.freed()) {
-            assert(allowFreed);
-        } else {
-            numLitsLearnt += cl.size();
-        }
-    }
-
-    //Check counts
-    if (numLitsNonLearnt != binTri.irredLits) {
+    uint64_t numLitsIrred = countLits(longIrredCls, allowFreed);
+    if (numLitsIrred != litStats.irredLits) {
         cout << "ERROR: " << endl;
-        cout << "->numLitsNonLearnt: " << numLitsNonLearnt << endl;
-        cout << "->binTri.irredLits: " << binTri.irredLits << endl;
+        cout << "->numLitsIrred: " << numLitsIrred << endl;
+        cout << "->litStats.irredLits: " << litStats.irredLits << endl;
     }
-    if (numLitsLearnt != binTri.redLits) {
+    assert(numLitsIrred == litStats.irredLits);
+
+    uint64_t numLitsRed = countLits(longRedCls, allowFreed);
+    if (numLitsRed != litStats.redLits) {
         cout << "ERROR: " << endl;
-        cout << "->numLitsLearnt: " << numLitsLearnt << endl;
-        cout << "->binTri.redLits: " << binTri.redLits << endl;
+        cout << "->numLitsRed: " << numLitsRed << endl;
+        cout << "->litStats.redLits: " << litStats.redLits << endl;
     }
-    assert(numLitsNonLearnt == binTri.irredLits);
-    assert(numLitsLearnt == binTri.redLits);
+    assert(numLitsRed == litStats.redLits);
 }
 
 size_t Solver::getNewToReplaceVars() const
@@ -3404,28 +3327,28 @@ const char* Solver::getVersion()
 }
 
 
-void Solver::printWatchlist(const vec<Watched>& ws, const Lit lit) const
+void Solver::printWatchlist(watch_subarray_const ws, const Lit lit) const
 {
-    for (vec<Watched>::const_iterator
+    for (watch_subarray::const_iterator
         it = ws.begin(), end = ws.end()
         ; it != end
         ; it++
     ) {
         if (it->isClause()) {
             cout
-            << "Clause: " << *clAllocator->getPointer(it->getOffset());
+            << "Clause: " << *clAllocator.getPointer(it->getOffset());
         }
 
         if (it->isBinary()) {
             cout
-            << "BIN: " << lit << ", " << it->lit1()
-            << " (l: " << it->learnt() << ")";
+            << "BIN: " << lit << ", " << it->lit2()
+            << " (l: " << it->red() << ")";
         }
 
         if (it->isTri()) {
             cout
-            << "TRI: " << lit << ", " << it->lit1() << ", " << it->lit2()
-            << " (l: " << it->learnt() << ")";
+            << "TRI: " << lit << ", " << it->lit2() << ", " << it->lit3()
+            << " (l: " << it->red() << ")";
         }
 
         cout << endl;
@@ -3436,14 +3359,15 @@ void Solver::printWatchlist(const vec<Watched>& ws, const Lit lit) const
 void Solver::checkImplicitPropagated() const
 {
     size_t wsLit = 0;
-    for(vector<vec<Watched> >::const_iterator
+    for(watch_array::const_iterator
         it = watches.begin(), end = watches.end()
         ; it != end
-        ; it++, wsLit++
+        ; ++it, wsLit++
     ) {
         const Lit lit = Lit::toLit(wsLit);
-        for(vec<Watched>::const_iterator
-            it2 = it->begin(), end2 = it->end()
+        watch_subarray_const ws = *it;
+        for(watch_subarray_const::const_iterator
+            it2 = ws.begin(), end2 = ws.end()
             ; it2 != end2
             ; it2++
         ) {
@@ -3455,15 +3379,15 @@ void Solver::checkImplicitPropagated() const
             }
 
             const lbool val1 = value(lit);
-            const lbool val2 = value(it2->lit1());
+            const lbool val2 = value(it2->lit2());
 
             //Handle binary
             if (it2->isBinary()) {
                 if (val1 == l_False) {
                     if (val2 != l_True) {
                         cout << "not prop BIN: "
-                        << lit << ", " << it2->lit1()
-                        << " (learnt: " << it2->learnt()
+                        << lit << ", " << it2->lit2()
+                        << " (red: " << it2->red()
                         << endl;
                     }
                     assert(val2 == l_True);
@@ -3475,7 +3399,7 @@ void Solver::checkImplicitPropagated() const
 
             //Handle 3-long clause
             if (it2->isTri()) {
-                const lbool val3 = value(it2->lit2());
+                const lbool val3 = value(it2->lit3());
 
                 if (val1 == l_False
                     && val2 == l_False
@@ -3501,7 +3425,7 @@ void Solver::checkImplicitPropagated() const
 
 size_t Solver::getNumVarsElimed() const
 {
-    if (conf.doSimplify) {
+    if (conf.perform_occur_based_simp) {
         return simplifier->getStats().numVarsElimed;
     } else {
         return 0;
@@ -3513,84 +3437,101 @@ size_t Solver::getNumVarsReplaced() const
     return varReplacer->getNumReplacedVars();
 }
 
+void Solver::open_file_and_dump_red_clauses() const
+{
+    std::ofstream outfile;
+    open_dump_file(outfile, conf.redDumpFname);
+    try {
+        if (!okay()) {
+            outfile
+            << "p cnf 0 1\n"
+            << "0\n";
+        } else {
+            dumpRedClauses(&outfile, conf.maxDumpRedsSize);
+        }
+    } catch (std::ifstream::failure e) {
+        cout
+        << "Error writing clause dump to file: " << e.what()
+        << endl;
+        exit(-1);
+    }
+}
+
+void Solver::open_file_and_dump_irred_clauses() const
+{
+    std::ofstream outfile;
+    open_dump_file(outfile, conf.irredDumpFname);
+
+    try {
+        if (!okay()) {
+            outfile
+            << "p cnf 0 1\n"
+            << "0\n";
+        } else {
+            dumpIrredClauses(&outfile);
+        }
+    } catch (std::ifstream::failure e) {
+        cout
+        << "Error writing clause dump to file: " << e.what()
+        << endl;
+        exit(-1);
+    }
+}
+
+void Solver::open_dump_file(std::ofstream& outfile, std::string filename) const
+{
+    outfile.open(filename.c_str());
+    if (!outfile) {
+        cout
+        << "Cannot open file '"
+        << filename
+        << "' for writing. exiting"
+        << endl;
+        exit(-1);
+    }
+    outfile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+}
+
 void Solver::dumpIfNeeded() const
 {
-    if (!conf.needToDumpLearnts
-        && !conf.needToDumpSimplified
+    if (conf.redDumpFname.empty()
+        && conf.irredDumpFname.empty()
     ) {
-        //Nothing to do, return
-        return;
-    }
-
-    //Handle UNSAT
-    if (!solver->okay()) {
-        cout
-        << "c Problem is UNSAT, so simplified and/or learnt clauses cannot be dumped"
-        << endl;
-
         return;
     }
 
     //Don't dump implicit clauses multiple times
-    if (conf.doStrSubImplicit) {
-        solver->clauseVivifier->subsumeImplicit();
+    if (conf.doStrSubImplicit && okay()) {
+        subsumeImplicit->subsume_implicit();
     }
 
-    if (conf.needToDumpLearnts) {
-        std::ofstream outfile;
-        outfile.open(conf.learntsDumpFilename.c_str());
-        if (!outfile) {
-            cout
-            << "ERROR: Couldn't open file '"
-            << conf.learntsDumpFilename
-            << "' for writing, cannot dump learnt clauses!"
-            << endl;
-        } else {
-            solver->dumpRedClauses(&outfile, conf.maxDumpLearntsSize);
-        }
-
-        cout << "Dumped redundant (~learnt) clauses" << endl;
+    if (!conf.redDumpFname.empty()) {
+        open_file_and_dump_red_clauses();
+        cout << "Dumped redundant clauses" << endl;
     }
 
-    if (conf.needToDumpSimplified) {
-        if (conf.verbosity >= 1) {
-            cout
-            << "c Dumping simplified original clauses to file '"
-            << conf.simplifiedDumpFilename << "'"
-            << endl;
-        }
-
-        std::ofstream outfile;
-        outfile.open(conf.simplifiedDumpFilename.c_str());
-        if (!outfile) {
-            cout
-            << "Cannot open file '"
-            << conf.simplifiedDumpFilename
-            << "' for writing. exiting"
-            << endl;
-            exit(-1);
-        }
-
-        if (okay()) {
-            solver->dumpIrredClauses(&outfile);
-        } else {
-            outfile << "p cnf 0 1" << endl;
-            outfile << "0";
-        }
-
-        cout << "Dumped irredundant (~non-learnt) clauses" << endl;
+    if (!conf.irredDumpFname.empty()) {
+        open_file_and_dump_irred_clauses();
+        cout
+        << "c [solver] Dumped irredundant clauses to file "
+        << "'" << conf.irredDumpFname << "'." << endl
+        << "c [solver] Note that these may NOT be in the original CNF, but"
+        << " *describe the same problem* with the *same variables*"
+        << endl;
     }
 }
 
-Lit Solver::updateLit(Lit lit) const
+Lit Solver::updateLitForDomin(Lit lit) const
 {
     //Nothing to update
     if (lit == lit_Undef)
         return lit;
 
+    //Update to parent
     lit = varReplacer->getLitReplacedWith(lit);
 
-    if (varData[lit.var()].elimed)
+    //If parent is removed, then this dominator cannot be updated
+    if (varData[lit.var()].removed != Removed::none)
         return lit_Undef;
 
     return lit;
@@ -3598,24 +3539,13 @@ Lit Solver::updateLit(Lit lit) const
 
 void Solver::updateDominators()
 {
-    for(vector<Timestamp>::iterator
-        it = stamp.tstamp.begin(), end = stamp.tstamp.end()
-        ; it != end
-        ; it++
-    ) {
+    for(Timestamp& tstamp: stamp.tstamp) {
         for(size_t i = 0; i < 2; i++) {
-            Lit newLit = updateLit(it->dominator[i]);
-            it->dominator[i] = newLit;
+            Lit newLit = updateLitForDomin(tstamp.dominator[i]);
+            tstamp.dominator[i] = newLit;
             if (newLit == lit_Undef)
-                it->numDom[i] = 0;
+                tstamp.numDom[i] = 0;
         }
-    }
-}
-
-void Solver::print_elimed_vars() const
-{
-    if (conf.doSimplify) {
-        simplifier->print_elimed_vars();
     }
 }
 
@@ -3633,8 +3563,8 @@ void Solver::calcReachability()
 
         //Check if it's a good idea to look at the variable as a dominator
         if (value(var) != l_Undef
-            || varData[var].elimed != ELIMED_NONE
-            || !decisionVar[var]
+            || varData[var].removed != Removed::none
+            || !varData[var].is_decision
         ) {
             continue;
         }
@@ -3679,33 +3609,38 @@ void Solver::calcReachability()
 void Solver::freeUnusedWatches()
 {
     size_t wsLit = 0;
-    for (vector<vec<Watched> >::iterator
+    for (watch_array::iterator
         it = solver->watches.begin(), end = solver->watches.end()
         ; it != end
-        ; it++, wsLit++
+        ; ++it, wsLit++
     ) {
         Lit lit = Lit::toLit(wsLit);
-        if (varData[lit.var()].elimed == ELIMED_VARELIM
-            || varData[lit.var()].elimed == ELIMED_VARREPLACER
-            || varData[lit.var()].elimed == ELIMED_DECOMPOSE
+        if (varData[lit.var()].removed == Removed::elimed
+            || varData[lit.var()].removed == Removed::replaced
+            || varData[lit.var()].removed == Removed::decomposed
         ) {
-            assert(it->empty());
-            it->clear(true);
+            watch_subarray ws = *it;
+            assert(ws.empty());
+            ws.clear();
         }
-
-        it->fitToSize();
     }
+    solver->watches.consolidate();
 }
 
 bool Solver::enqueueThese(const vector<Lit>& toEnqueue)
 {
     assert(ok);
     assert(decisionLevel() == 0);
-    for(size_t i = 0; i < toEnqueue.size(); i++) {
-        const lbool val = value(toEnqueue[i]);
+    for(const Lit lit: toEnqueue) {
+
+        const lbool val = value(lit);
         if (val == l_Undef) {
-            enqueue(toEnqueue[i]);
+            assert(varData[lit.var()].removed == Removed::none
+                || varData[lit.var()].removed == Removed::queued_replacer
+            );
+            enqueue(lit);
             ok = propagate().isNULL();
+
             if (!ok) {
                 return false;
             }
@@ -3717,3 +3652,9 @@ bool Solver::enqueueThese(const vector<Lit>& toEnqueue)
 
     return true;
 }
+
+void Solver::new_external_var()
+{
+    newVar(false);
+}
+

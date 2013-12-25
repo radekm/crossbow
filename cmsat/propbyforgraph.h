@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,6 +22,7 @@
 #include "solvertypes.h"
 #include "clause.h"
 #include "propby.h"
+#include "clauseallocator.h"
 
 #ifndef __PROPBYFORGRAPH_H__
 #define __PROPBYFORGRAPH_H__
@@ -47,9 +48,9 @@ class PropByForGraph
         {
             if (orig.getType() == binary_t || orig.getType() == tertiary_t) {
                 lits[0] = otherLit;
-                lits[1] = orig.lit1();
+                lits[1] = orig.lit2();
                 if (orig.getType() == tertiary_t) {
-                    lits[2] = orig.lit2();
+                    lits[2] = orig.lit3();
                     type = 2;
                     isize = 3;
                 } else {

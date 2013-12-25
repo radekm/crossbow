@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,6 +27,7 @@
 #include <boost/multi_array.hpp>
 #include "time_mem.h"
 #include "avgcalc.h"
+#include "hyperengine.h"
 namespace CMSat {
 
 class Solver;
@@ -45,17 +46,17 @@ struct OTFClause
 
 struct VariableVariance
 {
-    double avgDecLevelVarLT;
-    double avgTrailLevelVarLT;
-    double avgDecLevelVar;
-    double avgTrailLevelVar;
+    double avgDecLevelVarLT = 0;
+    double avgTrailLevelVarLT= 0;
+    double avgDecLevelVar = 0;
+    double avgTrailLevelVar = 0;
 };
 
-class Searcher : public PropEngine
+class Searcher : public HyperEngine
 {
     public:
         Searcher(const SolverConf& _conf, Solver* solver);
-        ~Searcher();
+        virtual ~Searcher();
 
         //History
         struct Hist {
@@ -88,18 +89,12 @@ class Searcher : public PropEngine
 
             #ifdef STATS_NEEDED
             AvgCalc<bool>       conflictAfterConflict;
-            AvgCalc<bool>       conflictAfterConflictLT;
-
             AvgCalc<size_t>     watchListSizeTraversed;
-            AvgCalc<size_t>     watchListSizeTraversedLT;
-
-            AvgCalc<bool>       litPropagatedSomething;
-            AvgCalc<bool>       litPropagatedSomethingLT;
             #endif
 
-            size_t getMemUsed() const
+            size_t memUsed() const
             {
-                size_t used = 0;
+                uint64_t used = sizeof(Hist);
                 used += sizeof(AvgCalc<uint32_t>)*16;
                 used += sizeof(AvgCalc<bool>)*4;
                 used += sizeof(AvgCalc<size_t>)*2;
@@ -128,7 +123,6 @@ class Searcher : public PropEngine
                 #ifdef STATS_NEEDED
                 conflictAfterConflict.clear();
                 watchListSizeTraversed.clear();
-                litPropagatedSomething.clear();
                 #endif
             }
 
@@ -172,38 +166,32 @@ class Searcher : public PropEngine
 
                 cout << std::right;
             }
-
-            uint64_t memUsed() const
-            {
-                uint64_t mem = sizeof(Hist);
-                mem += glueHist.usedMem();
-                return mem;
-            }
         };
 
-        //////////////////////////////
-        // Problem specification:
-        Var newVar(bool dvar = true); // Add a new variable that can be decided on or not
-
         ///////////////////////////////
-        // Solving:
-        ///Search for a model that respects a given set of assumptions.
+        // Solving
+        //
         lbool solve(
-            const vector<Lit>& assumps
-            , const uint64_t maxConfls = std::numeric_limits<uint64_t>::max()
+            uint64_t maxConfls = std::numeric_limits<uint64_t>::max()
         );
+        void finish_up_solve(lbool status);
+        void print_solution_varreplace_status() const;
+        void setup_restart_print();
+        void reduce_db_if_needed();
+        void clean_clauses_if_needed();
+        lbool perform_scc_and_varreplace_if_needed();
+        void save_search_loop_stats();
+        bool must_abort(lbool status);
+        void print_search_loop_num();
+        uint64_t max_conflicts_geometric;
+        uint64_t max_conflicts;
+        uint64_t loop_num;
 
-        ///Search without assumptions.
-        lbool solve(
-            const uint64_t maxConfls = std::numeric_limits<uint64_t>::max()
-        );
         vector<lbool> solution;     ///<Filled only if solve() returned l_True
         vector<Lit>   conflict;     ///<If problem is unsatisfiable (possibly under assumptions), this vector represent the final conflict clause expressed in the assumptions.
         PropBy propagate(
-            Solver* solver = NULL
             #ifdef STATS_NEEDED
-            , AvgCalc<size_t>* watchListSizeTraversed = NULL
-            //, AvgCalc<bool>* litPropagatedSomething
+            AvgCalc<size_t>* watchListSizeTraversed = NULL
             #endif
         );
 
@@ -212,7 +200,8 @@ class Searcher : public PropEngine
         //Restart print status
         uint64_t lastRestartPrint;
         uint64_t lastRestartPrintHeader;
-        void     check_if_print_restart_stat(const lbool status);
+        void     print_restart_stat();
+        void     print_iteration_solving_stats();
         void     printRestartHeader() const;
         void     printRestartStats() const;
         void     printBaseStats() const;
@@ -222,8 +211,6 @@ class Searcher : public PropEngine
         const Hist& getHistory() const;
 
         void     setNeedToInterrupt();
-        uint32_t getSavedActivity(Var var) const;
-        uint32_t getVarInc() const;
 
         struct Stats
         {
@@ -238,8 +225,8 @@ class Searcher : public PropEngine
                 , decisionFlippedPolar(0)
 
                 //Conflict generation
-                , litsLearntNonMin(0)
-                , litsLearntFinal(0)
+                , litsRedNonMin(0)
+                , litsRedFinal(0)
                 , recMinCl(0)
                 , recMinLitRem(0)
                 , furtherShrinkAttempt(0)
@@ -253,7 +240,7 @@ class Searcher : public PropEngine
                 , moreMinimLitsEnd(0)
                 , recMinimCost(0)
 
-                //Learnt stats
+                //Red stats
                 , learntUnits(0)
                 , learntBins(0)
                 , learntTris(0)
@@ -261,7 +248,7 @@ class Searcher : public PropEngine
                 , otfSubsumed(0)
                 , otfSubsumedImplicit(0)
                 , otfSubsumedLong(0)
-                , otfSubsumedLearnt(0)
+                , otfSubsumedRed(0)
                 , otfSubsumedLitsGained(0)
 
                 //Hyper-bin & transitive reduction
@@ -292,8 +279,8 @@ class Searcher : public PropEngine
                 decisionFlippedPolar += other.decisionFlippedPolar;
 
                 //Conflict minimisation stats
-                litsLearntNonMin += other.litsLearntNonMin;
-                litsLearntFinal += other.litsLearntFinal;
+                litsRedNonMin += other.litsRedNonMin;
+                litsRedFinal += other.litsRedFinal;
                 recMinCl += other.recMinCl;
                 recMinLitRem += other.recMinLitRem;
 
@@ -310,7 +297,7 @@ class Searcher : public PropEngine
                 moreMinimLitsEnd += other.moreMinimLitsEnd;
                 recMinimCost += other.recMinimCost;
 
-                //Learnt stats
+                //Red stats
                 learntUnits += other.learntUnits;
                 learntBins += other.learntBins;
                 learntTris += other.learntTris;
@@ -318,7 +305,7 @@ class Searcher : public PropEngine
                 otfSubsumed += other.otfSubsumed;
                 otfSubsumedImplicit += other.otfSubsumedImplicit;
                 otfSubsumedLong += other.otfSubsumedLong;
-                otfSubsumedLearnt += other.otfSubsumedLearnt;
+                otfSubsumedRed += other.otfSubsumedRed;
                 otfSubsumedLitsGained += other.otfSubsumedLitsGained;
 
                 //Hyper-bin & transitive reduction
@@ -348,8 +335,8 @@ class Searcher : public PropEngine
                 decisionFlippedPolar -= other.decisionFlippedPolar;
 
                 //Conflict minimisation stats
-                litsLearntNonMin -= other.litsLearntNonMin;
-                litsLearntFinal -= other.litsLearntFinal;
+                litsRedNonMin -= other.litsRedNonMin;
+                litsRedFinal -= other.litsRedFinal;
                 recMinCl -= other.recMinCl;
                 recMinLitRem -= other.recMinLitRem;
 
@@ -365,7 +352,7 @@ class Searcher : public PropEngine
                 moreMinimLitsEnd -= other.moreMinimLitsEnd;
                 recMinimCost -= other.recMinimCost;
 
-                //Learnt stats
+                //Red stats
                 learntUnits -= other.learntUnits;
                 learntBins -= other.learntBins;
                 learntTris -= other.learntTris;
@@ -373,7 +360,7 @@ class Searcher : public PropEngine
                 otfSubsumed -= other.otfSubsumed;
                 otfSubsumedImplicit -= other.otfSubsumedImplicit;
                 otfSubsumedLong -= other.otfSubsumedLong;
-                otfSubsumedLearnt -= other.otfSubsumedLearnt;
+                otfSubsumedRed -= other.otfSubsumedRed;
                 otfSubsumedLitsGained -= other.otfSubsumedLitsGained;
 
                 //Hyper-bin & transitive reduction
@@ -425,19 +412,18 @@ class Searcher : public PropEngine
                 conflStats.printShort(cpu_time);
 
                 printStatsLine("c conf lits non-minim"
-                    , litsLearntNonMin
-                    , (double)litsLearntNonMin/(double)conflStats.numConflicts
+                    , litsRedNonMin
+                    , (double)litsRedNonMin/(double)conflStats.numConflicts
                     , "lit/confl"
                 );
 
                 printStatsLine("c conf lits final"
-                    , (double)litsLearntFinal/(double)conflStats.numConflicts
+                    , (double)litsRedFinal/(double)conflStats.numConflicts
                 );
             }
 
             void print() const
             {
-                uint64_t mem_used = memUsed();
                 printCommon();
                 conflStats.print(cpu_time);
 
@@ -485,8 +471,8 @@ class Searcher : public PropEngine
                 );
 
                 printStatsLine("c otf-subs learnt"
-                    , otfSubsumedLearnt
-                    , (double)otfSubsumedLearnt/(double)otfSubsumed*100.0
+                    , otfSubsumedRed
+                    , (double)otfSubsumedRed/(double)otfSubsumed*100.0
                     , "% otf subsumptions"
                 );
 
@@ -518,8 +504,8 @@ class Searcher : public PropEngine
 
                 cout << "c CONFL LITS stats" << endl;
                 printStatsLine("c orig "
-                    , litsLearntNonMin
-                    , (double)litsLearntNonMin/(double)conflStats.numConflicts
+                    , litsRedNonMin
+                    , (double)litsRedNonMin/(double)conflStats.numConflicts
                     , "lit/confl"
                 );
 
@@ -531,7 +517,7 @@ class Searcher : public PropEngine
 
                 printStatsLine("c rec-min lits"
                     , recMinLitRem
-                    , (double)recMinLitRem/(double)litsLearntNonMin*100.0
+                    , (double)recMinLitRem/(double)litsRedNonMin*100.0
                     , "% less overall"
                 );
 
@@ -543,13 +529,13 @@ class Searcher : public PropEngine
 
                 printStatsLine("c bintri-min lits"
                     , binTriShrinkedClause
-                    , (double)binTriShrinkedClause/(double)litsLearntNonMin*100.0
+                    , (double)binTriShrinkedClause/(double)litsRedNonMin*100.0
                     , "% less overall"
                 );
 
                 printStatsLine("c cache-min lits"
                     , cacheShrinkedClause
-                    , (double)cacheShrinkedClause/(double)litsLearntNonMin*100.0
+                    , (double)cacheShrinkedClause/(double)litsRedNonMin*100.0
                     , "% less overall"
                 );
 
@@ -561,16 +547,16 @@ class Searcher : public PropEngine
 
                 printStatsLine("c stamp-min lits"
                     , stampShrinkLit
-                    , (double)stampShrinkLit/(double)litsLearntNonMin*100.0
+                    , (double)stampShrinkLit/(double)litsRedNonMin*100.0
                     , "% less overall"
                 );
 
                 printStatsLine("c final avg"
-                    , (double)litsLearntFinal/(double)conflStats.numConflicts
+                    , (double)litsRedFinal/(double)conflStats.numConflicts
                 );
 
                 //General stats
-                printStatsLine("c Memory used", (double)mem_used / 1048576.0, " MB");
+                //printStatsLine("c Memory used", (double)mem_used / 1048576.0, " MB");
                 #if !defined(_MSC_VER) && defined(RUSAGE_THREAD)
                 printStatsLine("c single-thread CPU time", cpu_time, " s");
                 #else
@@ -586,8 +572,8 @@ class Searcher : public PropEngine
             uint64_t  decisionsRand;    ///<Numer of random decisions made
             uint64_t  decisionFlippedPolar; ///<While deciding, we flipped polarity
 
-            uint64_t litsLearntNonMin;
-            uint64_t litsLearntFinal;
+            uint64_t litsRedNonMin;
+            uint64_t litsRedFinal;
             uint64_t recMinCl;
             uint64_t recMinLitRem;
             uint64_t furtherShrinkAttempt;
@@ -601,7 +587,7 @@ class Searcher : public PropEngine
             uint64_t moreMinimLitsEnd;
             uint64_t recMinimCost;
 
-            //Learnt stats
+            //Red stats
             uint64_t learntUnits;
             uint64_t learntBins;
             uint64_t learntTris;
@@ -609,7 +595,7 @@ class Searcher : public PropEngine
             uint64_t otfSubsumed;
             uint64_t otfSubsumedImplicit;
             uint64_t otfSubsumedLong;
-            uint64_t otfSubsumedLearnt;
+            uint64_t otfSubsumedRed;
             uint64_t otfSubsumedLitsGained;
 
             //Hyper-bin & transitive reduction
@@ -629,10 +615,19 @@ class Searcher : public PropEngine
         };
 
     protected:
+        virtual void newVar(bool bva, Var orig_outer);
+        void saveVarMem();
+        void updateVars(
+            const vector<uint32_t>& outerToInter
+            , const vector<uint32_t>& interToOuter
+        );
+        void renumber_assumptions(const vector<Var>& outerToInter);
+        vector<char> assumptionsSet;
+        vector<Lit> assumptions; ///< Current set of assumptions provided to solve by the user.
+
         friend class CalcDefPolars;
         friend class VarReplacer;
         void filterOrderHeap();
-        void redoOrderHeap();
 
         //For connection with Solver
         void  resetStats();
@@ -653,7 +648,6 @@ class Searcher : public PropEngine
         //Settings
         Solver*   solver;          ///< Thread control class
         MTRand           mtrand;           ///< random number generator
-        SolverConf       conf;             ///< Solver config for this thread
         bool             needToInterrupt;  ///<If set to TRUE, interrupt cleanly ASAP
 
         //Stats printing
@@ -662,22 +656,30 @@ class Searcher : public PropEngine
         /////////////////
         // Searching
         /// Search for a given number of conflicts.
-        lbool search(
-            uint64_t* geom_max
-        );
+        bool last_decision_ended_in_conflict;
+        lbool search();
         lbool burstSearch();
         bool  handle_conflict(PropBy confl);// Handles the conflict clause
+        void  update_history_stats(size_t backtrack_level, size_t glue);
+        void  attach_and_enqueue_learnt_clause(Clause* cl);
+        void  print_learning_debug_info() const;
+        void  print_learnt_clause() const;
+        void  add_otf_subsume_long_clauses();
+        void  add_otf_subsume_implicit_clause();
+        Clause* handle_last_confl_otf_subsumption(Clause* cl, const size_t glue);
         lbool new_decision();  // Handles the case when decision must be made
-        void  checkNeedRestart(uint64_t* geom_max);     // Helper function to decide if we need to restart during search
-        RestartType decide_restart_type() const;
+        void  checkNeedRestart();     // Helper function to decide if we need to restart during search
+        Restart decide_restart_type() const;
         Lit   pickBranchLit();                             // Return the next decision variable.
+        lbool otf_hyper_prop_first_dec_level(bool& must_continue);
+        void  hyper_bin_update_cache(vector<Lit>& to_enqueue_toplevel);
 
         ///////////////
         // Conflicting
         struct SearchParams
         {
             SearchParams() :
-                rest_type(no_restart)
+                rest_type(Restart::never)
             {
                 clear();
             }
@@ -695,35 +697,50 @@ class Searcher : public PropEngine
             uint64_t conflictsDoneThisRestart;
             uint64_t conflictsToDo;
             uint64_t numAgilityNeedRestart;
-            RestartType rest_type;
+            Restart rest_type;
         };
         SearchParams params;
         void     cancelUntil      (uint32_t level);                        ///<Backtrack until a certain level.
         vector<Lit> learnt_clause;
-        Clause* analyze(
+        Clause* analyze_conflict(
             PropBy confl //The conflict that we are investigating
             , uint32_t& out_btlevel      //backtrack level
-            , uint32_t &nblevels         //glue of the learnt clause
-            , ResolutionTypes<uint16_t> &resolutions   //number of resolutions mades
+            , uint32_t &glue         //glue of the learnt clause
             , bool fromProber = false
         );
+        void minimize_learnt_clause();
+        void mimimize_learnt_clause_based_on_cache();
+        void print_fully_minimized_learnt_clause() const;
+        size_t find_backtrack_level_of_learnt();
+        void bump_var_activities_based_on_last_decision_level(size_t glue);
+        Clause* otf_subsume_last_resolved_clause(Clause* last_resolved_long_cl);
+        void print_debug_resolution_data(PropBy confl);
+        Clause* create_learnt_clause(PropBy confl, bool fromProber);
+        int pathC;
+        ResolutionTypes<uint16_t> resolutions;
 
         vector<std::pair<Lit, size_t> > lastDecisionLevel; //for glue-based extra var activity bumping
 
         //OTF subsumption
-        vector<ClOffset> toAttachLater;
-        void doOTFSubsume(PropBy confl);
-        vector<OTFClause> otfMustAttach;
-        //set<Lit> learnt_clause2;
-        size_t learnt_clause2_size;
-        CL_ABST_TYPE learnt_clause2_abst;
-
-        void analyzeHelper(
-            Lit lit
-            , int& pathC
+        vector<ClOffset> otf_subsuming_long_cls;
+        vector<OTFClause> otf_subsuming_short_cls;
+        void check_otf_subsume(PropBy confl);
+        void create_otf_subsuming_implicit_clause(const Clause& cl);
+        void create_otf_subsuming_long_clause(
+           Clause& cl
+            , ClOffset offset
+        );
+        Clause* add_literals_from_confl_to_learnt(
+            const PropBy confl
+            , const Lit p
             , bool fromProber
         );
-        void     analyzeFinal     (const Lit p, vector<Lit>& out_conflict);
+        void debug_print_resolving_clause(const PropBy confl) const;
+        size_t tmp_learnt_clause_size;
+        CL_ABST_TYPE tmp_learnt_clause_abst;
+
+        void add_lit_to_learnt(Lit lit, bool fromProber);
+        void analyzeFinal(const Lit p, vector<Lit>& out_conflict);
 
         //////////////
         // Conflict minimisation
@@ -744,8 +761,16 @@ class Searcher : public PropEngine
 
         /////////////////
         //Graphical conflict generation
-        void         genConfGraph     (PropBy conflPart);
-        string simplAnalyseGraph (PropBy conflHalf, uint32_t& out_btlevel, uint32_t &glue);
+        void   create_graphviz_confl_graph     (PropBy conflPart);
+        string analyze_confl_for_graphviz_graph (PropBy conflHalf, uint32_t& out_btlevel, uint32_t &glue);
+        void print_edges_for_graphviz_file(std::ofstream& file) const;
+        void print_vertex_definitions_for_graphviz_file(std::ofstream& file);
+        void fill_seen_for_lits_connected_to_conflict_graph(
+            vector<Lit>& lits
+        );
+        vector<Lit> get_lits_from_conflict(const PropBy conflPart);
+
+
 
         /////////////////
         // Variable activity
@@ -756,12 +781,42 @@ class Searcher : public PropEngine
 
         ////////////
         // Transitive on-the-fly self-subsuming resolution
-        void   minimiseLearntFurther(vector<Lit>& cl);
-        void   stampBasedLearntMinim(vector<Lit>& cl);
+        void   minimiseRedFurther(vector<Lit>& cl);
+        void   stampBasedRedMinim(vector<Lit>& cl);
         const Stats& getStats() const;
-        uint64_t memUsedSearch() const;
+        size_t memUsed() const;
 
     private:
+        //For printint longest decision trail
+        vector<Lit> longest_dec_trail;
+        size_t last_confl_longest_dec_trail_printed = 0;
+        void handle_longest_decision_trail();
+
+        struct ActPolarBackup
+        {
+            ActPolarBackup() :
+                saved(0)
+            {}
+
+            vector<uint32_t> activity;
+            vector<bool>     polarity;
+            uint32_t         var_inc;
+            bool             saved;
+
+            size_t memUsed() const
+            {
+                size_t mem = 0;
+                mem += activity.capacity()*sizeof(uint32_t);
+                mem += polarity.capacity();
+                mem += sizeof(ActPolarBackup);
+
+                return mem;
+            }
+        };
+        ActPolarBackup act_polar_backup;
+        void backup_activities_and_polarities();
+        void restore_activities_and_polarities();
+        void restore_order_heap();
 
         //Variable activities
         struct VarFilter { ///Filter out vars that have been set or is not decision from heap
@@ -810,18 +865,12 @@ class Searcher : public PropEngine
         void printClauseDistribSQL();
         PropStats lastSQLPropStats;
         Stats lastSQLGlobalStats;
-        void calcVariancesLT(
-            double& avgDecLevelVar
-            , double& avgTrailLevelVar
-        );
         void calcVariances(
-            double& avgDecLevelVar
+            const vector<VarData>& data
+            , double& avgDecLevelVar
             , double& avgTrailLevelVar
         );
         #endif
-
-        //Assumptions
-        vector<Lit> assumptions; ///< Current set of assumptions provided to solve by the user.
 
         //Picking polarity when doing decision
         bool     pickPolarity(const Var var);
@@ -886,22 +935,6 @@ inline void Searcher::varBumpActivity(Var var)
 inline uint32_t Searcher::abstractLevel(const Var x) const
 {
     return ((uint32_t)1) << (varData[x].level % 32);
-}
-
-inline lbool Searcher::solve(const uint64_t maxConfls)
-{
-    vector<Lit> tmp;
-    return solve(tmp, maxConfls);
-}
-
-inline uint32_t Searcher::getSavedActivity(Var var) const
-{
-    return activities[var];
-}
-
-inline uint32_t Searcher::getVarInc() const
-{
-    return var_inc;
 }
 
 inline const Searcher::Stats& Searcher::getStats() const

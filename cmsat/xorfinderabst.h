@@ -17,35 +17,31 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  * MA 02110-1301  USA
-*/
+ */
 
-#ifndef CALCDEFAULTPOLARITIES__H
-#define CALCDEFAULTPOLARITIES__H
-
-#include "vec.h"
-#include "clause.h"
-#include "watchalgos.h"
+#ifndef __XORFINDERABST_H__
+#define __XORFINDERABST_H__
 
 namespace CMSat {
-using namespace CMSat;
 
+class Simplifier;
 class Solver;
 
-class CalcDefPolars
+class XorFinderAbst
 {
     public:
-        CalcDefPolars(Solver* solver);
-        const vector<char> calculate();
-
-    private:
-        void tallyVotes(const vector<ClOffset>& cs);
-        void tallyVotesBinTri(const watch_array& watched);
-
-        vector<double> votes;
-
-        Solver* solver;
+        virtual bool findXors()
+        {
+            return true;
+        }
+        virtual ~XorFinderAbst()
+        {}
+        virtual size_t memUsed() const
+        {
+            return 0;
+        }
 };
 
-} //end namespace
+}
 
-#endif //CALCDEFAULTPOLARITIES__H
+#endif //__XORFINDERABST_H__

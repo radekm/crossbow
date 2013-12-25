@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,6 +25,7 @@
 #include "constants.h"
 #include "vec.h"
 #include "watched.h"
+#include "watcharray.h"
 
 namespace CMSat {
 
@@ -60,26 +61,26 @@ class CompleteDetachReatacher
         class ClausesStay {
             public:
                 ClausesStay() :
-                    learntBins(0)
-                    , nonLearntBins(0)
-                    , learntTris(0)
-                    , nonLearntTris(0)
+                    redBins(0)
+                    , irredBins(0)
+                    , redTris(0)
+                    , irredTris(0)
                 {}
 
                 ClausesStay& operator+=(const ClausesStay& other) {
-                    learntBins += other.learntBins;
-                    nonLearntBins += other.nonLearntBins;
-                    learntTris += other.learntTris;
-                    nonLearntTris += other.nonLearntTris;
+                    redBins += other.redBins;
+                    irredBins += other.irredBins;
+                    redTris += other.redTris;
+                    irredTris += other.irredTris;
                     return *this;
                 }
 
-                uint64_t learntBins;
-                uint64_t nonLearntBins;
-                uint64_t learntTris;
-                uint64_t nonLearntTris;
+                uint64_t redBins;
+                uint64_t irredBins;
+                uint64_t redTris;
+                uint64_t irredTris;
         };
-        ClausesStay clearWatchNotBinNotTri(vec<Watched>& ws);
+        ClausesStay clearWatchNotBinNotTri(watch_subarray ws);
 
         Solver* solver;
 };

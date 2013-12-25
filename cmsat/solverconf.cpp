@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -30,7 +30,7 @@ SolverConf::SolverConf() :
         , var_inc_divider(10)
         , var_inc_variability(0)
         , random_var_freq(0)
-        , polarity_mode(polarity_auto)
+        , polarity_mode(PolarityMode::automatic)
 
         //Clause cleaning
         , clauseCleaningType(CLEAN_CLAUSES_PROPCONFL_BASED)
@@ -42,19 +42,21 @@ SolverConf::SolverConf() :
         , numCleanBetweenSimplify(2)
         , startClean(10000)
         , increaseClean(1.1)
-        , maxNumLearntsRatio(10)
+        , maxNumRedsRatio(10)
         , clauseDecayActivity(1.0/0.999)
+        , min_time_in_db_before_eligible_for_cleaning(10ULL*1000ULL)
+        , lock_per_dbclean(500)
 
         //Restarting
         , restart_first(300)
         , restart_inc(2)
         , burstSearchLen(300)
-        , restartType(auto_restart)
+        , restartType(Restart::automatic)
         , optimiseUnsat(0)
 
         //Clause minimisation
         , doRecursiveMinim (true)
-        , doMinimLearntMore(true)
+        , doMinimRedMore(true)
         , doAlwaysFMinim   (false)
         , moreMinimLimit   (300)
 
@@ -64,6 +66,8 @@ SolverConf::SolverConf() :
         , doPrintConflDot  (false)
         , printFullStats   (false)
         , verbStats        (0)
+        , doPrintLongestTrail(0)
+        , doPrintBestRedClauses(0)
 
         //Limits
         , maxTime          (std::numeric_limits<double>::max())
@@ -86,8 +90,9 @@ SolverConf::SolverConf() :
 
         //SQL
         , doSQL            (false)
-        , dumpTopNVars     (50)
-        , dumpClauseDistribPer(20000)
+        , dumpTopNVars     (0)
+        , dump_tree_variance_stats(0)
+        , dumpClauseDistribPer(0)
         , dumpClauseDistribMaxSize(200)
         , dumpClauseDistribMaxGlue(50)
         , preparedDumpSizeScatter(100)
@@ -103,6 +108,7 @@ SolverConf::SolverConf() :
         , varelimStrategy  (0)
         , varElimCostEstimateStrategy(0)
         , varElimRatioPerIter(0.12)
+        , do_bounded_variable_addition(true)
 
         //Probing
         , doProbe          (true)
@@ -133,11 +139,10 @@ SolverConf::SolverConf() :
         , flipPolarFreq    (300)
 
         //Simplifier
-        , doSimplify       (true)
-        , doSchedSimpProblem(true)
-        , doPreSchedSimpProblem (true)
+        , simplify_at_startup(false)
+        , regularly_simplify_problem(true)
+        , perform_occur_based_simp(true)
         , doSubsume1       (true)
-        , doBlockClauses   (true)
         , doAsymmTE        (true)
         , maxRedLinkInSize (200)
         , maxOccurIrredMB  (800)
@@ -161,21 +166,19 @@ SolverConf::SolverConf() :
         , doStrSubImplicit (true)
 
 
-        , doGateFind       (false)
+        , doGateFind       (true)
         , maxGateSize      (20)
+        , maxGateBasedClReduceSize(20)
 
-        , doER             (false)
         , doCalcReach      (true)
         , doShortenWithOrGates(true)
         , doRemClWithAndGates(true)
         , doFindEqLitsWithGates(true)
         , doMixXorAndGates (false)
 
-        , needToDumpLearnts(false)
-        , needToDumpSimplified (false)
         , needResultFile       (false)
-        , maxDumpLearntsSize(std::numeric_limits<uint32_t>::max())
-        , libraryUsage     (true)
+        , maxDumpRedsSize(std::numeric_limits<uint32_t>::max())
+        , printAllRestarts(0)
         , origSeed(0)
 {
 }

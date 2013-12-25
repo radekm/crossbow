@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -293,7 +293,7 @@ class Prober {
         };
 
         const Stats& getStats() const;
-        uint64_t memUsed() const;
+        size_t memUsed() const;
 
     private:
         //Main
@@ -364,6 +364,12 @@ class Prober {
         vector<bool> propValue; ///<The value (0 or 1) of the lits propagated set in "propagated"
         vector<Lit> toEnqueue;
         vector<Lit> tmp;
+        void clearUpBeforeFirstSet();
+
+        void updateCache(Lit thisLit, Lit lit, size_t numElemsSet);
+        void checkAndSetBothProp(Var var, bool first);
+        void addRestOfLitsToCache(Lit lit);
+        void handleFailedLit(Lit lit, Lit failed);
 
         //For hyper-bin resolution
         #ifdef DEBUG_REMOVE_USELESS_BIN

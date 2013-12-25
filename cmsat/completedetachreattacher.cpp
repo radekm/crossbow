@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -23,6 +23,7 @@
 #include "solver.h"
 #include "varreplacer.h"
 #include "clausecleaner.h"
+#include "clauseallocator.h"
 
 using namespace CMSat;
 
@@ -38,45 +39,53 @@ void CompleteDetachReatacher::detachNonBinsNonTris()
 {
     ClausesStay stay;
 
-    for (vector<vec<Watched> >::iterator
+    for (watch_array::iterator
         it = solver->watches.begin(), end = solver->watches.end()
         ; it != end
-        ; it++
+        ; ++it
     ) {
         stay += clearWatchNotBinNotTri(*it);
     }
 
-    solver->binTri.redLits = stay.learntBins + stay.learntTris;
-    solver->binTri.irredLits = stay.nonLearntBins + stay.nonLearntTris;
-    solver->binTri.redBins = stay.learntBins/2;
-    solver->binTri.irredBins = stay.nonLearntBins/2;
-    solver->binTri.redTris = stay.learntTris/3;
-    solver->binTri.irredTris = stay.nonLearntTris/3;
+    solver->litStats.redLits = 0;
+    solver->litStats.irredLits = 0;
+
+    assert(stay.redBins % 2 == 0);
+    solver->binTri.redBins = stay.redBins/2;
+
+    assert(stay.irredBins % 2 == 0);
+    solver->binTri.irredBins = stay.irredBins/2;
+
+    assert(stay.redTris % 3 == 0);
+    solver->binTri.redTris = stay.redTris/3;
+
+    assert(stay.irredTris % 3 == 0);
+    solver->binTri.irredTris = stay.irredTris/3;
 }
 
 /**
 @brief Helper function for detachPointerUsingClauses()
 */
 CompleteDetachReatacher::ClausesStay CompleteDetachReatacher::clearWatchNotBinNotTri(
-    vec<Watched>& ws
+    watch_subarray ws
 ) {
     ClausesStay stay;
 
-    vec<Watched>::iterator i = ws.begin();
-    vec<Watched>::iterator j = i;
-    for (vec<Watched>::iterator end = ws.end(); i != end; i++) {
+    watch_subarray::iterator i = ws.begin();
+    watch_subarray::iterator j = i;
+    for (watch_subarray::iterator end = ws.end(); i != end; i++) {
         if (i->isBinary()) {
-            if (i->learnt())
-                stay.learntBins++;
+            if (i->red())
+                stay.redBins++;
             else
-                stay.nonLearntBins++;
+                stay.irredBins++;
 
             *j++ = *i;
         } else if (i->isTri()) {
-            if (i->learnt())
-                stay.learntTris++;
+            if (i->red())
+                stay.redTris++;
             else
-                stay.nonLearntTris++;
+                stay.irredTris++;
 
             *j++ = *i;
         }
@@ -91,16 +100,15 @@ CompleteDetachReatacher::ClausesStay CompleteDetachReatacher::clearWatchNotBinNo
 */
 bool CompleteDetachReatacher::reattachLongs(bool removeStatsFirst)
 {
-    #ifdef DRUP
     if (solver->conf.verbosity >= 6) {
         cout << "Cleaning and reattaching clauses" << endl;
     }
-    #endif
+
     cleanAndAttachClauses(solver->longIrredCls, removeStatsFirst);
     cleanAndAttachClauses(solver->longRedCls, removeStatsFirst);
 
     //Treat implicits
-    solver->clauseCleaner->treatImplicitClauses();
+    solver->clauseCleaner->clean_implicit_clauses();
 
     if (solver->ok) {
         solver->ok = (solver->propagate().isNULL());
@@ -121,14 +129,14 @@ void CompleteDetachReatacher::cleanAndAttachClauses(
     vector<ClOffset>::iterator i = cs.begin();
     vector<ClOffset>::iterator j = i;
     for (vector<ClOffset>::iterator end = cs.end(); i != end; i++) {
-        Clause* cl = solver->clAllocator->getPointer(*i);
+        Clause* cl = solver->clAllocator.getPointer(*i);
 
         //Handle stat removal if need be
         if (removeStatsFirst) {
-            if (cl->learnt()) {
-                solver->binTri.redLits -= cl->size();
+            if (cl->red()) {
+                solver->litStats.redLits -= cl->size();
             } else {
-                solver->binTri.irredLits -= cl->size();
+                solver->litStats.irredLits -= cl->size();
             }
         }
 
@@ -136,7 +144,7 @@ void CompleteDetachReatacher::cleanAndAttachClauses(
             solver->attachClause(*cl);
             *j++ = *i;
         } else {
-            solver->clAllocator->clauseFree(*i);
+            solver->clAllocator.clauseFree(*i);
         }
     }
     cs.resize(cs.size() - (i-j));
@@ -148,6 +156,7 @@ void CompleteDetachReatacher::cleanAndAttachClauses(
 bool CompleteDetachReatacher::cleanClause(Clause* cl)
 {
     Clause& ps = *cl;
+    (*solver->drup) << deldelay << ps << fin;
     if (ps.size() <= 3) {
         cout
         << "ERROR, clause is too small, and linked in: "
@@ -155,24 +164,16 @@ bool CompleteDetachReatacher::cleanClause(Clause* cl)
         << endl;
     }
     assert(ps.size() > 3);
-    #ifdef DRUP
-    vector<Lit> origCl(cl->size());
-    std::copy(cl->begin(), cl->end(), origCl.begin());
-    #endif
 
     Lit *i = ps.begin();
     Lit *j = i;
     for (Lit *end = ps.end(); i != end; i++) {
         if (solver->value(*i) == l_True) {
-            #ifdef DRUP
-            if (solver->drup && i != j) {
-                (*solver->drup)
-                << "d "
-                << origCl
-                << endl;
-            }
-            #endif
 
+            //Drup
+            if (i != j) {
+                (*solver->drup) << findelay;
+            }
             return false;
         }
         if (solver->value(*i) == l_Undef) {
@@ -181,18 +182,10 @@ bool CompleteDetachReatacher::cleanClause(Clause* cl)
     }
     ps.shrink(i-j);
 
-    #ifdef DRUP
-    if (solver->drup && i != j) {
-        (*solver->drup)
-        << cl
-        << " 0\n"
-
-        //Delete old one
-        << "d "
-        << origCl
-        << " 0\n";
+    //Drup
+    if (i != j) {
+        (*solver->drup) << *cl << fin << findelay;
     }
-    #endif
 
     switch (ps.size()) {
         case 0:
@@ -207,12 +200,12 @@ bool CompleteDetachReatacher::cleanClause(Clause* cl)
             return false;
 
         case 2: {
-            solver->attachBinClause(ps[0], ps[1], ps.learnt());
+            solver->attachBinClause(ps[0], ps[1], ps.red());
             return false;
         }
 
         case 3: {
-            solver->attachTriClause(ps[0], ps[1], ps[2], ps.learnt());
+            solver->attachTriClause(ps[0], ps[1], ps[2], ps.red());
             return false;
         }
 

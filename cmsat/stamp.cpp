@@ -1,7 +1,30 @@
 #include "stamp.h"
 #include "varreplacer.h"
+#include "varupdatehelper.h"
 
 using namespace CMSat;
+
+void Stamp::saveVarMem(const uint32_t newNumVars)
+{
+    tstamp.resize(newNumVars*2);
+    tstamp.shrink_to_fit();
+
+    for(Timestamp& t: tstamp) {
+        Lit lit = t.dominator[STAMP_RED];
+        if (lit != lit_Undef
+            && lit.var() >= newNumVars
+        ) {
+            t.dominator[STAMP_RED] = lit_Undef;
+        }
+
+        lit = t.dominator[STAMP_IRRED];
+        if (lit != lit_Undef
+            && lit.var() >= newNumVars
+        ) {
+            t.dominator[STAMP_IRRED] = lit_Undef;
+        }
+    }
+}
 
 bool Stamp::stampBasedClRem(
     const vector<Lit>& lits
@@ -40,6 +63,24 @@ bool Stamp::stampBasedClRem(
     }
 
     return false;
+}
+
+void Stamp::updateVars(
+    const vector<Var>& outerToInter
+    , const vector<Var>& interToOuter2
+    , vector<uint16_t>& seen
+) {
+    //Update both dominators
+    for(size_t i = 0; i < tstamp.size(); i++) {
+        for(size_t i2 = 0; i2 < 2; i2++) {
+            if (tstamp[i].dominator[i2] != lit_Undef)
+                tstamp[i].dominator[i2]
+                    = getUpdatedLit(tstamp[i].dominator[i2], outerToInter);
+        }
+    }
+
+    //Update the stamp. Stamp can be very large, so update by swapping
+    updateBySwap(tstamp, seen, interToOuter2);
 }
 
 std::pair<size_t, size_t> Stamp::stampBasedLitRem(
@@ -155,16 +196,22 @@ void Stamp::remove_from_stamps(const Var var)
 
 void Stamp::updateDominators(const VarReplacer* replacer)
 {
-    for(size_t i = 0; i < tstamp.size(); i++) {
-        tstamp[i] = tstamp[replacer->getLitReplacedWith(Lit::toLit(i)).toInt()];
-        if (tstamp[i].dominator[STAMP_IRRED] != lit_Undef) {
-            tstamp[i].dominator[STAMP_IRRED]
-                = replacer->getLitReplacedWith(tstamp[i].dominator[STAMP_IRRED]);
-        }
+    for(size_t l = 0; l < tstamp.size(); l++) {
+        Lit lit = Lit::toLit(l);
+        lit = replacer->getLitReplacedWith(lit);
 
-        if (tstamp[i].dominator[STAMP_RED] != lit_Undef) {
-            tstamp[i].dominator[STAMP_RED]
-                = replacer->getLitReplacedWith(tstamp[i].dominator[STAMP_RED]);
+        //Variable probably eliminated, decomposed, etc. Skip.
+        if (lit.toInt() >= tstamp.size())
+            continue;
+
+        //Update tstamp to that of the replaced var
+        tstamp[l] = tstamp[lit.toInt()];
+
+        for(size_t i2 = 0; i2 < 2; i2++) {
+            Lit& dom = tstamp[l].dominator[i2];
+            if (dom != lit_Undef) {
+                dom = replacer->getLitReplacedWith(dom);
+            }
         }
     }
 }

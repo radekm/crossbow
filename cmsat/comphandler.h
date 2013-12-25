@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -57,11 +57,10 @@ class CompHandler
 
         bool handle();
         const vector<lbool>& getSavedState();
-        void newVar();
+        void newVar(const Var orig_outer);
+        void saveVarMem();
         void addSavedState(vector<lbool>& solution);
         void readdRemovedClauses();
-        bool getNeedToReaddClauses() const;
-        void updateVars(const vector<Var>& interToOuter);
         const RemovedClauses& getRemovedClauses() const;
 
         friend class ClauseAllocator;
@@ -75,6 +74,27 @@ class CompHandler
                 return left.second < right.second;
             }
         };
+        bool assumpsInsideComponent(const vector<Var>& vars);
+        void move_decision_level_zero_vars_here(
+            const Solver* newSolver
+            , const vector<Var>& vars
+        );
+        void save_solution_to_savedstate(
+            const Solver* newSolver
+            , const vector<Var>& vars
+            , const uint32_t comp
+        );
+        void check_solution_is_unassigned_in_main_solver(
+            const Solver* newSolver
+            , const vector<Var>& vars
+        );
+        void check_local_vardata_sanity();
+        bool solve_component(
+            const uint32_t comp_at
+            , const uint32_t comp
+            , const vector<Var>& vars
+            , const size_t num_comps
+        );
 
         void configureNewSolver(
             Solver* newSolver
@@ -83,7 +103,7 @@ class CompHandler
 
         void moveVariablesBetweenSolvers(
             Solver* newSolver
-            , vector<Var>& vars
+            , const vector<Var>& vars
             , const uint32_t comp
         );
 
@@ -105,9 +125,6 @@ class CompHandler
         ///The solutions that have been found by the comps
         vector<lbool> savedState;
 
-        ///List of variables whose decision-ness has been removed (set to FALSE)
-        vector<Var> decisionVarRemoved;
-
         //Re-numbering
         void createRenumbering(const vector<Var>& vars);
         vector<Var> useless; //temporary
@@ -128,7 +145,6 @@ class CompHandler
         template<class T>
         void saveClause(const T& lits);
         RemovedClauses removedClauses;
-        bool needToReaddClauses;
 
         //Clauses that have been moved to other comps
         //vector<ClOffset> clausesRemoved;
@@ -141,17 +157,6 @@ class CompHandler
 inline const vector<lbool>& CompHandler::getSavedState()
 {
     return savedState;
-}
-
-/**
-@brief Creates a space in savedState
-
-So that the solution can eventually be saved here (if comps are used). By
-default the value is l_Undef, i.e. no solution has been saved there.
-*/
-inline void CompHandler::newVar()
-{
-    savedState.push_back(l_Undef);
 }
 
 inline const CompHandler::RemovedClauses& CompHandler::getRemovedClauses() const

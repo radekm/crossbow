@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 3.0 of the License, or (at your option) any later version.
+ * version 2.0 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -114,8 +114,9 @@ void* ClauseAllocator::allocEnough(
     );
 
     //Try to quickly find a place at the end of a dataStart
+    uint32_t neededbytes = (sizeof(Clause) + sizeof(Lit)*clauseSize);
     uint32_t needed
-        = (sizeof(Clause) + sizeof(Lit)*clauseSize) /sizeof(BASE_DATA_TYPE);
+        = neededbytes/sizeof(BASE_DATA_TYPE) + (bool)(neededbytes % sizeof(BASE_DATA_TYPE));
 
     if (size + needed > maxSize) {
         //Grow by default, but don't go under or over the limits
@@ -163,20 +164,6 @@ void* ClauseAllocator::allocEnough(
     return pointer;
 }
 
-#ifdef STATS_NEEDED
-struct sortByClauseNumLookedAtDescending
-{
-    bool operator () (const Clause* x, const Clause* y)
-    {
-        if (x->stats.numLookedAt > y->stats.numLookedAt) return 1;
-        if (x->stats.numLookedAt < y->stats.numLookedAt) return 0;
-
-        //Second tie: size. If size is smaller, go first
-        return x->size() < y->size();
-    }
-};
-#endif
-
 /**
 @brief Given the pointer of the clause it finds a 32-bit offset for it
 
@@ -185,7 +172,7 @@ rerturns a 32-bit value that is a concatenation of these two
 */
 ClOffset ClauseAllocator::getOffset(const Clause* ptr) const
 {
-    return ((uint32_t*)ptr - dataStart);
+    return ((BASE_DATA_TYPE*)ptr - dataStart);
 }
 
 /**
@@ -206,7 +193,9 @@ void ClauseAllocator::clauseFree(Clause* cl)
     assert(!cl->getFreed());
 
     cl->setFreed();
-    currentlyUsedSize -= (sizeof(Clause) + cl->size()*sizeof(Lit))/sizeof(BASE_DATA_TYPE);
+    size_t bytes_freed = (sizeof(Clause) + cl->size()*sizeof(Lit));
+    size_t elems_freed = bytes_freed/sizeof(BASE_DATA_TYPE) + (bool)(bytes_freed % sizeof(BASE_DATA_TYPE));
+    currentlyUsedSize -= elems_freed;
 }
 
 void ClauseAllocator::clauseFree(ClOffset offset)
@@ -253,22 +242,19 @@ void ClauseAllocator::consolidate(
     BASE_DATA_TYPE* tmpDataStart = dataStart;
 
     assert(sizeof(Clause) % sizeof(BASE_DATA_TYPE) == 0);
-    assert(sizeof(Lit) % sizeof(BASE_DATA_TYPE) == 0);
-    for (vector<uint32_t>::iterator
-        it = origClauseSizes.begin(), end = origClauseSizes.end()
-        ; it != end
-        ; it++
-    ) {
+    assert(sizeof(BASE_DATA_TYPE) % sizeof(Lit) == 0);
+    for (auto size: origClauseSizes) {
         Clause* clause = (Clause*)tmpDataStart;
         //Already freed, so skip entirely
         if (clause->freed()) {
-            tmpDataStart += *it;
+            tmpDataStart += size;
             continue;
         }
 
         //Move to new position
-        uint32_t sizeNeeded = (sizeof(Clause) + clause->size()*sizeof(Lit))/sizeof(BASE_DATA_TYPE);
-        assert(sizeNeeded <= *it && "New clause size must not be bigger than orig clause size");
+        uint32_t bytesNeeded = sizeof(Clause) + clause->size()*sizeof(Lit);
+        uint32_t sizeNeeded = bytesNeeded/sizeof(BASE_DATA_TYPE) + (bool)(bytesNeeded % sizeof(BASE_DATA_TYPE));
+        assert(sizeNeeded <= size && "New clause size must not be bigger than orig clause size");
         memmove(newDataStart, tmpDataStart, sizeNeeded*sizeof(BASE_DATA_TYPE));
 
         //Record position
@@ -280,7 +266,7 @@ void ClauseAllocator::consolidate(
 
         //Move pointers along
         newDataStart += sizeNeeded;
-        tmpDataStart += *it;
+        tmpDataStart += size;
     }
 
     if (solver->conf.verbosity >= 3) {
@@ -309,13 +295,8 @@ void ClauseAllocator::updateAllOffsetsAndPointers(
     assert(solver->decisionLevel() == 0);
 
     //We are at decision level 0, so we can reset all PropBy-s
-    Var var = 0;
-    for (vector<VarData>::iterator
-        it = solver->varData.begin(), end = solver->varData.end()
-        ; it != end
-        ; it++, var++
-    ) {
-        it->reason = PropBy();
+    for (auto& vdata: solver->varData) {
+        vdata.reason = PropBy();
     }
 
     //Detach long clauses
@@ -345,19 +326,15 @@ void ClauseAllocator::updateAllOffsetsAndPointers(
     solver->longRedCls.clear();
 
     //Add back to the solver the correct red & irred clauses
-    for(vector<ClOffset>::const_iterator
-        it = offsets.begin(), end = offsets.end()
-        ; it != end
-        ; it++
-    ) {
-        Clause* cl = getPointer(*it);
+    for(auto offset: offsets) {
+        Clause* cl = getPointer(offset);
         assert(!cl->getFreed());
 
         //Put it in the right bucket
-        if (cl->learnt()) {
-            solver->longRedCls.push_back(*it);
+        if (cl->red()) {
+            solver->longRedCls.push_back(offset);
         } else {
-            solver->longIrredCls.push_back(*it);
+            solver->longIrredCls.push_back(offset);
         }
     }
 
@@ -365,7 +342,7 @@ void ClauseAllocator::updateAllOffsetsAndPointers(
     detachReattach.reattachLongs();
 }
 
-uint64_t ClauseAllocator::getMemUsed() const
+size_t ClauseAllocator::memUsed() const
 {
     uint64_t mem = 0;
     mem += maxSize*sizeof(BASE_DATA_TYPE);
