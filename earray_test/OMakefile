@@ -1,0 +1,26 @@
+# Copyright (c) 2013 Radek Micek
+
+OCAMLPACKS[] =
+    batteries
+    oUnit
+
+OCAMLINCLUDES += ../earray
+
+OCAML_LIBS[] +=
+    ../earray/libearray
+
+FILES[] =
+    test_earray
+    test
+
+OCamlProgram(test_runner, $(FILES))
+
+test: test_runner$(EXE) ../earray/earray_syntax$(EXE)
+    ./test_runner$(EXE) -inc-dir ../earray \
+        -earray-syntax ../earray/earray_syntax$(EXE)
+
+clean:
+    $(CLEAN)
+    rm -f *.out *.log
+    rm -f oUnit-suite.cache
+    rm -f test_runner$(EXE)

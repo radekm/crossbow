@@ -1,0 +1,28 @@
+# Copyright (c) 2013 Radek Micek
+
+OCAMLPACKS[] =
+    batteries
+    compiler-libs
+    compiler-libs.common
+
+section
+    SOURCES = $(filter-exists $(addsuffixes .ml .mli, earray earray_syntax))
+    CMI_FILES = $(addsuffix .cmi, $(removesuffix $(SOURCES)))
+
+    doc: doc/index.html
+
+    doc/index.html: $(SOURCES) $(CMI_FILES) /.PHONY/OCamlGeneratedFilesTarget
+        mkdir -p doc
+        ocamlfind ocamldoc \
+            -thread -d doc -html -stars -sort \
+            $(PREFIXED_OCAMLINCLUDES) \
+            $(mapprefix -package, $(OCAMLPACKS)) \
+            $(SOURCES)
+
+OCamlLibrary(libearray, earray)
+
+OCamlProgram(earray_syntax, earray_syntax)
+
+clean:
+    $(CLEAN)
+    rm -rf earray_syntax$(EXE)

@@ -1,4 +1,12 @@
 
+earray/earray_syntax
+earray/earray_syntax.opt
+earray/doc
+
+earray_test/test_runner
+earray_test/test_runner.opt
+earray_test/*.out
+
 src/crossbow
 src/crossbow.opt
 src/doc
@@ -35,6 +43,10 @@ scripts/summary_to_latex.opt
 .omakedb.lock
 OMakefile.omc
 OMakeroot.omc
+
+# oUnit
+*.log
+oUnit-*.cache
 
 # Bisect
 /bisect*.out
