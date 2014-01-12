@@ -16,7 +16,7 @@ let show_model m =
   Symb.Map.iter
     (fun symb table ->
       Printf.bprintf b "Symbol %2d: [" (Symb.id_to_int symb);
-      Array.iter (Printf.bprintf b " %2d") table.M.values;
+      Earray.iter (Printf.bprintf b " %2d") table.M.values;
       Printf.bprintf b " ]\n")
     m.M.symbs;
   Buffer.contents b

@@ -10,9 +10,10 @@ external create : unit -> t = "cmsat_create"
 
 external new_var : t -> var = "cmsat_new_var"
 
-external add_clause : t -> lit array -> int -> bool = "cmsat_add_clause"
+external add_clause : t -> (lit, [> `R]) Earray.t -> int -> bool =
+  "cmsat_add_clause"
 
-external solve : t -> lit array -> Sh.lbool = "cmsat_solve"
+external solve : t -> (lit, [> `R]) Earray.t -> Sh.lbool = "cmsat_solve"
 
 external model_value : t -> var -> Sh.lbool = "cmsat_model_value"
 

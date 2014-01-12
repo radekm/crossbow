@@ -6,6 +6,8 @@ module Solver = struct
   type 'a var = int
   type 'a var_array = int
 
+  type 'a array = ('a, [`R]) Earray.t
+
   type event =
     | Enew_bool_var of bool var
     | Enew_int_var of int * int var
@@ -69,13 +71,13 @@ module Solver = struct
   let new_bool_var_array s arr =
     s.last_bool_var_array <- s.last_bool_var_array + 1;
     let idx = s.last_bool_var_array in
-    BatDynArray.add s.log (Enew_bool_var_array (arr, idx));
+    BatDynArray.add s.log (Enew_bool_var_array (Earray.read_only arr, idx));
     idx
 
   let new_int_var_array s arr =
     s.last_int_var_array <- s.last_int_var_array + 1;
     let idx = s.last_int_var_array in
-    BatDynArray.add s.log (Enew_int_var_array (arr, idx));
+    BatDynArray.add s.log (Enew_int_var_array (Earray.read_only arr, idx));
     idx
 
   let bool_element s arr i y =
@@ -85,7 +87,8 @@ module Solver = struct
     BatDynArray.add s.log (Eint_element (arr, i, y))
 
   let linear s vars coefs c =
-    BatDynArray.add s.log (Elinear (vars, coefs, c))
+    BatDynArray.add s.log
+      (Elinear (Earray.read_only vars, Earray.read_only coefs, c))
 
   let eq_var_var s x x' y =
     BatDynArray.add s.log (Eeq_var_var (x, x', y))
@@ -97,13 +100,15 @@ module Solver = struct
     BatDynArray.add s.log (Elower_eq (x, c))
 
   let precede s vars consts =
-    BatDynArray.add s.log (Eprecede (vars, consts))
+    BatDynArray.add s.log
+      (Eprecede (Earray.read_only vars, Earray.read_only consts))
 
   let clause s pos_lits neg_lits =
-    BatDynArray.add s.log (Eclause (Array.copy pos_lits, Array.copy neg_lits))
+    BatDynArray.add s.log
+      (Eclause (Earray.copy pos_lits, Earray.copy neg_lits))
 
   let all_different s vars =
-    BatDynArray.add s.log (Eall_different (Array.copy vars))
+    BatDynArray.add s.log (Eall_different (Earray.copy vars))
 
   let solve s = Sh.Lundef
 
@@ -123,7 +128,8 @@ let assert_log i exp_log =
 
 let print_log i =
   let int_arr_to_str arr =
-    let s = String.concat ", " (List.map string_of_int (Array.to_list arr)) in
+    let s =
+      String.concat ", " (List.map string_of_int (Earray.to_list arr)) in
     "[" ^ s ^ "]" in
   print_endline "Log:";
   BatDynArray.iter
@@ -1020,7 +1026,7 @@ let test_hints () =
     Solv.Enew_int_var (4, 18); (* f(3, 1) *)
     Solv.Enew_int_var (4, 19); (* f(3, 2) *)
     Solv.Enew_int_var (4, 20); (* f(3, 3) *)
-    Solv.Enew_int_var_array (Array.init 16 (fun i -> i + 5), 2);
+    Solv.Enew_int_var_array (Earray.init 16 (fun i -> i + 5), 2);
     (* g(c) *)
     Solv.Enew_tmp_int_var (4, ~-1);
     Solv.Eint_element (0, 4, ~-1);

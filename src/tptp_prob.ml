@@ -2,6 +2,7 @@
 
 open BatPervasives
 
+module Array = Earray.Array
 module S = Symb
 module T = Term
 module L = Lit
@@ -56,7 +57,7 @@ let add_clause p (Ast.Clause lits) =
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = Hashtbl.add p.preds s false in
             id in
-        Term.func (id, Array.of_list (BatList.map transl_term args))
+        Term.func (id, Earray.of_list (BatList.map transl_term args))
     | Ast.Number n ->
         let s = Number n in
         let id =
@@ -68,7 +69,7 @@ let add_clause p (Ast.Clause lits) =
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = BatDynArray.add p.prob.Prob.distinct_consts id in
             id in
-        Term.func (id, [| |])
+        Term.func (id, Earray.empty)
     | Ast.String s ->
         let s = String s in
         let id =
@@ -80,7 +81,7 @@ let add_clause p (Ast.Clause lits) =
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = BatDynArray.add p.prob.Prob.distinct_consts id in
             id in
-        Term.func (id, [| |]) in
+        Term.func (id, Earray.empty) in
 
   let transl_sign = function
     | Ast.Pos -> Sh.Pos
@@ -90,7 +91,7 @@ let add_clause p (Ast.Clause lits) =
     | Ast.Lit (sign, Ast.Equals (l, r)) ->
         let l = transl_term l in
         let r = transl_term r in
-        L.lit (transl_sign sign, S.sym_eq, [| l; r |])
+        L.lit (transl_sign sign, S.sym_eq, Earray.of_array [| l; r |])
     | Ast.Lit (sign, Ast.Pred (pred, args)) ->
         let sign = transl_sign sign in
         let arity = List.length args in
@@ -107,7 +108,7 @@ let add_clause p (Ast.Clause lits) =
             let _ = Hashtbl.add p.smap.to_tptp id s in
             let _ = Hashtbl.add p.preds s true in
             id in
-        L.lit (sign, id, Array.of_list (BatList.map transl_term args)) in
+        L.lit (sign, id, Earray.of_list (BatList.map transl_term args)) in
 
   let clause = {
     Clause2.cl_id = Prob.fresh_id p.prob;
@@ -206,9 +207,9 @@ let prob_to_tptp tp comm f =
       BatChar.range ~until:'Z' 'A'
       |> BatEnum.map (BatString.make 1)
       |> BatEnum.map Ast.to_var
-      |> BatArray.of_enum in
+      |> Earray.of_enum in
     fun x ->
-      if x >= Array.length names then
+      if x >= Earray.length names then
         Ast.to_var (Printf.sprintf "X%i" x)
       else if x < 0 then
         Ast.to_var (Printf.sprintf "Y%i" ~-x)
@@ -241,8 +242,8 @@ let prob_to_tptp tp comm f =
         seen_funcs := BatSet.add s !seen_funcs;
         let args () =
           args
-          |> Array.map transl_term
-          |> Array.to_list in
+          |> Earray.map transl_term
+          |> Earray.to_list in
         try
           match Hashtbl.find tp.smap.to_tptp s with
             | Atomic_word (symb, _) ->
@@ -256,7 +257,7 @@ let prob_to_tptp tp comm f =
 
   let transl_lit (L.Lit (sign, s, args)) =
     let atom =
-      match args with
+      match%earr args with
         | [| l; r |] when s = S.sym_eq ->
             let l' = transl_term l in
             let r' = transl_term r in
@@ -264,8 +265,8 @@ let prob_to_tptp tp comm f =
         | _ ->
             let args () =
               args
-              |> Array.map transl_term
-              |> Array.to_list in
+              |> Earray.map transl_term
+              |> Earray.to_list in
             try
               match Hashtbl.find tp.smap.to_tptp s with
                 | Number _
@@ -351,7 +352,7 @@ let model_to_tptp
 
   (* Maps doamin elements to TPTP symbols. *)
   let dom_to_tptp =
-    let dom_to_tptp = Array.make model.M.max_size None in
+    let dom_to_tptp = Earray.make model.M.max_size None in
     (* Numbers used by distinct constants. *)
     let used_nums = Hashtbl.create 20 in
 
@@ -374,7 +375,7 @@ let model_to_tptp
 
     (* Assign unused numbers to remaining domain elements. *)
     let last_num = ref ~-1 in
-    Array.iteri
+    Earray.iteri
       (fun i -> function
       | None ->
           incr last_num;
@@ -385,7 +386,7 @@ let model_to_tptp
       | Some _ -> ())
       dom_to_tptp;
 
-    Array.map
+    Earray.map
       (function
       | None
       | Some (Atomic_word _) ->
@@ -403,9 +404,9 @@ let model_to_tptp
     let x = Ast.to_var "X" in
     let atoms =
       let x = Ast.Var x in
-      Array.map (fun el -> Ast.Atom (Ast.Equals (x, el))) dom_to_tptp in
+      Earray.map (fun el -> Ast.Atom (Ast.Equals (x, el))) dom_to_tptp in
     let disjunction =
-      BatArray.reduce (fun a b -> Ast.Binop (Ast.Or, a, b)) atoms in
+      Earray.reduce (fun a b -> Ast.Binop (Ast.Or, a, b)) atoms in
     let formula = Ast.Formula (Ast.Quant (Ast.All, x, disjunction)) in
     f
       (Ast.Fof_anno {
@@ -421,11 +422,11 @@ let model_to_tptp
       match tptp_symb with
         | Atomic_word (w, arity) ->
             let role, atoms =
-              let param_sizes = Array.make arity model.M.max_size in
+              let param_sizes = Earray.make arity model.M.max_size in
               let values = (Symb.Map.find s model.M.symbs).M.values in
-              let a = Array.make arity ~-1 in
+              let a = Earray.make arity ~-1 in
               let i = ref 0 in
-              let atoms = BatDynArray.make (Array.length values) in
+              let atoms = BatDynArray.make (Earray.length values) in
               if Hashtbl.find p.preds tptp_symb then begin
                 Assignment.each a 0 arity param_sizes model.M.max_size
                   (fun a ->

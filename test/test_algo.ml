@@ -10,7 +10,7 @@ let assert_vertex_cover edges cover =
   (* All edges are covered. *)
   let edge_is_covered (u, v) =
     assert_bool "" (Elist.contains u cover || Elist.contains v cover) in
-  Array.iter edge_is_covered edges
+  Earray.iter edge_is_covered edges
 
 (* Minimum vertex cover is 2, 6.
 

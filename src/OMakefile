@@ -1,6 +1,6 @@
 # Copyright (c) 2013 Radek Micek
 
-OCAMLFLAGS += -thread
+OCAMLFLAGS += -thread -ppx ../earray/earray_syntax$(EXE)
 
 OCAML_LIB_FLAGS += \
     -ccopt -L../minisat -cclib -lminisat \
@@ -17,6 +17,8 @@ OCAMLPACKS[] =
     oclock
     cmdliner
 
+OCAMLINCLUDES[] += ../earray
+
 if $(defined coverage)
     OCAMLPACKS[] += bisect
     OCAMLFLAGS += -syntax camlp4o
@@ -24,7 +26,6 @@ if $(defined coverage)
     export OCAMLFLAGS
 
 FILES[] =
-    earray
     elist
     algo
     equiv
@@ -61,6 +62,8 @@ FILES[] =
     gecode_inst
 
 libcrossbow.cmxa libcrossbow$(EXT_LIB): \
+    ../earray/libearray$(EXT_LIB) \
+    ../earray/earray_syntax$(EXE) \
     ../minisat/libminisat$(EXT_LIB) \
     ../cmsat/libcmsat$(EXT_LIB) \
     ../josat/libjosat$(EXT_LIB) \
@@ -86,6 +89,7 @@ section
 OCAML_LINK_FLAGS += -cc g++
 
 OCAML_LIBS[] =
+    ../earray/libearray
     libcrossbow
 
 OCamlProgram(crossbow, main)

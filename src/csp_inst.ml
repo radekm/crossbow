@@ -22,6 +22,7 @@ module Make (Solv : Csp_solver.S) :
 struct
   type solver = Solv.t
 
+  module Array = Earray.Array
   module S = Symb
   module T = Term
   module L = Lit
@@ -36,10 +37,10 @@ struct
     n : int;
 
     (* Variables for predicates. *)
-    pred_arrays : (S.id, bool Solv.var array) Hashtbl.t;
+    pred_arrays : (S.id, (bool Solv.var, [`R]) Earray.t) Hashtbl.t;
 
     (* Variables for functions. *)
-    func_arrays : (S.id, int Solv.var array) Hashtbl.t;
+    func_arrays : (S.id, (int Solv.var, [`R]) Earray.t) Hashtbl.t;
 
     (* Arrays of CSP variables for bool_element constraint. *)
     preds : (S.id, bool Solv.var_array) Hashtbl.t;
@@ -50,7 +51,8 @@ struct
     (* Maps the result of x1 * c1 + x2 * c2 + x3 * c3 + ... + c to variable y.
        Variables xi in polynomial are sorted and unique.
     *)
-    linear : ((int Solv.var * int) array * int, int Solv.var) Hashtbl.t;
+    linear : ((int Solv.var * int, [`R]) Earray.t * int, int Solv.var)
+      Hashtbl.t;
 
     bool_element : (S.id * int Solv.var, bool Solv.var) Hashtbl.t;
 
@@ -79,17 +81,17 @@ struct
   *)
   let rec index
       (inst : t)
-      (a : int array)
-      (args : T.t array) : index =
+      (a : (int, [> `R]) Earray.t)
+      (args : (T.t, [> `R]) Earray.t) : index =
 
     (* Index can be computed statically. *)
-    if BatArray.for_all T.is_var args then
-      I_const (Array.fold_left (fun i x -> i * inst.n + a.(get_var x)) 0 args)
+    if Earray.for_all T.is_var args then
+      I_const (Earray.fold_left (fun i x -> i * inst.n + a.(get_var x)) 0 args)
     else begin
       (* Maps CSP variables to their coefficients. *)
       let vars = ref BatMap.empty in
       let c, _ =
-        Array.fold_right
+        Earray.fold_right
           (fun arg (c, mult) ->
             match arg with
               | T.Var x -> (c + a.(x) * mult, mult * inst.n)
@@ -102,9 +104,9 @@ struct
                     BatMap.modify_def 0 y (fun coef -> coef + mult) !vars;
                   (c, mult * inst.n))
           args (0, 1) in
-      let vars = BatMap.enum !vars |> BatArray.of_enum in
-      let nvars = Array.length vars in
-      match vars with
+      let vars = BatMap.enum !vars |> Earray.of_enum in
+      let nvars = Earray.length vars in
+      match%earr vars with
         (* Single variable x with coefficient 1 and no constant term -
            we don't need linear constraint.
         *)
@@ -117,7 +119,7 @@ struct
             with
               | Not_found ->
                   let max_idx =
-                    Array.fold_left
+                    Earray.fold_left
                       (fun max_idx (_, coef) -> max_idx + (inst.n - 1) * coef)
                       c
                       vars in
@@ -130,9 +132,9 @@ struct
                   *)
                   Solv.linear
                     inst.solver
-                    (Array.init (nvars + 1)
+                    (Earray.init (nvars + 1)
                        (fun i -> if i < nvars then fst vars.(i) else y))
-                    (Array.init (nvars + 1)
+                    (Earray.init (nvars + 1)
                        (fun i -> if i < nvars then snd vars.(i) else ~-1))
                     ~-c;
                   Hashtbl.add inst.linear key y;
@@ -142,7 +144,7 @@ struct
   (* a is assignment. *)
   and var_for_func_term
       (inst : t)
-      (a : int array) : T.t -> int Solv.var = function
+      (a : (int, [> `R]) Earray.t) : T.t -> int Solv.var = function
 
     | T.Var _ -> failwith "var_for_func_term"
     | T.Func (s, args) ->
@@ -166,9 +168,9 @@ struct
   (* a is assignment. *)
   let var_for_noneq_atom
       (inst : t)
-      (a : int array)
+      (a : (int, [> `R]) Earray.t)
       (s : S.id)
-      (args : T.t array) : bool Solv.var =
+      (args : (T.t, [> `R]) Earray.t) : bool Solv.var =
 
     assert (s <> S.sym_eq);
     match index inst a args with
@@ -191,7 +193,7 @@ struct
   (* a is assignment. *)
   let var_for_eq_atom
       (inst : t)
-      (a : int array)
+      (a : (int, [> `R]) Earray.t)
       (l : T.t)
       (r : T.t) : bool Solv.var =
 
@@ -232,46 +234,47 @@ struct
   let instantiate_clause
       (inst : t)
       (nvars : int)
-      (var_eqs : (T.var * T.var) array)
-      (var_ineqs : (T.var * T.var) array)
-      (pos_eq_lits : (T.t * T.t) array)
-      (neg_eq_lits : (T.t * T.t) array)
-      (pos_noneq_lits : (S.id * T.t array) array)
-      (neg_noneq_lits : (S.id * T.t array) array) : unit =
+      (var_eqs : (T.var * T.var, [> `R]) Earray.t)
+      (var_ineqs : (T.var * T.var, [> `R]) Earray.t)
+      (pos_eq_lits : (T.t * T.t, [> `R]) Earray.t)
+      (neg_eq_lits : (T.t * T.t, [> `R]) Earray.t)
+      (pos_noneq_lits : (S.id * (T.t, [> `R]) Earray.t, [> `R]) Earray.t)
+      (neg_noneq_lits : (S.id * (T.t, [> `R]) Earray.t, [> `R]) Earray.t)
+      : unit =
 
     (* Arrays for literals. *)
     let pos =
-      Array.make
-        (Array.length pos_eq_lits + Array.length pos_noneq_lits)
+      Earray.make
+        (Earray.length pos_eq_lits + Earray.length pos_noneq_lits)
         dummy_bool_var in
     let neg =
-      Array.make
-        (Array.length neg_eq_lits + Array.length neg_noneq_lits)
+      Earray.make
+        (Earray.length neg_eq_lits + Earray.length neg_noneq_lits)
         dummy_bool_var in
 
-    Assignment.each (Array.make nvars 0) 0 nvars (Array.make nvars 0) inst.n
+    Assignment.each (Earray.make nvars 0) 0 nvars (Earray.make nvars 0) inst.n
       (fun a ->
         (* If no (in)equality of variables is satisfied. *)
         if
-          BatArray.for_all (fun (x, x') -> a.(x) <> a.(x')) var_eqs &&
-          BatArray.for_all (fun (x, x') -> a.(x) = a.(x')) var_ineqs
+          Earray.for_all (fun (x, x') -> a.(x) <> a.(x')) var_eqs &&
+          Earray.for_all (fun (x, x') -> a.(x) = a.(x')) var_ineqs
         then begin
           (* Positive literals. *)
-          Array.iteri
+          Earray.iteri
             (fun i (l, r) -> pos.(i) <- var_for_eq_atom inst a l r)
             pos_eq_lits;
-          let skip = Array.length pos_eq_lits in
-          Array.iteri
+          let skip = Earray.length pos_eq_lits in
+          Earray.iteri
             (fun i (s, args) ->
               pos.(skip + i) <- var_for_noneq_atom inst a s args)
             pos_noneq_lits;
 
           (* Negative literals. *)
-          Array.iteri
+          Earray.iteri
             (fun i (l, r) -> neg.(i) <- var_for_eq_atom inst a l r)
             neg_eq_lits;
-          let skip = Array.length neg_eq_lits in
-          Array.iteri
+          let skip = Earray.length neg_eq_lits in
+          Earray.iteri
             (fun i (s, args) ->
               neg.(skip + i) <- var_for_noneq_atom inst a s args)
             neg_noneq_lits;
@@ -286,29 +289,31 @@ struct
       (arity : int)
       (commutative : bool)
       (new_t_var : Solv.t -> 'a Solv.var)
-      (new_t_var_array : Solv.t -> 'a Solv.var array -> 'a Solv.var_array) =
+      (new_t_var_array : Solv.t -> ('a Solv.var, [> `R]) Earray.t ->
+       'a Solv.var_array)
+      : 'a Solv.var_array * ('a Solv.var, [`R]) Earray.t  =
 
-    let adeq_sizes = Array.make arity 0 in
+    let adeq_sizes = Earray.make arity 0 in
     if commutative then begin
       let count = ref 0 in
-      let starts = Array.make n 0 in
+      let starts = Earray.make n 0 in
       for max_size = 1 to n do
         starts.(max_size-1) <- !count;
         count := !count + Assignment.count_comm_me 0 arity adeq_sizes max_size
       done;
-      let distinct_vars = Array.init !count (fun _ -> new_t_var solver) in
+      let distinct_vars = Earray.init !count (fun _ -> new_t_var solver) in
       let vars = BatDynArray.create () in
-      Assignment.each (Array.make arity 0) 0 arity adeq_sizes n
+      Assignment.each (Earray.make arity 0) 0 arity adeq_sizes n
         (fun a ->
           let r, max_el_idx = Assignment.rank_comm_me a 0 arity adeq_sizes in
           let var_idx = r + starts.(a.(max_el_idx)) in
           let var = distinct_vars.(var_idx) in
           BatDynArray.add vars var);
-      let vars = BatDynArray.to_array vars in
+      let vars = Earray.of_dyn_array vars in
       (new_t_var_array solver vars, vars)
     end else begin
       let count = Assignment.count 0 arity adeq_sizes n in
-      let vars = Array.init count (fun _ -> new_t_var solver) in
+      let vars = Earray.init count (fun _ -> new_t_var solver) in
       (new_t_var_array solver vars, vars)
     end
 
@@ -366,7 +371,7 @@ struct
     let pos_noneq_lits = BatDynArray.create () in
     let neg_noneq_lits = BatDynArray.create () in
     List.iter
-      (function
+      (fun lit -> match%earr lit with
       | L.Lit (sign, s, [| T.Var x; T.Var x' |]) when s = S.sym_eq ->
           BatDynArray.add
             (match sign with
@@ -383,7 +388,7 @@ struct
             (l, r)
       | L.Lit (sign, s, args) ->
           add_pred inst s;
-          Array.iter add_funcs_in_term args;
+          Earray.iter add_funcs_in_term args;
           BatDynArray.add
             (match sign with
               | Sh.Pos -> pos_noneq_lits
@@ -395,12 +400,12 @@ struct
     instantiate_clause
       inst
       nvars
-      (BatDynArray.to_array var_eqs)
-      (BatDynArray.to_array var_ineqs)
-      (BatDynArray.to_array pos_eq_lits)
-      (BatDynArray.to_array neg_eq_lits)
-      (BatDynArray.to_array pos_noneq_lits)
-      (BatDynArray.to_array neg_noneq_lits)
+      (Earray.of_dyn_array var_eqs)
+      (Earray.of_dyn_array var_ineqs)
+      (Earray.of_dyn_array pos_eq_lits)
+      (Earray.of_dyn_array neg_eq_lits)
+      (Earray.of_dyn_array pos_noneq_lits)
+      (Earray.of_dyn_array neg_noneq_lits)
 
   let lnh inst =
     let lower_eq' x c =
@@ -408,24 +413,24 @@ struct
         Solv.lower_eq inst.solver x c in
 
     let precede' xs cs =
-      if xs <> [| |] && Array.length cs >= 2 then
+      if xs <> Earray.empty && Earray.length cs >= 2 then
         Solv.precede inst.solver xs cs in
 
     let consts, funcs =
       inst.func_arrays
       |> BatHashtbl.keys
-      |> BatArray.of_enum
-      |> BatArray.partition (fun s -> Symb.arity s = 0) in
-    Array.sort compare consts;
-    Array.sort compare funcs;
+      |> Earray.of_enum
+      |> Earray.partition (fun s -> Symb.arity s = 0) in
+    Earray.sort compare consts;
+    Earray.sort compare funcs;
 
-    let nconsts = Array.length consts in
+    let nconsts = Earray.length consts in
 
     (* CSP variables for processed cells. *)
     let vars = BatDynArray.create () in
 
     (* Restrict domain sizes of constants. *)
-    Array.iteri
+    Earray.iteri
       (fun i c ->
         let var = (Hashtbl.find inst.func_arrays c).(0) in
         (* Index of var in array vars. *)
@@ -435,34 +440,34 @@ struct
       consts;
 
     (* Precedence constraint for constants. *)
-    if consts <> [| |] then begin
+    if consts <> Earray.empty then begin
       let max_el = min (nconsts - 1) (inst.n - 1) in
       precede'
-        (BatDynArray.to_array vars)
-        (BatEnum.range ~until:max_el 0 |> BatArray.of_enum)
+        (Earray.of_dyn_array vars)
+        (BatEnum.range ~until:max_el 0 |> Earray.of_enum)
     end;
 
-    if funcs <> [| |] then begin
+    if funcs <> Earray.empty then begin
       let z =
-        if consts <> [| |]
+        if consts <> Earray.empty
         then 0
         else 1 in
       (* Nothing can be restricted when max_arg = inst.n - 1. *)
       for max_arg = 0 to inst.n - 2 do
         (* Restrict domain sizes of cells with maximal argument max_arg. *)
-        Array.iter
+        Earray.iter
           (fun f ->
             let arity = Symb.arity f in
             let each =
               if Symb.commutative inst.symbols f
               then Assignment.each_comm_me
               else Assignment.each_me in
-            let a = Array.make arity 0 in
-            let adeq_sizes = Array.make arity 0 in
+            let a = Earray.make arity 0 in
+            let adeq_sizes = Earray.make arity 0 in
             each a 0 arity adeq_sizes (max_arg + 1)
               (fun a ->
                 let rank =
-                  Array.fold_left (fun rank x -> rank * inst.n + x) 0 a in
+                  Earray.fold_left (fun rank x -> rank * inst.n + x) 0 a in
                 let var = (Hashtbl.find inst.func_arrays f).(rank) in
                 (* Index of var in array vars. *)
                 let idx = BatDynArray.length vars in
@@ -483,8 +488,8 @@ struct
         (* Every new cell can use max_arg + 1 without restrictions. *)
         let n_from = max_arg + 1 in
         precede'
-          (BatDynArray.to_array vars)
-          (BatEnum.range ~until:n_to n_from |> BatArray.of_enum)
+          (Earray.of_dyn_array vars)
+          (BatEnum.range ~until:n_to n_from |> Earray.of_enum)
       done
     end
 
@@ -492,10 +497,10 @@ struct
     let funcs =
       inst.func_arrays
       |> BatHashtbl.enum
-      |> BatArray.of_enum in
-    Array.sort compare funcs;
+      |> Earray.of_enum in
+    Earray.sort compare funcs;
 
-    Array.iter
+    Earray.iter
       (fun (s, vars) ->
         let hints = Symb.hints inst.symbols s in
         List.iter
@@ -503,10 +508,10 @@ struct
           | Symb.Permutation -> Solv.all_different inst.solver vars
           | Symb.Latin_square ->
               let n = inst.n in
-              let xs = Array.sub vars 0 n in
+              let xs = Earray.sub vars 0 n in
               (* Rows: i-th row is f(i, ?). *)
               for row = 0 to n - 1 do
-                Array.blit vars (row * n) xs 0 n;
+                Earray.blit vars (row * n) xs 0 n;
                 Solv.all_different inst.solver xs
               done;
               (* Columns: j-th column is f(?, j). *)
@@ -539,8 +544,8 @@ struct
     (* Distinct constants. *)
     BatDynArray.iter (add_func inst) prob.Prob.distinct_consts;
     if BatDynArray.empty prob.Prob.distinct_consts |> not then
-      BatDynArray.to_array prob.Prob.distinct_consts
-      |> Array.map (fun s -> (Hashtbl.find inst.func_arrays s).(0))
+      Earray.of_dyn_array prob.Prob.distinct_consts
+      |> Earray.map (fun s -> (Hashtbl.find inst.func_arrays s).(0))
       |> Solv.all_different inst.solver;
     (* Clauses. *)
     BatDynArray.iter
@@ -572,7 +577,7 @@ struct
 
     let add_symb_model t_value s vars =
       if not (Symb.auxiliary inst.symbols s) then
-        let values = Array.map t_value vars in
+        let values = Earray.map t_value vars in
         symbs := Symb.Map.add s { Model.values } !symbs in
 
     (* Predicates. *)

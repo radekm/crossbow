@@ -13,7 +13,7 @@ let (%>) = BatPervasives.(%>)
    is replaced by [y].
 *)
 let remove_var_ineqs lits =
-  let var_ineq = function
+  let var_ineq lit = match%earr lit with
     | L.Lit (Sh.Neg, s, [| (T.Var _) as x; (T.Var _) as y |])
       when s = S.sym_eq ->
         Some (x, y)
@@ -62,7 +62,7 @@ let normalize_vars lits =
       y in
   let rec norm_vars_t = function
     | T.Var x -> T.var (norm_var x)
-    | T.Func (s, args) -> T.func (s, Array.map norm_vars_t args) in
+    | T.Func (s, args) -> T.func (s, Earray.map norm_vars_t args) in
   let norm_vars_l = L.lift norm_vars_t in
   let lits2 = BatList.map norm_vars_l lits in
   lits2, Hashtbl.length vars
@@ -77,7 +77,7 @@ let rewrite_ground_terms symdb clauses =
       (* If the clause is ground equality orient it,
          otherwise return None.
       *)
-      let orient_ground_eq = function
+      let orient_ground_eq a = match%earr a with
         | i, [L.Lit (Sh.Pos, s, [| l; r |])]
           when s = Symb.sym_eq && T.is_ground l && T.is_ground r ->
             let nl, nr = T.count_symbs l, T.count_symbs r in
@@ -144,7 +144,7 @@ let flatten symdb lits =
       | T.Func _ as t -> Some t)
       ts in
 
-  let var_func_ineq lits i = function
+  let var_func_ineq lits i lit = match%earr lit with
     | L.Lit (Sh.Neg, s, [| (T.Var _) as x; (T.Func _) as f |])
     | L.Lit (Sh.Neg, s, [| (T.Func _) as f; (T.Var _) as x |])
       when s = S.sym_eq ->
@@ -153,7 +153,7 @@ let flatten symdb lits =
         else None
     | _ -> None in
 
-  let nested_func = function
+  let nested_func lit = match%earr lit with
     (* f(..) != g(..) *)
     | L.Lit (Sh.Neg, s, [| (T.Func _) as t; T.Func _ |])
       when s = S.sym_eq ->
@@ -171,7 +171,7 @@ let flatten symdb lits =
         pick_func args
     | _ -> None in
 
-  let func_eq = function
+  let func_eq lit = match%earr lit with
     | L.Lit (Sh.Pos, s, [| (T.Func _) as l; (T.Func _) as r |])
       when s = S.sym_eq ->
         Some (l, r)
@@ -202,7 +202,7 @@ let flatten symdb lits =
       *)
       match BatList.filter_map func_eq lits with
         | (_ :: _) as xs ->
-            let cover = Algo.min_vertex_cover (Array.of_list xs) in
+            let cover = Algo.min_vertex_cover (Earray.of_list xs) in
             let ineqs =
               BatList.map (fun f -> L.mk_ineq (fresh_var ()) f) cover in
             Some (List.rev_append ineqs lits)
@@ -223,7 +223,7 @@ let flatten symdb lits =
         loop lits
 
 let unflatten symdb lits =
-  let var_func_ineq = function
+  let var_func_ineq lit = match%earr lit with
     | L.Lit (Sh.Neg, s, [| (T.Var _) as x; (T.Func _) as f |])
     | L.Lit (Sh.Neg, s, [| (T.Func _) as f; (T.Var _) as x |])
       when s = S.sym_eq && not (T.contains x f) ->

@@ -13,11 +13,11 @@ module type Solver = sig
   *)
   val new_false_var : t -> var
 
-  val add_symmetry_clause : t -> lit array -> int -> bool
+  val add_symmetry_clause : t -> (lit, [> `R]) Earray.t -> int -> bool
 
-  val add_at_least_one_val_clause : t -> lit array -> int -> bool
+  val add_at_least_one_val_clause : t -> (lit, [> `R]) Earray.t -> int -> bool
 
-  val add_at_most_one_val_clause : t -> lit array -> bool
+  val add_at_most_one_val_clause : t -> (lit, [> `R]) Earray.t -> bool
 
   val remove_clauses_with_lit : t -> lit -> unit
 end

@@ -7,19 +7,21 @@ type var = int
 (** Note: terms should not be modified. *)
 type t = private
   | Var of var
-  | Func of Symb.id * t array
+  | Func of Symb.id * (t, [`R]) Earray.t
 
 val var : var -> t
 
-val func : Symb.id * t array -> t
+val func : Symb.id * (t, [> `R]) Earray.t -> t
 
 val is_var : t -> bool
+
+val is_func : t -> bool
 
 val is_const : t -> bool
 
 val is_proper_func : t -> bool
 
-val get_args : t -> t array
+val get_args : t -> (t, [`R]) Earray.t
 
 (** [contains sub t] tests whether the term [t] contains [sub] as a subterm. *)
 val contains : t -> t -> bool

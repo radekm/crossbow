@@ -10,9 +10,10 @@ external create : unit -> t = "josat_create"
 
 external new_var : t -> var = "josat_new_var"
 
-external add_clause : t -> lit array -> int -> bool = "josat_add_clause"
+external add_clause : t -> (lit, [> `R]) Earray.t -> int -> bool =
+  "josat_add_clause"
 
-external solve : t -> lit array -> Sh.lbool = "josat_solve"
+external solve : t -> (lit, [> `R]) Earray.t -> Sh.lbool = "josat_solve"
 
 external model_value : t -> var -> Sh.lbool = "josat_model_value"
 

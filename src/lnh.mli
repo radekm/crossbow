@@ -10,7 +10,7 @@
 *)
 type t = {
   assig : Symred.cell * int;
-  required : Symred.cell array * int;
+  required : (Symred.cell, [`R]) Earray.t * int;
 }
 
 (** [lnh symbols sorts proc_cells cell] returns constraints for the cell
@@ -28,4 +28,4 @@ val lnh :
   [> `R] Symb.db -> Sorts.t ->
   (Symred.cell * (int * int)) list ->
   Symred.cell * (int * int) ->
-  t array
+  (t, [`R]) Earray.t

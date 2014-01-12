@@ -122,6 +122,8 @@ let is_empty arr = arr = [| |]
 external of_array : 'a array -> ('a, _) t = "%identity"
 external to_array : ('a, [`R|`W]) t -> 'a array = "%identity"
 
+let of_dyn_array darr = BatDynArray.to_array darr |> of_array
+
 external read_only : ('a, [> `R]) t -> ('a, [`R]) t = "%identity"
 external write_only : ('a, [> `W]) t -> ('a, [`W]) t = "%identity"
 

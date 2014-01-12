@@ -11,6 +11,8 @@ module Make (Inst : Csp_inst.Inst_sig) : sig
   val suite : string -> test
 end = struct
 
+  module Array = Earray.Array
+
   (* injective: f(x) = f(y) -> x = y
      not surjective: f(x) <> c
   *)

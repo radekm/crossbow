@@ -3,6 +3,7 @@
 let (%>) = BatPervasives.(%>)
 let (|>) = BatPervasives.(|>)
 
+module Array = Earray.Array
 module T = Term
 module L = Lit
 
@@ -84,15 +85,15 @@ let print_symb_info verbose tp =
   let symdb = p.Prob.symbols in
   let clauses =
     p.Prob.clauses
-    |> BatDynArray.to_array
-    |> Array.map (fun cl -> cl.Clause2.cl_lits) in
+    |> Earray.of_dyn_array
+    |> Earray.map (fun cl -> cl.Clause2.cl_lits) in
   let preds =
-    Array.fold_left
+    Earray.fold_left
       (fun acc -> preds_in_clause %> BatSet.union acc)
       BatSet.empty
       clauses in
   let funcs =
-    Array.fold_left
+    Earray.fold_left
       (fun acc -> funcs_in_clause %> BatSet.union acc)
       BatSet.empty
       clauses in
@@ -138,9 +139,9 @@ let print_clause_info verbose tp =
       (nvars, nlits, npreds, nfuncs) in
     let stats =
       clauses
-      |> BatDynArray.to_array
-      |> Array.map compute_stats in
-    Array.iter
+      |> Earray.of_dyn_array
+      |> Earray.map compute_stats in
+    Earray.iter
       (fun (nvars, nlits, npreds, nfuncs) ->
         Printf.fprintf stderr
           "    %3d var(s), %3d lit(s), %3d pred(s), %3d func(s)\n"
@@ -149,14 +150,14 @@ let print_clause_info verbose tp =
   end
 
 let print_sort_info verbose sorts =
-  let nsorts = Array.length sorts.Sorts.adeq_sizes in
+  let nsorts = Earray.length sorts.Sorts.adeq_sizes in
   Printf.fprintf stderr "%d sort(s)\n" nsorts;
   if verbose then
     for sort = 0 to nsorts - 1 do
       Printf.fprintf stderr
         "    %3d adequate size, %3d const(s)\n"
         sorts.Sorts.adeq_sizes.(sort)
-        (Array.length sorts.Sorts.consts.(sort))
+        (Earray.length sorts.Sorts.consts.(sort))
     done
 
 (* ************************************************************************ *)
@@ -383,7 +384,7 @@ let generate_lemmas_by_e
   (* Execute E prover. *)
   let out_eprover = BatFile.with_temporary_out (fun _ name -> name) in
   let args =
-    Array.concat
+    BatArray.concat
       [
         [| e_exe |];
         [| "--tstp-format"; "--print-saturated=ei"; "--output-level=0" |];
@@ -834,7 +835,7 @@ let find_model
     failwith "Solver needs flat clauses.";
   (* Lemma generation. *)
   if use_e then begin
-    let e_opts = Array.of_list e_opts in
+    let e_opts = BatArray.of_list e_opts in
     let lemmas =
       generate_lemmas_by_e
         tptp_prob

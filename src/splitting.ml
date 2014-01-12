@@ -59,7 +59,7 @@ let paradox_binary_split
         let args =
           IntSet.enum shared_vars
           |> BatEnum.map T.var
-          |> BatArray.of_enum in
+          |> Earray.of_enum in
         L.lit (Sh.Pos, p, args) in
       ([], [lit :: left; L.neg lit :: right])
 

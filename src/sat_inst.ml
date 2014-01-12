@@ -5,11 +5,11 @@ module type Solver = sig
 
   val new_false_var : t -> var
 
-  val add_symmetry_clause : t -> lit array -> int -> bool
+  val add_symmetry_clause : t -> (lit, [> `R]) Earray.t -> int -> bool
 
-  val add_at_least_one_val_clause : t -> lit array -> int -> bool
+  val add_at_least_one_val_clause : t -> (lit, [> `R]) Earray.t -> int -> bool
 
-  val add_at_most_one_val_clause : t -> lit array -> bool
+  val add_at_most_one_val_clause : t -> (lit, [> `R]) Earray.t -> bool
 
   val remove_clauses_with_lit : t -> lit -> unit
 end
@@ -39,6 +39,7 @@ end
 module Make (Solv : Solver) :
   Inst_sig with type solver = Solv.t =
 struct
+  module Array = Earray.Array
   module L = Lit
 
   type pvar = Solv.var
@@ -53,27 +54,27 @@ struct
     l_pvars : pvar BatDynArray.t;
 
     (* Variables used as the arguments and the result (if appropriate). *)
-    l_vars : Term.var array;
+    l_vars : (Term.var, [`R]) Earray.t;
 
     (* For ranking. *)
     l_commutative : bool;
 
     (* For ranking. *)
-    l_adeq_sizes : int array;
+    l_adeq_sizes : (int, [`R]) Earray.t;
   }
 
   type clause = {
     (* Adequate sizes of the domains of the variables in the clause. *)
-    var_adeq_sizes : int array;
+    var_adeq_sizes : (int, [`R]) Earray.t;
 
     (* Equalities of variables. *)
-    var_equalities : (Term.var * Term.var) array;
+    var_equalities : (Term.var * Term.var, [`R]) Earray.t;
 
     (* Literals for nullary predicates. *)
-    nullary_pred_lits : plit array;
+    nullary_pred_lits : (plit, [`R]) Earray.t;
 
     (* Literals with variables. *)
-    lits : lit array;
+    lits : (lit, [`R]) Earray.t;
   }
 
   type commutative = bool
@@ -94,12 +95,12 @@ struct
     pvars : (Symb.id, pvar BatDynArray.t) Hashtbl.t;
 
     (* Except nullary predicates. *)
-    adeq_sizes : (Symb.id, (int array * commutative)) BatMap.t;
+    adeq_sizes : (Symb.id, ((int, [`R]) Earray.t * commutative)) BatMap.t;
 
     (* Constants and functions. *)
-    funcs : Symb.id array;
+    funcs : (Symb.id, [`R]) Earray.t;
 
-    clauses : clause array;
+    clauses : (clause, [`R]) Earray.t;
 
     (* Except totality clauses. *)
     max_clause_size : int;
@@ -150,7 +151,7 @@ struct
     let nullary_pred_pvars = Hashtbl.create 20 in
     List.iter
       (fun (symb, sorts) ->
-        if Array.length sorts = 0 then
+        if Earray.length sorts = 0 then
           Hashtbl.add nullary_pred_pvars symb (Solv.new_var solver))
       sorted_symb_sorts;
 
@@ -158,16 +159,16 @@ struct
     let pvars = Hashtbl.create 20 in
     Hashtbl.iter
       (fun symb sorts ->
-        if Array.length sorts > 0 then
+        if Earray.length sorts > 0 then
           Hashtbl.add pvars symb (BatDynArray.create ()))
       sorts.Sorts.symb_sorts;
 
     let adeq_sizes =
       BatHashtbl.fold
         (fun symb sorts' m ->
-          if Array.length sorts' > 0 then
+          if Earray.length sorts' > 0 then
             let adeq_sizes' =
-              Array.map (fun sort -> sorts.Sorts.adeq_sizes.(sort)) sorts' in
+              Earray.map (fun sort -> sorts.Sorts.adeq_sizes.(sort)) sorts' in
             let commutative = Symb.commutative prob.Prob.symbols symb in
             BatMap.add symb (adeq_sizes', commutative) m
           else
@@ -178,7 +179,7 @@ struct
     let funcs = BatDynArray.create () in
     List.iter
       (fun (symb, sorts) ->
-        if Array.length sorts = Symb.arity symb + 1 then
+        if Earray.length sorts = Symb.arity symb + 1 then
           BatDynArray.add funcs symb)
       sorted_symb_sorts;
 
@@ -189,7 +190,7 @@ struct
       let get_var = function
         | Term.Var x -> x
         | _ -> failwith "expected variable" in
-      let each_lit = function
+      let each_lit lit = match%earr lit with
         | L.Lit (sign, s, [| l; r |]) when s = Symb.sym_eq ->
             begin match l, r with
               | Term.Var x, Term.Var y ->
@@ -203,15 +204,15 @@ struct
                       l_sign = sign;
                       l_pvars = Hashtbl.find pvars f;
                       l_vars =
-                        Array.init
-                          (Array.length args + 1)
+                        Earray.init
+                          (Earray.length args + 1)
                           (fun i ->
-                            if i < Array.length args
+                            if i < Earray.length args
                             then get_var args.(i)
                             else res);
                       l_commutative = Symb.commutative prob.Prob.symbols f;
                       l_adeq_sizes =
-                        Array.map
+                        Earray.map
                           (fun sort -> sorts.Sorts.adeq_sizes.(sort))
                           (Hashtbl.find sorts.Sorts.symb_sorts f);
                     }
@@ -219,7 +220,7 @@ struct
             end
         | L.Lit (sign, p, args) ->
             (* Nullary predicate. *)
-            if args = [| |] then
+            if args = Earray.empty then
               let pvar = Hashtbl.find nullary_pred_pvars p in
               let plit = Solv.to_lit sign pvar in
               BatDynArray.add nullary_pred_lits plit
@@ -228,10 +229,10 @@ struct
                 {
                   l_sign = sign;
                   l_pvars = Hashtbl.find pvars p;
-                  l_vars = Array.map get_var args;
+                  l_vars = Earray.map get_var args;
                   l_commutative = Symb.commutative prob.Prob.symbols p;
                   l_adeq_sizes =
-                    Array.map
+                    Earray.map
                       (fun sort -> sorts.Sorts.adeq_sizes.(sort))
                       (Hashtbl.find sorts.Sorts.symb_sorts p);
                 } in
@@ -239,27 +240,27 @@ struct
       let _, nvars = Clause.normalize_vars cl.Clause2.cl_lits in
       {
         var_adeq_sizes =
-          Array.init nvars
+          Earray.init nvars
             (fun v ->
               let sort =
                 Hashtbl.find
                   sorts.Sorts.var_sorts
                   (cl.Clause2.cl_id, v) in
               sorts.Sorts.adeq_sizes.(sort));
-        var_equalities = BatDynArray.to_array var_eqs;
-        nullary_pred_lits = BatDynArray.to_array nullary_pred_lits;
-        lits = BatDynArray.to_array lits;
+        var_equalities = Earray.of_dyn_array var_eqs;
+        nullary_pred_lits = Earray.of_dyn_array nullary_pred_lits;
+        lits = Earray.of_dyn_array lits;
       } in
     let clauses = BatDynArray.map each_clause prob.Prob.clauses in
 
     (* Instantiate clauses without variables. *)
     BatDynArray.keep
       (fun cl ->
-        if Array.length cl.var_adeq_sizes = 0 then begin
+        if Earray.length cl.var_adeq_sizes = 0 then begin
           ignore (Solv.add_clause
                     solver
                     cl.nullary_pred_lits
-                    (Array.length cl.nullary_pred_lits));
+                    (Earray.length cl.nullary_pred_lits));
           false
         end else
           true)
@@ -269,12 +270,12 @@ struct
     let max_clause_size =
       BatDynArray.fold_left
         (fun m cl ->
-          max m (Array.length cl.lits + Array.length cl.nullary_pred_lits))
+          max m (Earray.length cl.lits + Earray.length cl.nullary_pred_lits))
         2 clauses in
 
     let max_symb_size =
       Hashtbl.fold
-        (fun _ sorts acc -> max (Array.length sorts) acc)
+        (fun _ sorts acc -> max (Earray.length sorts) acc)
         sorts.Sorts.symb_sorts
         0 in
 
@@ -287,8 +288,8 @@ struct
       nullary_pred_pvars;
       pvars;
       adeq_sizes;
-      funcs = BatDynArray.to_array funcs;
-      clauses = BatDynArray.to_array clauses;
+      funcs = Earray.of_dyn_array funcs;
+      clauses = Earray.of_dyn_array clauses;
       max_clause_size;
       max_symb_size;
       min_size = BatDynArray.length prob.Prob.distinct_consts;
@@ -308,7 +309,7 @@ struct
             if commutative
             then Assignment.count_comm_me
             else Assignment.count_me in
-          count 0 (Array.length adeq_sizes) adeq_sizes inst.max_size in
+          count 0 (Earray.length adeq_sizes) adeq_sizes inst.max_size in
         if cnt > 0 then begin
           let pvars = Hashtbl.find inst.pvars symb in
           BatDynArray.add pvars (Solv.new_var inst.solver);
@@ -329,13 +330,13 @@ struct
       (fun ((symb, args), (lo, hi)) ->
         let adeq_sizes, commutative = BatMap.find symb inst.adeq_sizes in
         let pvars = Hashtbl.find inst.pvars symb in
-        let arity = Array.length args in
+        let arity = Earray.length args in
         let rank =
           if commutative
           then Assignment.rank_comm_me
           else Assignment.rank_me in
-        let a = Array.copy adeq_sizes in
-        Array.blit args 0 a 0 arity;
+        let a = Earray.copy adeq_sizes in
+        Earray.blit args 0 a 0 arity;
         (* Create literals. *)
         for result = lo to hi do
           a.(arity) <- result;
@@ -353,25 +354,25 @@ struct
           let cell_to_pvar (symb, args) res =
             let adeq_sizes, commutative = BatMap.find symb inst.adeq_sizes in
             let pvars = Hashtbl.find inst.pvars symb in
-            let arity = Array.length args in
+            let arity = Earray.length args in
             let rank =
               if commutative
               then Assignment.rank_comm_me
               else Assignment.rank_me in
             let a =
-              Array.init
+              Earray.init
                 (arity+1)
                 (fun i -> if i < arity then args.(i) else res) in
             let pvar = assig_to_pvar a (arity+1) adeq_sizes rank pvars in
             pvar in
           (* Add constraints generated by LNH. *)
-          Array.iter
+          Earray.iter
             (fun { Lnh.assig = (c, v); Lnh.required = (cs, v') } ->
               let pclause =
-                Array.init
-                  (Array.length cs + 1)
+                Earray.init
+                  (Earray.length cs + 1)
                   (fun i ->
-                    if i < Array.length cs then
+                    if i < Earray.length cs then
                       let pvar = cell_to_pvar cs.(i) v' in
                       let plit = Solv.to_lit Sh.Pos pvar in
                       plit
@@ -380,7 +381,7 @@ struct
                       let plit = Solv.to_lit Sh.Neg pvar in
                       plit) in
               ignore (Solv.add_clause inst.solver pclause
-                        (Array.length pclause)))
+                        (Earray.length pclause)))
             constrs
         end;
 
@@ -389,10 +390,10 @@ struct
         inst.assig_by_symred_list <- cell :: inst.assig_by_symred_list;
 
         (* Mark cell as assigned by symmetry reduction. *)
-        if Array.length args = 0 then
+        if Earray.length args = 0 then
           Hashtbl.add inst.assig_by_symred (symb, 0, -1) ()
         else
-          let r, max_el_idx = rank args 0 (Array.length args) adeq_sizes in
+          let r, max_el_idx = rank args 0 (Earray.length args) adeq_sizes in
           Hashtbl.add inst.assig_by_symred (symb, r, args.(max_el_idx)) ()
       )
       assigned_cells
@@ -402,7 +403,7 @@ struct
       (fun ((symb, args), (lo, hi)) ->
         let adeq_sizes, commutative = BatMap.find symb inst.adeq_sizes in
         let pvars = Hashtbl.find inst.pvars symb in
-        let arity = Array.length args in
+        let arity = Earray.length args in
         let res_max_el =
           if
             adeq_sizes.(arity) = 0 ||
@@ -413,25 +414,25 @@ struct
           if commutative
           then Assignment.rank_comm_me
           else Assignment.rank_me in
-        let a = Array.copy adeq_sizes in
-        Array.blit args 0 a 0 arity;
+        let a = Earray.copy adeq_sizes in
+        Earray.blit args 0 a 0 arity;
         (* Explicitly ban values which are not between lo and hi. *)
         for result = 0 to res_max_el do
           if result < lo || result > hi then begin
             a.(arity) <- result;
             let pvar = assig_to_pvar a (arity+1) adeq_sizes rank pvars in
             let plit = Solv.to_lit Sh.Neg pvar in
-            ignore (Solv.add_clause inst.solver [| plit |] 1)
+            ignore (Solv.add_clause inst.solver (Earray.singleton plit) 1)
           end
         done)
       inst.assig_by_symred_list
 
   let add_at_most_one_val_clauses inst pclause =
-    Array.iter
+    Earray.iter
       (fun f ->
         let adeq_sizes, commutative = BatMap.find f inst.adeq_sizes in
         let pvars = Hashtbl.find inst.pvars f in
-        let arity = Array.length adeq_sizes - 1 in
+        let arity = Earray.length adeq_sizes - 1 in
         let res_max_el =
           if
             adeq_sizes.(arity) = 0 ||
@@ -442,7 +443,7 @@ struct
           if commutative
           then Assignment.each_comm_me, Assignment.rank_comm_me
           else Assignment.each_me, Assignment.rank_me in
-        let a = Array.copy adeq_sizes in
+        let a = Earray.copy adeq_sizes in
         let mk_lit a =
           let pvar = assig_to_pvar a (arity+1) adeq_sizes rank pvars in
           Solv.to_lit Sh.Neg pvar in
@@ -486,28 +487,28 @@ struct
     (* Array where the arguments and the result (if appropriate) are stored
        before they are ranked.
     *)
-    let symb_elems = Array.make inst.max_symb_size 0 in
+    let symb_elems = Earray.make inst.max_symb_size 0 in
 
-    Array.iter
+    Earray.iter
       (fun cl ->
-        let nullary_preds_cnt = Array.length cl.nullary_pred_lits in
-        Array.blit cl.nullary_pred_lits 0 pclause 0 nullary_preds_cnt;
-        let a = Array.copy cl.var_adeq_sizes in
+        let nullary_preds_cnt = Earray.length cl.nullary_pred_lits in
+        Earray.blit cl.nullary_pred_lits 0 pclause 0 nullary_preds_cnt;
+        let a = Earray.copy cl.var_adeq_sizes in
         (* For each assignment of the variables with max_el. *)
         Assignment.each_me
-          a 0 (Array.length cl.var_adeq_sizes)
+          a 0 (Earray.length cl.var_adeq_sizes)
           cl.var_adeq_sizes inst.max_size
           (fun a ->
             let var_eq_sat =
-              BatArray.exists
+              Earray.exists
                 (fun (x, y) -> a.(x) = a.(y))
                 cl.var_equalities in
             if not var_eq_sat then begin
               (* Add remaining literals. *)
-              Array.iteri
+              Earray.iteri
                 (fun i lit ->
                   (* Copy values of variables into symb_elems. *)
-                  Array.iteri
+                  Earray.iteri
                     (fun j x -> symb_elems.(j) <- a.(x))
                     lit.l_vars;
                   let rank =
@@ -516,7 +517,7 @@ struct
                     else Assignment.rank_me in
                   let r, max_el_idx =
                     rank
-                      symb_elems 0 (Array.length lit.l_vars)
+                      symb_elems 0 (Earray.length lit.l_vars)
                       lit.l_adeq_sizes in
                   let pvar =
                     r + BatDynArray.get lit.l_pvars symb_elems.(max_el_idx) in
@@ -526,7 +527,7 @@ struct
               ignore
                 (Solv.add_clause
                    inst.solver pclause
-                   (nullary_preds_cnt + Array.length cl.lits))
+                   (nullary_preds_cnt + Earray.length cl.lits))
             end))
       inst.clauses
 
@@ -549,7 +550,7 @@ struct
        before they are added as a new clause.
     *)
     let pclause =
-      Array.make
+      Earray.make
         (* inst.max_size is for symmetry clauses. *)
         (max inst.max_clause_size inst.max_size)
         (Solv.to_lit Sh.Pos 0) in
@@ -564,16 +565,16 @@ struct
       inst.totality_clauses_switch <- Some switch;
 
       let pclause =
-        Array.make
+        Earray.make
           (* + 1 is for the switch. *)
           (inst.max_size + 1)
           (Solv.to_lit Sh.Pos 0) in
 
-      Array.iter
+      Earray.iter
         (fun f ->
           let adeq_sizes, commutative = BatMap.find f inst.adeq_sizes in
           let pvars = Hashtbl.find inst.pvars f in
-          let arity = Array.length adeq_sizes - 1 in
+          let arity = Earray.length adeq_sizes - 1 in
           let res_max_el =
             if
               adeq_sizes.(arity) = 0 ||
@@ -607,7 +608,7 @@ struct
                         (res_max_el + 2))
             end in
 
-          let a = Array.copy adeq_sizes in
+          let a = Earray.copy adeq_sizes in
 
           (* Constants are processed separately since both each_me
              and each_comm_me don't produce any assignment.
@@ -632,7 +633,8 @@ struct
       | None -> failwith "solve: impossible"
       | Some switch ->
           let result =
-            Solv.solve inst.solver [| Solv.to_lit Sh.Neg switch |] in
+            Solv.solve inst.solver
+              (Earray.of_array [| Solv.to_lit Sh.Neg switch |]) in
           inst.can_construct_model <- result = Sh.Ltrue;
           result
 
@@ -661,8 +663,8 @@ struct
           symbs :=
             Symb.Map.add s
               {
-                Ms_model.param_sizes = [| |];
-                Ms_model.values = [| get_val pvar |];
+                Ms_model.param_sizes = Earray.empty;
+                Ms_model.values = Earray.of_array [| get_val pvar |];
               }
               !symbs)
       inst.nullary_pred_pvars;
@@ -680,23 +682,24 @@ struct
             else adeq_sizes.(i) in
           let i = ref 0 in
           let values =
-            Array.make
+            Earray.make
               (Assignment.count 0 arity adeq_sizes inst.max_size)
               ~-1 in
           symbs :=
             Symb.Map.add s
               {
-                Ms_model.param_sizes = Array.init arity dsize;
-                Ms_model.values;
+                Ms_model.param_sizes = Earray.init arity dsize;
+                (* Warning: the array of values is modified below. *)
+                Ms_model.values = Earray.read_only values;
               }
               !symbs;
           let pvars = Hashtbl.find inst.pvars s in
-          let a = Array.copy adeq_sizes in
+          let a = Earray.copy adeq_sizes in
           let rank =
             if commutative
             then Assignment.rank_comm_me
             else Assignment.rank_me in
-          if arity = Array.length adeq_sizes then
+          if arity = Earray.length adeq_sizes then
             (* Non-nullary predicate. *)
             Assignment.each a 0 arity adeq_sizes inst.max_size
               (fun a ->
@@ -762,7 +765,7 @@ struct
                 if commutative
                 then Assignment.rank_comm_me
                 else Assignment.rank_me in
-              let a = Array.copy adeq_sizes in
+              let a = Earray.copy adeq_sizes in
               let i = ref 0 in
               (* Note: Commutative symbols are not treated specially
                  when generating argument vectors. The consequence
@@ -794,8 +797,8 @@ struct
               end)
       model.Ms_model.symbs;
 
-    let pclause = BatDynArray.to_array pclause in
-    ignore (Solv.add_clause inst.solver pclause (Array.length pclause))
+    let pclause = Earray.of_dyn_array pclause in
+    ignore (Solv.add_clause inst.solver pclause (Earray.length pclause))
 
   let get_solver inst = inst.solver
 

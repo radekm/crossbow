@@ -10,9 +10,10 @@ external create : unit -> t = "minisat_create"
 
 external new_var : t -> var = "minisat_new_var"
 
-external add_clause : t -> lit array -> int -> bool = "minisat_add_clause"
+external add_clause : t -> (lit, [> `R]) Earray.t -> int -> bool =
+  "minisat_add_clause"
 
-external solve : t -> lit array -> Sh.lbool = "minisat_solve"
+external solve : t -> (lit, [> `R]) Earray.t -> Sh.lbool = "minisat_solve"
 
 external model_value : t -> var -> Sh.lbool = "minisat_model_value"
 

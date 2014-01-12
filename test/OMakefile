@@ -1,6 +1,6 @@
-# Copyright (c) 2013 Radek Micek
+# Copyright (c) 2013-2014 Radek Micek
 
-OCAMLFLAGS = -thread
+OCAMLFLAGS += -thread -ppx ./array_to_earray_syntax$(EXE)
 
 OCAML_LINK_FLAGS += -cc g++
 
@@ -11,19 +11,32 @@ OCAMLPACKS[] =
     zarith
     oclock
     oUnit
+    compiler-libs
+    compiler-libs.common
 
 if $(defined coverage)
     OCAMLPACKS[] += bisect
     export OCAMLPACKS
 
-OCAMLINCLUDES += ../src
+# Don't use syntax preprocessor while building syntax preprocessor
+# (i.e. get rid of inappropriate OCAMLFLAGS).
+section
+    OCAMLFLAGS = -thread
+    array_to_earray_syntax.cmi:
+    array_to_earray_syntax.cmo:
+    array_to_earray_syntax$(EXT_OBJ):
+    array_to_earray_syntax.cmx:
+
+OCamlProgram(array_to_earray_syntax, array_to_earray_syntax)
+
+OCAMLINCLUDES += ../earray ../src
 
 OCAML_LIBS[] +=
+    ../earray/libearray
     ../src/libcrossbow
 
 FILES[] =
     eunit
-    test_earray
     test_elist
     test_algo
     test_equiv
@@ -59,10 +72,18 @@ FILES[] =
     test_gecode_inst
     test
 
+# Ensure that syntax preprocessor is built.
+foreach(f, $(FILES))
+    $(f).cmi: array_to_earray_syntax$(EXE)
+    $(f).cmo: array_to_earray_syntax$(EXE)
+    $(f)$(EXT_OBJ): array_to_earray_syntax$(EXE)
+    $(f).cmx: array_to_earray_syntax$(EXE)
+
 OCamlProgram(test_runner, $(FILES))
 
 test: test_runner$(EXE)
 
 clean:
     $(CLEAN)
+    rm -f array_to_earray_syntax$(EXE)
     rm -f test_runner$(EXE)

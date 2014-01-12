@@ -177,7 +177,7 @@ end = struct
     let sq_dom = n * n + 1 in
     (* Variables equal to squares of positive numbers 1..n. *)
     let sq_vars =
-      Array.init n (fun i ->
+      Earray.init n (fun i ->
         let x = Solv.new_tmp_int_var s sq_dom in
         Solv.eq_var_const s x ((i + 1) * (i + 1)) yes;
         x) in

@@ -8,6 +8,8 @@ module Solver = struct
 
   type lit = int
 
+  type 'a array = ('a, [`R]) Earray.t
+
   type event =
     | Enew_var of var
     | Enew_false_var of var
@@ -42,22 +44,22 @@ module Solver = struct
     v
 
   let add_clause s lits len =
-    let cl = Array.sub lits 0 len in
+    let cl = Earray.sub lits 0 len in
     BatDynArray.add s.log (Eadd_clause cl);
     true
 
   let add_symmetry_clause s lits len =
-    let cl = Array.sub lits 0 len in
+    let cl = Earray.sub lits 0 len in
     BatDynArray.add s.log (Eadd_symmetry_clause cl);
     true
 
   let add_at_least_one_val_clause s lits len =
-    let cl = Array.sub lits 0 len in
+    let cl = Earray.sub lits 0 len in
     BatDynArray.add s.log (Eadd_at_least_one_val_clause cl);
     true
 
   let add_at_most_one_val_clause s lits =
-    let cl = Array.sub lits 0 2 in
+    let cl = Earray.sub lits 0 2 in
     BatDynArray.add s.log (Eadd_at_most_one_val_clause cl);
     true
 
@@ -65,7 +67,7 @@ module Solver = struct
     BatDynArray.add s.log (Eremove_clauses_with_lit l)
 
   let solve s assumpts =
-    BatDynArray.add s.log (Esolve (Array.copy assumpts));
+    BatDynArray.add s.log (Esolve (Earray.copy assumpts));
     Sh.Lundef
 
   let model_value _ _ = failwith "Not implemented"
@@ -94,7 +96,7 @@ let print_log i =
     | Sh.Pos -> string_of_int (Solver.to_var lit)
     | Sh.Neg -> "~" ^ string_of_int (Solver.to_var lit) in
   let cl_to_str cl =
-    String.concat ", " (List.map lit_to_str (Array.to_list cl)) in
+    String.concat ", " (List.map lit_to_str (Earray.to_list cl)) in
   print_endline "Log:";
   BatDynArray.iter
     (function

@@ -41,16 +41,17 @@ module type S = sig
   val new_tmp_int_var : t -> int -> int var
 
   (** Creates an array of boolean CSP variables. *)
-  val new_bool_var_array : t -> bool var array -> bool var_array
+  val new_bool_var_array : t -> (bool var, [> `R]) Earray.t -> bool var_array
 
   (** Creates an array of integral CSP variables. *)
-  val new_int_var_array : t -> int var array -> int var_array
+  val new_int_var_array : t -> (int var, [> `R]) Earray.t -> int var_array
 
   (** [linear s vars coefs c] posts constraint
      [vars.(0) * coefs.(0) + vars.(1) * coefs.(1) + ... = c].
      Arrays [vars] and [coefs] must have same length.
   *)
-  val linear : t -> int var array -> int array -> int -> unit
+  val linear : t -> (int var, [> `R]) Earray.t -> (int, [> `R]) Earray.t ->
+    int -> unit
 
   (** [bool_element s vars idx x] posts constraint [vars.(idx) = x]. *)
   val bool_element : t -> bool var_array -> int var -> bool var -> unit
@@ -70,17 +71,19 @@ module type S = sig
   (** [precede s xs cs] posts constraint that successive values in [cs]
      precede each other in [xs].
   *)
-  val precede : t -> int var array -> int array -> unit
+  val precede : t -> (int var, [> `R]) Earray.t ->
+    (int, [> `R]) Earray.t -> unit
 
   (** [clause s pos neg] posts constraint
      [pos.(0) || pos.(1) || ... || ~neg.(0) || ~neg.(1) || ...].
   *)
-  val clause : t-> bool var array -> bool var array -> unit
+  val clause : t -> (bool var, [> `R]) Earray.t ->
+    (bool var, [> `R]) Earray.t -> unit
 
   (** [all_different s vars] posts constraints [vars.(i) <> vars.(j)]
      for all [i <> j].
   *)
-  val all_different : t -> int var array -> unit
+  val all_different : t -> (int var, [> `R]) Earray.t -> unit
 
   (** {b Important:} After calling [solve] you must not create CSP variables,
      create arrays of CSP variables, post constraints.

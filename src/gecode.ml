@@ -16,14 +16,14 @@ external new_tmp_bool_var : t -> bool var = "gecode_new_tmp_bool_var"
 
 external new_tmp_int_var : t -> int -> int var = "gecode_new_tmp_int_var"
 
-external new_bool_var_array : t -> bool var array -> bool var_array =
-    "gecode_new_bool_var_array"
+external new_bool_var_array : t -> (bool var, [> `R]) Earray.t ->
+  bool var_array = "gecode_new_bool_var_array"
 
-external new_int_var_array : t -> int var array -> int var_array =
-    "gecode_new_int_var_array"
+external new_int_var_array : t -> (int var, [> `R]) Earray.t ->
+  int var_array = "gecode_new_int_var_array"
 
-external linear : t -> int var array -> int array -> int -> unit =
-    "gecode_linear"
+external linear : t -> (int var, [> `R]) Earray.t -> (int, [> `R]) Earray.t ->
+  int -> unit = "gecode_linear"
 
 external bool_element : t -> bool var_array -> int var -> bool var -> unit =
     "gecode_bool_element"
@@ -40,13 +40,13 @@ external eq_var_const : t -> int var -> int -> bool var -> unit =
 external lower_eq : t -> int var -> int -> unit =
     "gecode_lower_eq"
 
-external precede : t -> int var array -> int array -> unit =
-    "gecode_precede"
+external precede : t -> (int var, [> `R]) Earray.t ->
+  (int, [> `R]) Earray.t -> unit = "gecode_precede"
 
-external clause : t-> bool var array -> bool var array -> unit =
-    "gecode_clause"
+external clause : t -> (bool var, [> `R]) Earray.t ->
+  (bool var, [> `R]) Earray.t -> unit = "gecode_clause"
 
-external all_different : t -> int var array -> unit =
+external all_different : t -> (int var, [> `R]) Earray.t -> unit =
     "gecode_all_different"
 
 external solve : t -> Sh.lbool = "gecode_solve"

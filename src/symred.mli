@@ -2,7 +2,7 @@
 
 (** Symmetry reduction. *)
 
-type args = int array
+type args = (int, [`R]) Earray.t
 
 type cell = Symb.id * args
 

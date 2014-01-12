@@ -180,6 +180,8 @@ external of_array : 'a array -> ('a, _) t = "%identity"
 
 external to_array : ('a, [`R|`W]) t -> 'a array = "%identity"
 
+val of_dyn_array : 'a BatDynArray.t -> ('a, _) t
+
 external read_only : ('a, [> `R]) t -> ('a, [`R]) t = "%identity"
 external write_only : ('a, [> `W]) t -> ('a, [`W]) t = "%identity"
 

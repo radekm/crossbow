@@ -1,13 +1,15 @@
 (* Copyright (c) 2013 Radek Micek *)
 
-type t = int array
+module Array = Earray.Array
+
+type 'c t = (int, 'c) Earray.t constraint 'c = [< `R|`W]
 
 
 (* ************************************************************************* *)
 (* Generation *)
 
 
-let init_assignment a start len = Array.fill a start len 0
+let init_assignment a start len = Earray.fill a start len 0
 
 let next_assignment a start len adeq_sizes max_size =
   (* Detects whether the i-th element of the assignment can be incremented. *)
@@ -21,7 +23,7 @@ let next_assignment a start len adeq_sizes max_size =
     | None -> false
     | Some i ->
         a.(i) <- a.(i) + 1;
-        Array.fill a (i+1) (len - i + start - 1) 0;
+        Earray.fill a (i+1) (len - i + start - 1) 0;
         true
 
 let each a start len adeq_sizes max_size f =
@@ -166,8 +168,8 @@ let count_comm_me start len adeq_sizes max_size =
      at [max_el_idx] and which are lexically smaller than
      [[|a.(i0); ..; a.(i)|]].
    - [nsmall] - the number of the assignments
-     [[|b.(i0); ..; b.(min i (max_el_idx-1))|]] wrt [max_size] and [adeq_sizes]
-     which have no occurence of [max_el].
+     [[|b.(i0); ..; b.(min i (max_el_idx-1))|]] wrt [max_size]
+     and [adeq_sizes] which have no occurence of [max_el].
 *)
 type prefix_rank = {
   nbefore : int;

@@ -14,10 +14,11 @@ module type S = sig
   val new_tmp_bool_var : t -> bool var
   val new_tmp_int_var : t -> int -> int var
 
-  val new_bool_var_array : t -> bool var array -> bool var_array
-  val new_int_var_array : t -> int var array -> int var_array
+  val new_bool_var_array : t -> (bool var, [> `R]) Earray.t -> bool var_array
+  val new_int_var_array : t -> (int var, [> `R]) Earray.t -> int var_array
 
-  val linear : t -> int var array -> int array -> int -> unit
+  val linear : t -> (int var, [> `R]) Earray.t -> (int, [> `R]) Earray.t ->
+    int -> unit
 
   val bool_element : t -> bool var_array -> int var -> bool var -> unit
   val int_element : t -> int var_array -> int var -> int var -> unit
@@ -27,11 +28,13 @@ module type S = sig
 
   val lower_eq : t -> int var -> int -> unit
 
-  val precede : t -> int var array -> int array -> unit
+  val precede : t -> (int var, [> `R]) Earray.t ->
+    (int, [> `R]) Earray.t -> unit
 
-  val clause : t-> bool var array -> bool var array -> unit
+  val clause : t -> (bool var, [> `R]) Earray.t ->
+    (bool var, [> `R]) Earray.t -> unit
 
-  val all_different : t -> int var array -> unit
+  val all_different : t -> (int var, [> `R]) Earray.t -> unit
 
   val solve : t -> Sh.lbool
 

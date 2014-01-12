@@ -3,9 +3,9 @@
 (** Literals. *)
 
 type t = private
-  | Lit of Sh.sign * Symb.id * Term.t array
+  | Lit of Sh.sign * Symb.id * (Term.t, [`R]) Earray.t
 
-val lit : Sh.sign * Symb.id * Term.t array -> t
+val lit : Sh.sign * Symb.id * (Term.t, [> `R]) Earray.t -> t
 
 (** Constructs an equality. *)
 val mk_eq : Term.t -> Term.t -> t

@@ -8,9 +8,9 @@
 
    Raises [Invalid_argument] if [k] is negative.
 *)
-val vertex_cover : ('a * 'a) array -> int -> 'a list option
+val vertex_cover : ('a * 'a, [> `R]) Earray.t -> int -> 'a list option
 
 (** Computes a minimum vertex cover by repeatedly calling
    {!vertex_cover} with [k = 0,1,2,..].
 *)
-val min_vertex_cover : ('a * 'a) array -> 'a list
+val min_vertex_cover : ('a * 'a, [> `R]) Earray.t -> 'a list

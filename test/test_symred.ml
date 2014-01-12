@@ -30,7 +30,7 @@ let test_no_consts_no_funcs () =
         [| |];
         [| |];
       |];
-    only_consts = ref true;
+    only_consts = true;
   } in
 
   let sr = Symred.create prob sorts in
@@ -60,7 +60,7 @@ let test_consts_in_same_sort () =
         [| |];
         [| c; d |];
       |];
-    only_consts = ref true;
+    only_consts = true;
   } in
 
   let sr = Symred.create prob sorts in
@@ -94,7 +94,7 @@ let test_consts_in_diff_sorts () =
         [| c; e |];
         [| d |];
       |];
-    only_consts = ref true;
+    only_consts = true;
   } in
 
   let sr = Symred.create prob sorts in
@@ -133,7 +133,7 @@ let test_distinct_consts () =
         [| c; d; e |];
         [| |];
       |];
-    only_consts = ref true;
+    only_consts = true;
   } in
 
   let sr = Symred.create prob sorts in
@@ -175,7 +175,7 @@ let test_distinct_consts_consts () =
         [| d1; d2 |];
         [| c1; c2; c3 |];
       |];
-    only_consts = ref true;
+    only_consts = true;
   } in
 
   let sr = Symred.create prob sorts in
@@ -209,7 +209,7 @@ let test_noncomm_func_one_sort () =
       [|
         [| |];
       |];
-    only_consts = ref false;
+    only_consts = false;
   } in
 
   let sr = Symred.create prob sorts in
@@ -247,7 +247,7 @@ let test_noncomm_func_many_sorts_bounded_res_sort () =
         [| |];
         [| |];
       |];
-    only_consts = ref false;
+    only_consts = false;
   } in
 
   let sr = Symred.create prob sorts in
@@ -278,7 +278,7 @@ let test_noncomm_func_many_sorts_bounded_param_sort () =
         [| |];
         [| |];
       |];
-    only_consts = ref false;
+    only_consts = false;
   } in
 
   let sr = Symred.create prob sorts in
@@ -311,7 +311,7 @@ let test_noncomm_func_many_sorts_bounded_param_sorts1 () =
         [| |];
         [| |];
       |];
-    only_consts = ref false;
+    only_consts = false;
   } in
 
   let sr = Symred.create prob sorts in
@@ -341,7 +341,7 @@ let test_noncomm_func_many_sorts_bounded_param_sorts2 () =
         [| |];
         [| |];
       |];
-    only_consts = ref false;
+    only_consts = false;
   } in
 
   let sr = Symred.create prob sorts in
@@ -379,7 +379,7 @@ let test_noncomm_funcs_many_sorts () =
         [| |];
         [| |];
       |];
-    only_consts = ref false;
+    only_consts = false;
   } in
 
   let sr = Symred.create prob sorts in
@@ -418,7 +418,7 @@ let test_comm_func_one_sort () =
       [|
         [| |];
       |];
-    only_consts = ref false;
+    only_consts = false;
   } in
 
   let sr = Symred.create prob sorts in
@@ -459,7 +459,7 @@ let test_comm_funcs_many_sorts () =
         [| |];
         [| |];
       |];
-    only_consts = ref false;
+    only_consts = false;
   } in
 
   let sr = Symred.create prob sorts in
@@ -506,7 +506,7 @@ let test_distinct_consts_const_func () =
         [| c1; c2; c3 |];
         [| d |];
       |];
-    only_consts = ref false;
+    only_consts = false;
   } in
 
   let sr = Symred.create prob sorts in

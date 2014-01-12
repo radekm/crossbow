@@ -10,9 +10,9 @@
    the lexical order of the argument vectors.
 *)
 type table = {
-  param_sizes : int array;
+  param_sizes : (int, [`R]) Earray.t;
   (** Domain sizes of parameters. *)
-  values : int array;
+  values : (int, [`R]) Earray.t;
 }
 
 type t = {

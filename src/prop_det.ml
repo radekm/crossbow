@@ -11,7 +11,7 @@ let detect_commutativity symdb clauses =
         | None -> None
         | Some cl2 ->
             let cl2, _ = C.normalize_vars cl2 in
-            match cl2 with
+            match%earr cl2 with
               | [ L.Lit (Sh.Pos, eq,
                          [|
                            T.Func (f, [| T.Var 0; T.Var 1 |]);
@@ -31,17 +31,17 @@ let iter_axioms f symdb clauses =
         | Some cl ->
             (* Put symbol with higher arity to the left. *)
             let cl =
-              match cl with
+              match%earr cl with
                 | [ L.Lit (Sh.Pos, eq,
                            [|
                              T.Func (s, _) as l;
                              T.Func (s', _) as r;
                            |])
                   ] when eq = Symb.sym_eq && Symb.arity s < Symb.arity s' ->
-                    [ L.lit (Sh.Pos, eq, [| r; l |]) ]
+                    [ L.lit (Sh.Pos, eq, Earray.of_array [| r; l |]) ]
                 | _ -> cl in
             let cl, _ = C.normalize_vars cl in
-            match cl with
+            match%earr cl with
               | [ L.Lit (Sh.Pos, eq, [| l; r |]) ] when eq = Symb.sym_eq ->
                   f l r
               | _ -> ())
@@ -60,7 +60,7 @@ let detect_hints_for_groups symdb clauses =
   let fxfyz_ffxyz = ref BatSet.empty in
 
   let record_axiom l r =
-    match l, r with
+    match%earr l, r with
       (* g(0) = 0 *)
       | T.Func (g, [| T.Func (e, [| |]) |]), T.Func (e', [| |])
         when e = e' ->
@@ -132,7 +132,7 @@ let detect_hints_for_quasigroups symdb clauses =
   let record_axiom l r =
     match l with
       | T.Var 0 ->
-          begin match r with
+          begin match%earr r with
             (* x = mult(y, ld(y, x)) or
                x = ld(y, mult(y, x))
             *)
@@ -175,7 +175,7 @@ let detect_hints_for_quasigroups symdb clauses =
 
 let detect_hints_for_involutive_funcs symdb clauses =
   let proc_axiom l r =
-    match l, r with
+    match%earr l, r with
       (* x = f(f(x)) *)
       | T.Var 0, T.Func (f, [| T.Func (f', [| T.Var 0 |]) |])
         when f = f' ->

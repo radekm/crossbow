@@ -11,6 +11,8 @@ src/crossbow
 src/crossbow.opt
 src/doc
 
+test/array_to_earray_syntax
+test/array_to_earray_syntax.opt
 test/test_runner
 test/test_runner.opt
 

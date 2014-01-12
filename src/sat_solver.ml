@@ -11,9 +11,9 @@ module type S = sig
 
   val new_var : t -> var
 
-  val add_clause : t -> lit array -> int -> bool
+  val add_clause : t -> (lit, [> `R]) Earray.t -> int -> bool
 
-  val solve : t -> lit array -> Sh.lbool
+  val solve : t -> (lit, [> `R]) Earray.t -> Sh.lbool
 
   val model_value : t -> var -> Sh.lbool
 

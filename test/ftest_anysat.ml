@@ -57,8 +57,8 @@ end = struct
                   let lits =
                     BatString.nsplit clause_str " "
                     |> BatList.filter_map to_lit
-                    |> Array.of_list in
-                  let n = Array.length lits in
+                    |> Earray.of_list in
+                  let n = Earray.length lits in
                   Solv.add_clause solver lits n |> ignore in
                 List.iter add_clause ls;
                 solver
@@ -126,17 +126,18 @@ end = struct
     assert_equal Sh.Lfalse (Solv.solve s [| |])
 
   let generate_php s pigeons holes =
+    let module Array = Earray.Array in
     (* phs.(p).(h) tells whether the pigeon p is in the hole h. *)
     let phs =
-      Array.init pigeons
-        (fun _ -> Array.init holes (fun _ -> Solv.new_var s)) in
+      Earray.init pigeons
+        (fun _ -> Earray.init holes (fun _ -> Solv.new_var s)) in
     (* Each pigeon is in at least one hole. *)
-    Array.iter
+    Earray.iter
       (fun ph ->
-        assert_bool "" (Solv.add_clause s (Array.map lit ph) holes))
+        assert_bool "" (Solv.add_clause s (Earray.map lit ph) holes))
       phs;
     (* Each pigeon is in at most one hole. *)
-    Array.iter
+    Earray.iter
       (fun ph ->
         for h = 0 to holes-1 do
           for i = h+1 to holes-1 do
@@ -170,14 +171,16 @@ end = struct
     assert_equal Sh.Ltrue (Solv.solve s [| |])
 
   let test_unsat_with_assumpts () =
+    let module Array = Earray.Array in
     let s = Solv.create () in
     let phs = generate_php s 4 4  in
     (* No pigeon is in in the second hole. *)
-    let assumpts = Array.map (fun ph -> neg_lit ph.(1)) phs in
+    let assumpts = Earray.map (fun ph -> neg_lit ph.(1)) phs in
     assert_equal Sh.Lfalse (Solv.solve s assumpts);
     assert_equal Sh.Ltrue (Solv.solve s [| |])
 
   let test_sat_with_assumpts () =
+    let module Array = Earray.Array in
     let s = Solv.create () in
     let phs = generate_php s 4 5  in
     (* The first pigeon is in the third hole and the second pigeon

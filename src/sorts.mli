@@ -29,19 +29,19 @@ type sort_id = int
    zero if no adequate domain size was found.
 *)
 type t = {
-  symb_sorts : (Symb.id, sort_id array) Hashtbl.t;
+  symb_sorts : (Symb.id, (sort_id, [`R]) Earray.t) Hashtbl.t;
   (** Sorts of predicate and function symbols. *)
 
   var_sorts : (Clause2.id * Term.var, sort_id) Hashtbl.t;
   (** Sorts of variables. *)
 
-  adeq_sizes : int array;
+  adeq_sizes : (int, [`R]) Earray.t;
   (** [adeq_sizes.(i)] is the adequate domain size of the sort [i]. *)
 
-  consts : Symb.id array array;
+  consts : ((Symb.id, [`R]) Earray.t, [`R]) Earray.t;
   (** [consts.(i)] is an array of the constants of the sort [i]. *)
 
-  only_consts : bool ref;
+  only_consts : bool;
   (** [true] iff [symb_sorts] contain no function symbol with arity > 0. *)
 }
 

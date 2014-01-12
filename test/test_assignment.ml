@@ -2,6 +2,8 @@
 
 open OUnit
 
+module Array = Earray.Array
+
 let assert_assig start len adeq_sizes max_size a =
   for i = start to start + len - 1 do
     let dsize =
@@ -88,7 +90,7 @@ let test_ec_zero_len () =
   let max_size = 1 in
   let cnt = Assignment.count start len adeq_sizes max_size in
   Assignment.each [| 1; 4 |] start len adeq_sizes max_size
-    (fun a -> assigs := Array.copy a :: !assigs; incr i);
+    (fun a -> assigs := Earray.copy a :: !assigs; incr i);
   assert_equal 1 cnt;
   assert_equal 1 !i;
   assert_equal [[| 1; 4 |]] !assigs
@@ -102,7 +104,7 @@ let test_ec_me_zero_len () =
   let max_size = 1 in
   let cnt = Assignment.count_me start len adeq_sizes max_size in
   Assignment.each_me [| 1; 4 |] start len adeq_sizes max_size
-    (fun a -> assigs := Array.copy a :: !assigs; incr i);
+    (fun a -> assigs := Earray.copy a :: !assigs; incr i);
   assert_equal 0 cnt;
   assert_equal 0 !i;
   assert_equal [] !assigs
@@ -134,7 +136,7 @@ let test_ec () =
   let max_size = 6 in
   let cnt = Assignment.count start len adeq_sizes max_size in
   Assignment.each [| 1; 4; 0; 3; 12; 8 |] start len adeq_sizes max_size
-    (fun a -> assigs := Array.copy a :: !assigs; incr i);
+    (fun a -> assigs := Earray.copy a :: !assigs; incr i);
   assert_equal cnt !i;
   assert_assigs start len adeq_sizes max_size !assigs
 
@@ -146,9 +148,9 @@ let test_ecr_me () =
   let adeq_sizes  = [| 8; 1; 5; 3; 6; 0; 0 |] in
   let max_size = 6 in
   let cnt = Assignment.count_me start len adeq_sizes max_size in
-  Assignment.each_me (Array.make 7 ~-1)  start len adeq_sizes max_size
+  Assignment.each_me (Earray.make 7 ~-1)  start len adeq_sizes max_size
     (fun a ->
-      assigs := Array.copy a :: !assigs;
+      assigs := Earray.copy a :: !assigs;
       let r, _ = Assignment.rank_me a start len adeq_sizes in
       assert_equal !i r;
       incr i);
@@ -164,9 +166,9 @@ let test_ecr_comm_me1 () =
   let adeq_sizes  = [| 5; 7; 7; 0; 6; 1; 4 |] in
   let max_size = 7 in
   let cnt = Assignment.count_comm_me start len adeq_sizes max_size in
-  Assignment.each_comm_me (Array.make 20 ~-1)  start len adeq_sizes max_size
+  Assignment.each_comm_me (Earray.make 20 ~-1)  start len adeq_sizes max_size
     (fun a ->
-      assigs := Array.copy a :: !assigs;
+      assigs := Earray.copy a :: !assigs;
       let r, _ = Assignment.rank_comm_me a start len adeq_sizes in
       assert_equal !i r;
       incr i);
@@ -184,9 +186,9 @@ let test_ecr_comm_me1' () =
   let adeq_sizes  = [| 5; 0; 0; 0; 6; 1; 4 |] in
   let max_size = 7 in
   let cnt = Assignment.count_comm_me start len adeq_sizes max_size in
-  Assignment.each_comm_me (Array.make 20 ~-1)  start len adeq_sizes max_size
+  Assignment.each_comm_me (Earray.make 20 ~-1)  start len adeq_sizes max_size
     (fun a ->
-      assigs := Array.copy a :: !assigs;
+      assigs := Earray.copy a :: !assigs;
       let r, _ = Assignment.rank_comm_me a start len adeq_sizes in
       assert_equal !i r;
       incr i);
@@ -202,9 +204,9 @@ let test_ecr_comm_me2 () =
   let adeq_sizes  = [| 5; 6; 6; 0; 3; 8; 7 |] in
   let max_size = 8 in
   let cnt = Assignment.count_comm_me start len adeq_sizes max_size in
-  Assignment.each_comm_me (Array.make 20 ~-1)  start len adeq_sizes max_size
+  Assignment.each_comm_me (Earray.make 20 ~-1)  start len adeq_sizes max_size
     (fun a ->
-      assigs := Array.copy a :: !assigs;
+      assigs := Earray.copy a :: !assigs;
       let r, _ = Assignment.rank_comm_me a start len adeq_sizes in
       assert_equal !i r;
       incr i);

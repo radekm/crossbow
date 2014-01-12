@@ -1,5 +1,7 @@
 (* Copyright (c) 2013 Radek Micek *)
 
+module Array = Earray.Array
+
 let vertex_cover edges k =
   if k < 0 then invalid_arg "k";
 
@@ -18,14 +20,15 @@ let vertex_cover edges k =
   (* Map vertices to integers 0, .., n-1 to speed up the
      detection of an uncovered edge.
   *)
-  let edges = Array.map (fun (u, v) -> (vert_to_int u, vert_to_int v)) edges in
+  let edges =
+    Earray.map (fun (u, v) -> (vert_to_int u, vert_to_int v)) edges in
   (* Which vertices are covered. *)
-  let cov = Array.make (BatDynArray.length int_to_vertex) false in
+  let cov = Earray.make (BatDynArray.length int_to_vertex) false in
 
   let rec vertex_cover k =
     (* Find an uncovered edge. *)
     let uncov_edge =
-      BatArray.Exceptionless.find
+      Earray.Exceptionless.find
         (fun (u, v) -> not cov.(u) && not cov.(v)) edges in
     match uncov_edge with
       | None -> true
@@ -37,7 +40,7 @@ let vertex_cover edges k =
 
   if vertex_cover k then begin
     let cover = ref [] in
-    Array.iteri (fun i c ->
+    Earray.iteri (fun i c ->
       if c then cover := BatDynArray.get int_to_vertex i :: !cover) cov;
     Some !cover
   end else

@@ -10,7 +10,7 @@
    the lexical order of the argument vectors.
 *)
 type table = {
-  values : int array;
+  values : (int, [`R]) Earray.t;
 }
 
 type t = {

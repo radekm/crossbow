@@ -6,14 +6,15 @@ module S = Symb
 module T = Term
 module L = Lit
 module C = Clause2
+module Array = Earray.Array
 
 
 (* Asserts that the given arrays are equal up to the order of the elements. *)
 let assert_same_elems arr1 arr2 =
-  let arr1 = Array.copy arr1 in
-  let arr2 = Array.copy arr2 in
-  Array.sort compare arr1;
-  Array.sort compare arr2;
+  let arr1 = Earray.copy arr1 in
+  let arr2 = Earray.copy arr2 in
+  Earray.sort compare arr1;
+  Earray.sort compare arr2;
   assert_equal arr1 arr2
 
 
@@ -41,9 +42,9 @@ let test_one_sort_adeq_size () =
   assert_equal 3 (Hashtbl.length symb_sorts);
   assert_equal 1 (Hashtbl.length var_sorts);
 
-  assert_equal 1 (Array.length (Hashtbl.find symb_sorts c1));
-  assert_equal 1 (Array.length (Hashtbl.find symb_sorts c2));
-  assert_equal 1 (Array.length (Hashtbl.find symb_sorts c3));
+  assert_equal 1 (Earray.length (Hashtbl.find symb_sorts c1));
+  assert_equal 1 (Earray.length (Hashtbl.find symb_sorts c2));
+  assert_equal 1 (Earray.length (Hashtbl.find symb_sorts c3));
 
   let c1_sort = (Hashtbl.find symb_sorts c1).(0) in
   let c2_sort = (Hashtbl.find symb_sorts c2).(0) in
@@ -52,14 +53,14 @@ let test_one_sort_adeq_size () =
   Eunit.assert_partition [[c1_sort; c2_sort; c3_sort; x_sort]];
 
   let adeq_sizes = sorts.Sorts.adeq_sizes in
-  assert_equal 1 (Array.length adeq_sizes);
+  assert_equal 1 (Earray.length adeq_sizes);
   assert_equal 4 adeq_sizes.(c1_sort);
 
   let consts = sorts.Sorts.consts in
-  assert_equal 1 (Array.length consts);
+  assert_equal 1 (Earray.length consts);
   assert_same_elems [| c1; c2; c3 |] consts.(c1_sort);
 
-  assert_bool "" !(sorts.Sorts.only_consts)
+  assert_bool "" sorts.Sorts.only_consts
 
 
 let test_one_sort_no_adeq_size () =
@@ -90,14 +91,14 @@ let test_one_sort_no_adeq_size () =
   Eunit.assert_partition [[x_sort; y_sort; z_sort]];
 
   let adeq_sizes = sorts.Sorts.adeq_sizes in
-  assert_equal 1 (Array.length adeq_sizes);
+  assert_equal 1 (Earray.length adeq_sizes);
   assert_equal 0 adeq_sizes.(x_sort);
 
   let consts = sorts.Sorts.consts in
-  assert_equal 1 (Array.length consts);
+  assert_equal 1 (Earray.length consts);
   assert_same_elems [| |] consts.(x_sort);
 
-  assert_bool "" !(sorts.Sorts.only_consts)
+  assert_bool "" sorts.Sorts.only_consts
 
 
 (* One sort contains the equality of variables
@@ -125,7 +126,7 @@ let test_no_adeq_size_both_reasons () =
   assert_equal 1 (Hashtbl.length symb_sorts);
   assert_equal 2 (Hashtbl.length var_sorts);
 
-  assert_equal 2 (Array.length (Hashtbl.find symb_sorts f));
+  assert_equal 2 (Earray.length (Hashtbl.find symb_sorts f));
 
   let f_par1_sort = (Hashtbl.find symb_sorts f).(0) in
   let f_sort = (Hashtbl.find symb_sorts f).(1) in
@@ -134,16 +135,16 @@ let test_no_adeq_size_both_reasons () =
   Eunit.assert_partition [[x_sort; y_sort; f_par1_sort]; [f_sort]];
 
   let adeq_sizes = sorts.Sorts.adeq_sizes in
-  assert_equal 2 (Array.length adeq_sizes);
+  assert_equal 2 (Earray.length adeq_sizes);
   assert_equal 0 adeq_sizes.(x_sort);
   assert_equal 0 adeq_sizes.(f_sort);
 
   let consts = sorts.Sorts.consts in
-  assert_equal 2 (Array.length consts);
+  assert_equal 2 (Earray.length consts);
   assert_same_elems [| |] consts.(x_sort);
   assert_same_elems [| |] consts.(f_sort);
 
-  assert_bool "" (not !(sorts.Sorts.only_consts))
+  assert_bool "" (not sorts.Sorts.only_consts)
 
 
 let test_more_clauses () =
@@ -179,10 +180,10 @@ let test_more_clauses () =
   assert_equal 4 (Hashtbl.length symb_sorts);
   assert_equal 1 (Hashtbl.length var_sorts);
 
-  assert_equal 1 (Array.length (Hashtbl.find symb_sorts c1));
-  assert_equal 1 (Array.length (Hashtbl.find symb_sorts c2));
-  assert_equal 1 (Array.length (Hashtbl.find symb_sorts c3));
-  assert_equal 1 (Array.length (Hashtbl.find symb_sorts c4));
+  assert_equal 1 (Earray.length (Hashtbl.find symb_sorts c1));
+  assert_equal 1 (Earray.length (Hashtbl.find symb_sorts c2));
+  assert_equal 1 (Earray.length (Hashtbl.find symb_sorts c3));
+  assert_equal 1 (Earray.length (Hashtbl.find symb_sorts c4));
 
   let c1_sort = (Hashtbl.find symb_sorts c1).(0) in
   let c2_sort = (Hashtbl.find symb_sorts c2).(0) in
@@ -192,16 +193,16 @@ let test_more_clauses () =
   Eunit.assert_partition [[c1_sort; c2_sort; x_sort]; [c3_sort; c4_sort]];
 
   let adeq_sizes = sorts.Sorts.adeq_sizes in
-  assert_equal 2 (Array.length adeq_sizes);
+  assert_equal 2 (Earray.length adeq_sizes);
   assert_equal 3 adeq_sizes.(c1_sort);
   assert_equal 2 adeq_sizes.(c3_sort);
 
   let consts = sorts.Sorts.consts in
-  assert_equal 2 (Array.length consts);
+  assert_equal 2 (Earray.length consts);
   assert_same_elems [| c1; c2 |] consts.(c1_sort);
   assert_same_elems [| c3; c4 |] consts.(c3_sort);
 
-  assert_bool "" !(sorts.Sorts.only_consts)
+  assert_bool "" sorts.Sorts.only_consts
 
 
 let test_predicate () =
@@ -229,9 +230,9 @@ let test_predicate () =
   assert_equal 3 (Hashtbl.length symb_sorts);
   assert_equal 1 (Hashtbl.length var_sorts);
 
-  assert_equal 2 (Array.length (Hashtbl.find symb_sorts le));
-  assert_equal 2 (Array.length (Hashtbl.find symb_sorts succ));
-  assert_equal 1 (Array.length (Hashtbl.find symb_sorts zero));
+  assert_equal 2 (Earray.length (Hashtbl.find symb_sorts le));
+  assert_equal 2 (Earray.length (Hashtbl.find symb_sorts succ));
+  assert_equal 1 (Earray.length (Hashtbl.find symb_sorts zero));
 
   let le_par1_sort = (Hashtbl.find symb_sorts le).(0) in
   let le_par2_sort = (Hashtbl.find symb_sorts le).(1) in
@@ -244,14 +245,14 @@ let test_predicate () =
   ];
 
   let adeq_sizes = sorts.Sorts.adeq_sizes in
-  assert_equal 1 (Array.length adeq_sizes);
+  assert_equal 1 (Earray.length adeq_sizes);
   assert_equal 0 adeq_sizes.(x_sort);
 
   let consts = sorts.Sorts.consts in
-  assert_equal 1 (Array.length consts);
+  assert_equal 1 (Earray.length consts);
   assert_same_elems [| zero |] consts.(x_sort);
 
-  assert_bool "" (not !(sorts.Sorts.only_consts))
+  assert_bool "" (not sorts.Sorts.only_consts)
 
 
 let test_func_high_arity () =
@@ -278,9 +279,9 @@ let test_func_high_arity () =
   assert_equal 3 (Hashtbl.length symb_sorts);
   assert_equal 3 (Hashtbl.length var_sorts);
 
-  assert_equal 5 (Array.length (Hashtbl.find symb_sorts f));
-  assert_equal 2 (Array.length (Hashtbl.find symb_sorts g));
-  assert_equal 1 (Array.length (Hashtbl.find symb_sorts c));
+  assert_equal 5 (Earray.length (Hashtbl.find symb_sorts f));
+  assert_equal 2 (Earray.length (Hashtbl.find symb_sorts g));
+  assert_equal 1 (Earray.length (Hashtbl.find symb_sorts c));
 
   let f_par1_sort = (Hashtbl.find symb_sorts f).(0) in
   let f_par2_sort = (Hashtbl.find symb_sorts f).(1) in
@@ -302,7 +303,7 @@ let test_func_high_arity () =
   ];
 
   let adeq_sizes = sorts.Sorts.adeq_sizes in
-  assert_equal 5 (Array.length adeq_sizes);
+  assert_equal 5 (Earray.length adeq_sizes);
   assert_equal 1 adeq_sizes.(f_par1_sort);
   assert_equal 0 adeq_sizes.(f_par2_sort);
   assert_equal 0 adeq_sizes.(f_par3_sort);
@@ -310,14 +311,14 @@ let test_func_high_arity () =
   assert_equal 1 adeq_sizes.(g_par1_sort);
 
   let consts = sorts.Sorts.consts in
-  assert_equal 5 (Array.length consts);
+  assert_equal 5 (Earray.length consts);
   assert_same_elems [| |] consts.(f_par1_sort);
   assert_same_elems [| |] consts.(f_par2_sort);
   assert_same_elems [| |] consts.(f_par3_sort);
   assert_same_elems [| c |] consts.(f_par4_sort);
   assert_same_elems [| |] consts.(g_par1_sort);
 
-  assert_bool "" (not !(sorts.Sorts.only_consts))
+  assert_bool "" (not sorts.Sorts.only_consts)
 
 
 let suite =

@@ -18,12 +18,13 @@ external new_var : t -> var = "josat_new_var"
 (** [add_clause s lits n] adds the clause containing the first [n] literals
    from [lits].
 *)
-external add_clause : t -> lit array -> int -> bool = "josat_add_clause"
+external add_clause : t -> (lit, [> `R]) Earray.t -> int -> bool =
+  "josat_add_clause"
 
 (** Starts the solver with the assumptions.
    All variables are assigned if the model is found.
 *)
-external solve : t -> lit array -> Sh.lbool = "josat_solve"
+external solve : t -> (lit, [> `R]) Earray.t -> Sh.lbool = "josat_solve"
 
 external model_value : t -> var -> Sh.lbool = "josat_model_value"
 

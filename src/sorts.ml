@@ -2,6 +2,7 @@
 
 let (%>) = BatPervasives.(%>)
 
+module Array = Earray.Array
 module S = Symb
 module T = Term
 module L = Lit
@@ -24,7 +25,7 @@ type inferred = {
      where [n] is the arity of the symbol.
      Predicate symbols must be disjoint from function symbols.
   *)
-  inf_symb_sorts : (S.id, inf_sort array) Hashtbl.t;
+  inf_symb_sorts : (S.id, (inf_sort, [`R]) Earray.t) Hashtbl.t;
   (* Sorts of variables. *)
   inf_var_sorts : (C.id * T.var, inf_sort) Hashtbl.t;
   (* Equivalence on sorts. *)
@@ -63,32 +64,33 @@ let update_inferred
         end;
         Hashtbl.find sorts.inf_var_sorts var
     | T.Func (s, args) ->
-        assert (Symb.arity s = Array.length args);
+        assert (Symb.arity s = Earray.length args);
 
         (* no sorts are assigned to s. *)
         if not (Hashtbl.mem sorts.inf_symb_sorts s) then begin
           if Symb.commutative symdb s then
             let par_sort = Equiv.add_item sorts.inf_equiv in
             let res_sort = Equiv.add_item sorts.inf_equiv in
-            Hashtbl.add sorts.inf_symb_sorts s [| par_sort; par_sort; res_sort |]
+            Hashtbl.add sorts.inf_symb_sorts s
+              (Earray.of_array [| par_sort; par_sort; res_sort |])
           else
             let par_res_sorts =
-              Array.init
-                (Array.length args + 1)
+              Earray.init
+                (Earray.length args + 1)
                 (fun _ -> Equiv.add_item sorts.inf_equiv) in
             Hashtbl.add sorts.inf_symb_sorts s par_res_sorts
         end;
 
         let func_sorts = Hashtbl.find sorts.inf_symb_sorts s in
-        assert (Array.length func_sorts = Array.length args + 1);
+        assert (Earray.length func_sorts = Earray.length args + 1);
         (* Sort of the result. *)
-        func_sorts.(Array.length args) in
+        func_sorts.(Earray.length args) in
 
   let each_subterm = function
     | T.Var _ -> ()
     | T.Func (s, args) ->
         let param_sorts =
-          assert (Symb.arity s = Array.length args);
+          assert (Symb.arity s = Earray.length args);
           (* s is used as an argument of a predicate or function symbol
              so sorts must be already assigned to s.
           *)
@@ -96,42 +98,43 @@ let update_inferred
 
           let symb_sorts = Hashtbl.find sorts.inf_symb_sorts s in
           (* s is a function symbol - it has a result sort. *)
-          assert (Array.length symb_sorts = Array.length args + 1);
+          assert (Earray.length symb_sorts = Earray.length args + 1);
           (* Omit result sort of a function symbol. *)
-          Array.sub symb_sorts 0 (Array.length args) in
+          Earray.sub symb_sorts 0 (Earray.length args) in
 
-        let arg_sorts = Array.map get_arg_sort args in
+        let arg_sorts = Earray.map get_arg_sort args in
 
-        BatArray.iter2 (Equiv.union sorts.inf_equiv) param_sorts arg_sorts in
+        Earray.iter2 (Equiv.union sorts.inf_equiv) param_sorts arg_sorts in
 
-  begin match lit with
+  begin match%earr lit with
     | L.Lit (_, s, [| l; r |]) when s = Symb.sym_eq ->
         let lsort = get_arg_sort l in
         let rsort = get_arg_sort r in
         Equiv.union sorts.inf_equiv lsort rsort
     | L.Lit (_, s, args) ->
         let param_sorts =
-          assert (Symb.arity s = Array.length args);
+          assert (Symb.arity s = Earray.length args);
 
           (* no sorts are assigned to s. *)
           if not (Hashtbl.mem sorts.inf_symb_sorts s) then begin
             if Symb.commutative symdb s then
               let par_sort = Equiv.add_item sorts.inf_equiv in
-              Hashtbl.add sorts.inf_symb_sorts s [| par_sort; par_sort |]
+              Hashtbl.add sorts.inf_symb_sorts s
+                (Earray.of_array [| par_sort; par_sort |])
             else
               let par_sorts =
-                Array.map (fun _ -> Equiv.add_item sorts.inf_equiv) args in
+                Earray.map (fun _ -> Equiv.add_item sorts.inf_equiv) args in
               Hashtbl.add sorts.inf_symb_sorts s par_sorts
           end;
 
           let symb_sorts = Hashtbl.find sorts.inf_symb_sorts s in
           (* s is a predicate symbol - no result sort. *)
-          assert (Array.length symb_sorts = Array.length args);
+          assert (Earray.length symb_sorts = Earray.length args);
           symb_sorts in
 
-        let arg_sorts = Array.map get_arg_sort args in
+        let arg_sorts = Earray.map get_arg_sort args in
 
-        BatArray.iter2 (Equiv.union sorts.inf_equiv) param_sorts arg_sorts
+        Earray.iter2 (Equiv.union sorts.inf_equiv) param_sorts arg_sorts
   end;
   L.iter each_subterm lit
 
@@ -149,10 +152,11 @@ let merge_sorts_of_constants
 
     (* no sorts are assigned to c. *)
     if not (Hashtbl.mem sorts.inf_symb_sorts c) then
-      Hashtbl.add sorts.inf_symb_sorts c [| Equiv.add_item sorts.inf_equiv |];
+      Hashtbl.add sorts.inf_symb_sorts c
+        (Earray.of_array [| Equiv.add_item sorts.inf_equiv |]);
 
     let const_sorts = Hashtbl.find sorts.inf_symb_sorts c in
-    assert (Array.length const_sorts = 1);
+    assert (Earray.length const_sorts = 1);
     const_sorts.(0) in
 
   match BatEnum.get consts with
@@ -166,11 +170,11 @@ let merge_sorts_of_constants
 type sort_id = int
 
 type t = {
-  symb_sorts : (S.id, sort_id array) Hashtbl.t;
+  symb_sorts : (S.id, (sort_id, [`R]) Earray.t) Hashtbl.t;
   var_sorts : (C.id * T.var, sort_id) Hashtbl.t;
-  adeq_sizes : int array;
-  consts : S.id array array;
-  only_consts : bool ref;
+  adeq_sizes : (int, [`R]) Earray.t;
+  consts : ((S.id, [`R]) Earray.t, [`R]) Earray.t;
+  only_consts : bool;
 }
 
 (* Note: Only a many-sorted signature is computed.
@@ -214,7 +218,7 @@ let infer_sorts (p : [> `R] Prob.t) : t =
     *)
     let h = Hashtbl.create (Hashtbl.length inf_sorts.inf_symb_sorts) in
     Hashtbl.iter
-      (fun k v -> Hashtbl.add h k (Array.map get_sort_id v))
+      (fun k v -> Hashtbl.add h k (Earray.map get_sort_id v))
       inf_sorts.inf_symb_sorts;
     h in
   let var_sorts =
@@ -238,9 +242,9 @@ let infer_sorts (p : [> `R] Prob.t) : t =
   {
     symb_sorts;
     var_sorts;
-    adeq_sizes = Array.make nsorts 0;
-    consts = Array.make nsorts [| |];
-    only_consts = ref false;
+    adeq_sizes = Earray.make nsorts 0;
+    consts = Earray.make nsorts Earray.empty;
+    only_consts = false;
   }
 
 
@@ -249,10 +253,11 @@ let infer_sorts (p : [> `R] Prob.t) : t =
 
 
 let compute_sort_sizes prob sorts =
-  let nsorts = Array.length sorts.consts in
+  let nsorts = Earray.length sorts.consts in
 
-  let consts = Array.make nsorts [] in
-  let only_consts = Array.make nsorts true in
+  let consts = Earray.make nsorts [] in
+  let only_consts = Earray.make nsorts true in
+  let adeq_sizes = Earray.make nsorts 0 in
 
   (*
      Go through [sorts.symb_sorts] and for each sort [A] find:
@@ -263,9 +268,9 @@ let compute_sort_sizes prob sorts =
   let each_symb s symb_sorts =
     let arity = Symb.arity s in
     assert (
-      Array.length symb_sorts = arity ||
-      Array.length symb_sorts = arity + 1);
-    let is_func = Array.length symb_sorts = arity + 1 in
+      Earray.length symb_sorts = arity ||
+      Earray.length symb_sorts = arity + 1);
+    let is_func = Earray.length symb_sorts = arity + 1 in
     if is_func then begin
       let res_sort = symb_sorts.(arity) in
       if arity > 0 then
@@ -277,14 +282,14 @@ let compute_sort_sizes prob sorts =
     end in
   Hashtbl.iter each_symb sorts.symb_sorts;
 
-  let var_eq = Array.make nsorts false in
-  let var_func_eq = Array.make nsorts false in
+  let var_eq = Earray.make nsorts false in
+  let var_func_eq = Earray.make nsorts false in
 
   (* Go through the clauses and for each sort [A] find:
      - if there is a literal [x = y] where [x] has sort [A]
      - and if there is a literal [x = f] where [x] has sort [A].
   *)
-  let each_lit clause_id = function
+  let each_lit clause_id lit = match%earr lit with
     (* x = y *)
     | L.Lit (Sh.Pos, s, [| T.Var x; T.Var _ |]) when s = Symb.sym_eq ->
         let var_sort = Hashtbl.find sorts.var_sorts (clause_id, x) in
@@ -299,29 +304,34 @@ let compute_sort_sizes prob sorts =
     List.iter (each_lit cl.C.cl_id) cl.C.cl_lits in
   BatDynArray.iter each_clause prob.Prob.clauses;
 
-  (* Put constants into [sorts] record. *)
-  Array.iteri
-    (fun i cs ->
-      sorts.consts.(i) <- Array.of_list cs;
-      (* Sort array to make SAT instantiation deterministic. *)
-      Array.sort compare sorts.consts.(i))
-    consts;
+  let consts =
+    Earray.init
+      nsorts
+      (fun i ->
+        let arr = Earray.of_list consts.(i) in
+        (* Sort array to make SAT instantiation deterministic. *)
+        Earray.sort compare arr;
+        Earray.read_only arr) in
 
-  (* Fill adequate domain sizes. *)
+  (* Compute adequate domain sizes. *)
   for i = 0 to nsorts - 1 do
     if only_consts.(i) && not var_eq.(i) then
-      let k = Array.length sorts.consts.(i) in
+      let k = Earray.length consts.(i) in
       if var_func_eq.(i) then
-        sorts.adeq_sizes.(i) <- k + 1
+        adeq_sizes.(i) <- k + 1
       else
         (* Adequate domain size is 1 when the sort [i]
            contains no constants.
         *)
-        sorts.adeq_sizes.(i) <- max k 1
+        adeq_sizes.(i) <- max k 1
   done;
 
-  (* [true] iff every sort contains only constants. *)
-  sorts.only_consts := BatArray.for_all (fun b -> b) only_consts
+  { sorts with
+    adeq_sizes = Earray.read_only adeq_sizes;
+    consts;
+    (* [true] iff every sort contains only constants. *)
+    only_consts = Earray.for_all (fun b -> b) only_consts;
+  }
 
 
 (* ************************************************************************* *)
@@ -329,5 +339,4 @@ let compute_sort_sizes prob sorts =
 
 let of_problem prob =
   let sorts = infer_sorts prob in
-  compute_sort_sizes prob sorts;
-  sorts
+  compute_sort_sizes prob sorts

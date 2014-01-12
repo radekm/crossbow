@@ -5,7 +5,6 @@ open OUnit
 let suite =
   TestList
     [
-      Test_earray.suite;
       Test_elist.suite;
       Test_algo.suite;
       Test_equiv.suite;

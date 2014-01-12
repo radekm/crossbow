@@ -53,7 +53,7 @@ let test_canonical_form_zero_len () =
     assert_equal 0 (Bliss.add_vertex g 0);
     assert_equal 1 (Bliss.add_vertex g 1);
     Bliss.add_edge g 1 0;
-    assert_equal [| |] (Bliss.canonical_form g 0)
+    assert_equal (Earray.to_array [| |]) (Bliss.canonical_form g 0)
 
 let suite =
   "Bliss suite" >:::

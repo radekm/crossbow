@@ -18,12 +18,13 @@ external new_var : t -> var = "minisat_new_var"
 (** [add_clause s lits n] adds the clause containing the first [n] literals
    from [lits].
 *)
-external add_clause : t -> lit array -> int -> bool = "minisat_add_clause"
+external add_clause : t -> (lit, [> `R]) Earray.t -> int -> bool =
+  "minisat_add_clause"
 
 (** Starts the solver with the assumptions.
    All variables are assigned if the model is found.
 *)
-external solve : t -> lit array -> Sh.lbool = "minisat_solve"
+external solve : t -> (lit, [> `R]) Earray.t -> Sh.lbool = "minisat_solve"
 
 external model_value : t -> var -> Sh.lbool = "minisat_model_value"
 
