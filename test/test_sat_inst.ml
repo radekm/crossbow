@@ -8,17 +8,15 @@ module Solver = struct
 
   type lit = int
 
-  type 'a array = ('a, [`R]) Earray.t
-
   type event =
     | Enew_var of var
     | Enew_false_var of var
-    | Eadd_clause of lit array
-    | Eadd_symmetry_clause of lit array
-    | Eadd_at_least_one_val_clause of lit array
-    | Eadd_at_most_one_val_clause of lit array
+    | Eadd_clause of lit Earray.rt
+    | Eadd_symmetry_clause of lit Earray.rt
+    | Eadd_at_least_one_val_clause of lit Earray.rt
+    | Eadd_at_most_one_val_clause of lit Earray.rt
     | Eremove_clauses_with_lit of lit
-    | Esolve of lit array
+    | Esolve of lit Earray.rt
 
   type t = {
     log : event BatDynArray.t;

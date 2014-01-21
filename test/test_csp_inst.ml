@@ -6,24 +6,22 @@ module Solver = struct
   type 'a var = int
   type 'a var_array = int
 
-  type 'a array = ('a, [`R]) Earray.t
-
   type event =
     | Enew_bool_var of bool var
     | Enew_int_var of int * int var
     | Enew_tmp_bool_var of bool var
     | Enew_tmp_int_var of int * int var
-    | Enew_bool_var_array of bool var array * bool var_array
-    | Enew_int_var_array of int var array * int var_array
+    | Enew_bool_var_array of bool var Earray.rt * bool var_array
+    | Enew_int_var_array of int var Earray.rt * int var_array
     | Ebool_element of bool var_array * int var * bool var
     | Eint_element of int var_array * int var * int var
-    | Elinear of int var array * int array * int
+    | Elinear of int var Earray.rt * int Earray.rt * int
     | Eeq_var_var of int var * int var * bool var
     | Eeq_var_const of int var * int * bool var
     | Elower_eq of int var * int
-    | Eprecede of int var array * int array
-    | Eclause of bool var array * bool var array
-    | Eall_different of int var array
+    | Eprecede of int var Earray.rt * int Earray.rt
+    | Eclause of bool var Earray.rt * bool var Earray.rt
+    | Eall_different of int var Earray.rt
 
   type t = {
     log : event BatDynArray.t;
