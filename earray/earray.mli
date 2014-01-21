@@ -5,6 +5,9 @@
 (** Represents array with read and write capabilities. *)
 type ('a,'c) t constraint 'c = [< `R|`W]
 
+(** Represents read-only array. *)
+type 'a rt = ('a, [`R]) t
+
 (** {4 BatArray functions} *)
 
 (** {6 Array operations} *)

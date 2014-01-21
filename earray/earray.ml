@@ -2,6 +2,8 @@
 
 type ('a,'c) t = 'a array constraint 'c = [< `R|`W]
 
+type 'a rt = ('a, [`R]) t
+
 (* ************************************************************************ *)
 (* Functions from module BatArray *)
 
