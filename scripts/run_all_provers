@@ -1,0 +1,85 @@
+#!/usr/bin/sh
+
+if [ $# -ne 6 ]
+then
+    echo "Usage: `basename $0` problems base-dir out-dir max-time max-mem e-time"
+    exit 65
+fi
+
+# Input.
+PROBLEMS="$1"
+BASE_DIR="$2"
+# Output.
+OUT_DIR="$3"
+# Settings.
+MAX_TIME="$4"
+MAX_MEM="$5"
+E_TIME="$6"
+
+mkdir -p "$OUT_DIR"
+
+OUT="$OUT_DIR/mace4"
+mkdir "$OUT"
+./run_mace4.opt "$PROBLEMS" "$OUT" \
+  --base-dir="$BASE_DIR" \
+  --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
+  --opt=-b --opt=-1
+
+OUT="$OUT_DIR/paradox"
+mkdir "$OUT"
+./run_paradox.opt "$PROBLEMS" "$OUT" \
+  --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
+  --opt=--root --opt="$BASE_DIR"
+
+for solver in "cryptominisat" "minisat" "josat" "gecode"
+do
+  OUT="$OUT_DIR/$solver"
+  mkdir "$OUT"
+  ./run_crossbow.opt "$PROBLEMS" "$OUT" \
+    --exe=./crossbow.opt \
+    --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
+    --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver
+
+  OUT="$OUT_DIR/$solver-e"
+  mkdir "$OUT"
+  ./run_crossbow.opt "$PROBLEMS" "$OUT" \
+    --exe=./crossbow.opt \
+    --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
+    --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver \
+    --opt=--use-e --opt=--e-max-secs --opt="$E_TIME"
+done
+
+OUT="$OUT_DIR/gecode-flat"
+mkdir "$OUT"
+./run_crossbow.opt "$PROBLEMS" "$OUT" \
+  --exe=./crossbow.opt \
+  --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
+  --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=gecode \
+  --opt=--detect-commutativity --opt=--detect-hints-for-groups \
+  --opt=--detect-hints-for-quasigroups \
+  --opt=--detect-hints-for-involutive-funcs \
+  --opt=--rewrite-ground-terms --opt=--unflatten \
+  --opt=--define-ground-terms --opt=--flatten \
+  --opt=--paradox-mod-splitting
+
+OUT="$OUT_DIR/gecode-flat-e"
+mkdir "$OUT"
+./run_crossbow.opt "$PROBLEMS" "$OUT" \
+  --exe=./crossbow.opt \
+  --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
+  --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=gecode \
+  --opt=--detect-commutativity --opt=--detect-hints-for-groups \
+  --opt=--detect-hints-for-quasigroups \
+  --opt=--detect-hints-for-involutive-funcs \
+  --opt=--rewrite-ground-terms --opt=--unflatten \
+  --opt=--define-ground-terms --opt=--flatten \
+  --opt=--paradox-mod-splitting \
+  --opt=--use-e --opt=--e-max-secs --opt="$E_TIME"
+
+./results_to_latex.opt "$OUT_DIR/results.tex" \
+  "Mace4" "$OUT_DIR/mace4" "Paradox" "$OUT_DIR/paradox" \
+  "CMSat" "$OUT_DIR/cryptominisat" "CMSat+E" "$OUT_DIR/cryptominisat-e" \
+  "MiniSat" "$OUT_DIR/minisat" "MiniSat+E" "$OUT_DIR/minisat-e" \
+  "Josat" "$OUT_DIR/josat" "Josat+E" "$OUT_DIR/josat-e" \
+  "Gecode" "$OUT_DIR/gecode" "Gecode+E" "$OUT_DIR/gecode-e" \
+  "FGecode" "$OUT_DIR/gecode-flat" "FGecode+E" "$OUT_DIR/gecode-flat-e"
