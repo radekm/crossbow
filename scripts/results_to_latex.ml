@@ -107,8 +107,12 @@ let results_to_latex output_file reports =
                 | [] -> ()
                 | size :: rest ->
                     if List.exists (fun s -> s <> size) rest then
-                      failwith ("different model size, problem " ^
-                                 result.problem)
+                      let sizes_str =
+                        BatList.map string_of_int model_sizes
+                        |> String.concat ", " in
+                      print_endline
+                        ("Warning: different model sizes " ^ sizes_str ^
+                           ",\n  problem " ^ result.problem)
               end;
               let min_time =
                 row
