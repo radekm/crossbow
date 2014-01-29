@@ -98,12 +98,11 @@ let results_to_latex output_file reports =
               let model_sizes =
                 row
                 |> BatList.filter model_found
-                |> BatList.filter_map (fun res -> res.model_size)
-                |> BatList.filter (fun s -> s > 0) in
+                |> BatList.filter_map (fun res -> res.model_size) in
               (* Check that all models have equal size
                  (ignore non-positive sizes).
               *)
-              begin match model_sizes with
+              begin match BatList.filter (fun s -> s > 0) model_sizes with
                 | [] -> ()
                 | size :: rest ->
                     if List.exists (fun s -> s <> size) rest then

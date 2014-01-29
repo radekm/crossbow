@@ -24,6 +24,8 @@ scripts/run_paradox
 scripts/run_paradox.opt
 scripts/run_mace4
 scripts/run_mace4.opt
+scripts/run_iprover
+scripts/run_iprover.opt
 scripts/results_to_latex
 scripts/results_to_latex.opt
 scripts/summary_to_latex

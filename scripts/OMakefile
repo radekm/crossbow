@@ -13,13 +13,16 @@ OCAMLPACKS[] =
 
 .PHONY: all
 
-all: run_crossbow run_paradox run_mace4 results_to_latex summary_to_latex
+all: run_crossbow run_paradox run_mace4 run_iprover \
+    results_to_latex summary_to_latex
 
 OCamlProgram(run_crossbow, shared run_shared run_crossbow)
 
 OCamlProgram(run_paradox, shared run_shared run_paradox)
 
 OCamlProgram(run_mace4, shared run_shared run_mace4)
+
+OCamlProgram(run_iprover, shared run_shared run_iprover)
 
 OCamlProgram(results_to_latex, shared report_reader results_to_latex)
 
@@ -30,5 +33,6 @@ clean:
     rm -rf run_crossbow$(EXE)
     rm -rf run_paradox$(EXE)
     rm -rf run_mace4$(EXE)
+    rm -rf run_iprover$(EXE)
     rm -rf results_to_latex$(EXE)
     rm -rf summary_to_latex$(EXE)

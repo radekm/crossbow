@@ -31,6 +31,24 @@ mkdir "$OUT"
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--root --opt="$BASE_DIR"
 
+OUT="$OUT_DIR/iprover"
+mkdir "$OUT"
+./run_iprover.opt "$PROBLEMS" "$OUT" \
+  --exe="./iproveropt" \
+  --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
+  --opt=--include_path --opt="$BASE_DIR" \
+  --opt=--schedule --opt=sat
+
+OUT="$OUT_DIR/iprover-fin"
+mkdir "$OUT"
+./run_iprover.opt "$PROBLEMS" "$OUT" \
+  --exe="./iproveropt" \
+  --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
+  --opt=--include_path --opt="$BASE_DIR" \
+  --opt=--sat_mode --opt=true \
+  --opt=--schedule --opt=none \
+  --opt=--sat_finite_models --opt=true
+
 for solver in "cryptominisat" "minisat" "josat" "gecode"
 do
   OUT="$OUT_DIR/$solver"
@@ -78,6 +96,7 @@ mkdir "$OUT"
 
 ./results_to_latex.opt "$OUT_DIR/results.tex" \
   "Mace4" "$OUT_DIR/mace4" "Paradox" "$OUT_DIR/paradox" \
+  "iProver" "$OUT_DIR/iprover" "iProver/Fin" "$OUT_DIR/iprover-fin" \
   "CMSat" "$OUT_DIR/cryptominisat" "CMSat+E" "$OUT_DIR/cryptominisat-e" \
   "MiniSat" "$OUT_DIR/minisat" "MiniSat+E" "$OUT_DIR/minisat-e" \
   "Josat" "$OUT_DIR/josat" "Josat+E" "$OUT_DIR/josat-e" \
