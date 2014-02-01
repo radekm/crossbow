@@ -1,0 +1,53 @@
+#!/usr/bin/sh
+
+if [ $# -lt 3 ]
+then
+    echo "Usage: `basename $0` summary reduced groups"
+    exit 65
+fi
+
+SUMMARY="$1"
+REDUCED="$2"
+
+shift
+shift
+
+CMD="./summary_to_latex.opt $SUMMARY $# $@"
+
+PROVERS_FULL="\
+    Mace4,mace4 Paradox,paradox \
+    iProver,iprover iProver/Fin,iprover-fin \
+    CMSat,cryptominisat CMSat+E,cryptominisat-e \
+    MiniSat,minisat MiniSat+E,minisat-e \
+    Josat,josat Josat+E,josat-e \
+    Gecode,gecode Gecode+E,gecode-e \
+    FGecode,gecode-flat FGecode+E,gecode-flat-e"
+
+PROVERS_REDUCED="\
+    Mace4,mace4 \
+    Paradox,paradox \
+    iProver/Fin,iprover-fin \
+    MiniSat+E,minisat-e \
+    Gecode+E,gecode-e"
+
+PROVERS="$PROVERS_FULL"
+
+if [ "$REDUCED" -eq "1" ]
+then
+    PROVERS="$PROVERS_REDUCED"
+fi
+
+for prover in $PROVERS
+do
+    PROVER_NAME=`echo $prover | cut -d , -f1`
+    DIR=`echo $prover | cut -d , -f2`
+
+    CMD="$CMD $PROVER_NAME"
+
+    for group in "$@"
+    do
+        CMD="$CMD $group/$DIR"
+    done
+done
+
+eval "$CMD"
