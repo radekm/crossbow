@@ -30,6 +30,8 @@ scripts/results_to_latex
 scripts/results_to_latex.opt
 scripts/summary_to_latex
 scripts/summary_to_latex.opt
+scripts/check_crossbow_models_with_paradox
+scripts/check_crossbow_models_with_paradox.opt
 
 # OCaml
 *.cmi
