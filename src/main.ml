@@ -544,6 +544,17 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
   let print_instantiating dsize =
     print_with_time cfg (Printf.sprintf "Instantiating %d" dsize) in
 
+  (* Remove adequate domain sizes when searching for all models.
+     Function [Model.all_of_ms_model] can't handle domains
+     with different sizes.
+  *)
+  let sorts =
+    if not cfg.all_models then
+      sorts
+    else
+      let adeq_sizes = Earray.map (fun _ -> 0) sorts.Sorts.adeq_sizes in
+      { sorts with Sorts.adeq_sizes } in
+
   let p = tp.Tptp_prob.prob in
   let inst = Inst.create p sorts in
   let model_cnt = ref 0 in
