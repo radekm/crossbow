@@ -29,7 +29,7 @@ OCamlProgram(results_to_latex, shared report_reader results_to_latex)
 OCamlProgram(summary_to_latex, shared report_reader summary_to_latex)
 
 OCamlProgram(check_crossbow_models_with_paradox, \
-    shared check_crossbow_models_with_paradox)
+    shared run_shared check_crossbow_models_with_paradox)
 
 clean:
     $(CLEAN)

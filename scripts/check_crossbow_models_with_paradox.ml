@@ -1,5 +1,6 @@
 (* Copyright (c) 2014 Radek Micek *)
 
+module RS = Run_shared
 module Ast = Tptp_ast
 
 let with_tptp_in (file : string) (f : Tptp.input -> 'a) : 'a =
@@ -57,6 +58,8 @@ let check_model_with_paradox
     problem_file
     base_dir
     paradox_exe
+    max_time
+    max_mem
     dsize
     model_formulas =
   let paradox_in = BatFile.with_temporary_out
@@ -109,39 +112,53 @@ let check_model_with_paradox
 
   (* Execute Paradox. *)
   let paradox_out = BatFile.with_temporary_out (fun _ file -> file) in
-  BatPervasives.with_dispose
-    ~dispose:close_out
-    (fun out ->
-      let pid = Unix.create_process
-        paradox_exe
-        [| paradox_exe; paradox_in; "--root"; base_dir |]
-        Unix.stdin
-        (Unix.descr_of_out_channel out)
-        Unix.stderr in
-      ignore (Unix.waitpid [] pid))
-    (open_out paradox_out);
+  let _, _, s_exit_status =
+    let timeout_exe = Shared.file_in_program_dir "timeout" in
+    BatPervasives.with_dispose
+      ~dispose:close_out
+      (fun out ->
+        Shared.run_with_limits
+          timeout_exe max_time max_mem
+          paradox_exe
+          [| paradox_in; "--root"; base_dir |]
+          Unix.stdin
+          (Unix.descr_of_out_channel out)
+          Unix.stderr)
+      (open_out paradox_out) in
 
   (* Check that Paradox found model. *)
-  BatFile.with_file_in paradox_out
-    (fun inp ->
-      let is_satisfiable line =
-        BatString.starts_with line "+++ RESULT: Satisfiable" in
-      try
-        while BatIO.read_line inp |> is_satisfiable |> not do
-          ()
-        done
-      with
-        | BatIO.No_more_input ->
-            Printf.printf "Invalid model: %s\n" paradox_in;
-            flush stdout;
-            Sys.remove paradox_out;
-            failwith "Invalid model");
+  begin match s_exit_status with
+    | Shared.ES_ok _ ->
+        BatFile.with_file_in paradox_out
+          (fun inp ->
+            let is_satisfiable line =
+              BatString.starts_with line "+++ RESULT: Satisfiable" in
+            try
+              while BatIO.read_line inp |> is_satisfiable |> not do
+                ()
+              done
+            with
+              | BatIO.No_more_input ->
+                  Printf.printf "Invalid model: %s\n" paradox_in;
+                  flush stdout;
+                  Sys.remove paradox_out;
+                  failwith "Invalid model");
+        Sys.remove paradox_in;
+        Sys.remove paradox_out
+    | Shared.ES_time ->
+        Printf.printf "Out of time: %s\n" paradox_in;
+        flush stdout;
+        Sys.remove paradox_out;
+    | Shared.ES_memory ->
+        Printf.printf "Out of memory: %s\n" paradox_in;
+        flush stdout;
+        Sys.remove paradox_out
+  end
 
-  Sys.remove paradox_in;
-  Sys.remove paradox_out
-
-let main exe base_dir models problem =
-  iter_models models (check_model_with_paradox problem base_dir exe)
+let main exe base_dir max_time max_mem models problem =
+  iter_models
+    models
+    (check_model_with_paradox problem base_dir exe max_time max_mem)
 
 module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
@@ -166,7 +183,8 @@ let problem =
          info [] ~docv:"PROBLEM" ~doc)
 
 let main_t =
-  Term.(pure main $ exe $ base_dir $ models $ problem)
+  Term.(pure main $ exe $ base_dir $ RS.max_time $ RS.max_mem $
+          models $ problem)
 
 let info =
   Term.info "check_crossbow_models_with_paradox"
