@@ -1,0 +1,33 @@
+#!/usr/bin/sh
+
+if [ $# -ne 5 ]
+then
+    echo "Usage: `basename $0` problems base-dir out-dir max-time max-mem"
+    exit 65
+fi
+
+PROBLEMS="$1"
+BASE_DIR="$2"
+OUT_DIR="$3"
+MAX_TIME="$4"
+MAX_MEM="$5"
+
+PROVERS="cryptominisat cryptominisat-e minisat minisat-e josat josat-e \
+    gecode gecode-e gecode-flat gecode-flat-e"
+
+for prover in $PROVERS
+do
+    echo "Checking models from $prover"
+    while read problem
+    do
+        PROBLEM_BASE="`basename "$problem"`"
+        MODEL="$OUT_DIR/$prover/$PROBLEM_BASE.m.mod"
+        if [ -f "$MODEL" ]
+        then
+            echo "$MODEL"
+            ./check_crossbow_models_with_paradox.opt "$MODEL" "$problem" \
+                --base-dir "$BASE_DIR" \
+                --max-time "$MAX_TIME" --max-mem "$MAX_MEM"
+        fi
+    done < "$PROBLEMS"
+done
