@@ -4,6 +4,7 @@ OCAMLPACKS[] =
     batteries
     compiler-libs
     compiler-libs.common
+    ppx_tools
 
 section
     SOURCES = $(filter-exists $(addsuffixes .ml .mli, earray earray_syntax))

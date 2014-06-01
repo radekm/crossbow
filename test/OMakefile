@@ -13,6 +13,7 @@ OCAMLPACKS[] =
     oUnit
     compiler-libs
     compiler-libs.common
+    ppx_tools
 
 if $(defined coverage)
     OCAMLPACKS[] += bisect

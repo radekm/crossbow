@@ -3,6 +3,7 @@
 open Asttypes
 open Parsetree
 open Ast_helper
+module Convenience = Ast_convenience
 
 (** Wraps all array expressions with [Earray.of_array]. *)
 let mapper _ =

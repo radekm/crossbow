@@ -5,6 +5,7 @@
 open Asttypes
 open Parsetree
 open Ast_helper
+module Convenience = Ast_convenience
 
 let n_pat_vars = ref 0
 
@@ -52,6 +53,7 @@ let rec replace_array_pats_by_fresh_vars
     | Ppat_type _ -> failwith "Ppat_type"
     | Ppat_lazy _ -> failwith "Ppat_lazy"
     | Ppat_unpack _ -> failwith "Ppat_unpack"
+    | Ppat_exception _ -> failwith "Ppat_exception"
     | Ppat_extension _ -> failwith "Ppat_extension"
 
 let n_result_vars = ref 0
