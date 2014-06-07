@@ -356,6 +356,15 @@ let transforms_result_in_flat_clauses =
 (* ************************************************************************ *)
 (* Lemma generation *)
 
+let clause_weight cl =
+  let lits = cl.Clause2.cl_lits in
+  List.length lits +
+  BatSet.cardinal (preds_in_clause lits) +
+  BatSet.cardinal (funcs_in_clause lits) +
+  Sh.IntSet.cardinal (Clause.vars lits)
+
+let compare_clauses a b = clause_weight a - clause_weight b
+
 let generate_lemmas_by_e
     tp
     e_exe
@@ -365,7 +374,8 @@ let generate_lemmas_by_e
     max_vars
     max_symbs
     max_vars_when_flat
-    max_lits_when_flat =
+    max_lits_when_flat
+    keep_rel =
 
   let p = tp.Tptp_prob.prob in
 
@@ -443,7 +453,9 @@ let generate_lemmas_by_e
 
   let get_lits cl = cl.Clause2.cl_lits in
 
-  (* Filter clauses from E prover. *)
+  (* Filter clauses from E prover by [max_vars], [max_symbs]
+     [max_vars_when_flat] and [max_lits_when_flat].
+  *)
   let orig_clauses =
     orig_clauses
     |> BatDynArray.to_array
@@ -466,6 +478,15 @@ let generate_lemmas_by_e
       end else
         false)
     eprover_clauses;
+
+  (* Keep only best lemmas (by weight). *)
+  let keep =
+    truncate (keep_rel *. (eprover_clauses |> BatDynArray.length |> float)) in
+  let eprover_clauses =
+    let cls = Earray.of_dyn_array eprover_clauses in
+    Earray.sort compare_clauses cls;
+    let best = Earray.sub cls 0 keep in
+    Earray.to_dyn_array best in
 
   eprover_clauses
 
@@ -811,6 +832,7 @@ let find_model
     max_symbs
     max_vars_when_flat
     max_lits_when_flat
+    keep_rel
     detect_commutativity_from_lemmas
     transforms
     solver
@@ -857,7 +879,8 @@ let find_model
         max_vars
         max_symbs
         max_vars_when_flat
-        max_lits_when_flat in
+        max_lits_when_flat
+        keep_rel in
     print_lemmas (verbose >= 1) tptp_prob lemmas;
     BatDynArray.append lemmas p.Prob.clauses
   end;
@@ -925,29 +948,35 @@ let e_max_secs =
 
 let max_vars =
   let doc = "Remove lemmas with more than $(docv) different variables." in
-  Arg.(value & opt int 2 &
+  Arg.(value & opt int 7 &
          info ["max-vars"] ~docv:"N" ~doc ~docs:"LEMMA GENERATION")
 
 let max_symbs =
   let doc =
     "Remove lemmas with more than $(docv) different symbols " ^
     "(except equality)." in
-  Arg.(value & opt int 2 &
+  Arg.(value & opt int 5 &
          info ["max-symbs"] ~docv:"N" ~doc ~docs:"LEMMA GENERATION")
 
 let max_vars_when_flat =
   let doc =
     "Remove lemmas with more than $(docv) different variables " ^
     "when converted to flat form." in
-  Arg.(value & opt int 3 &
+  Arg.(value & opt int 7 &
          info ["max-vars-when-flat"] ~docv:"N" ~doc ~docs:"LEMMA GENERATION")
 
 let max_lits_when_flat =
   let doc =
     "Remove lemmas with more than $(docv) literals " ^
     "when converted to flat form." in
-  Arg.(value & opt int 2 &
+  Arg.(value & opt int 6 &
          info ["max-lits-when-flat"] ~docv:"N" ~doc ~docs:"LEMMA GENERATION")
+
+let keep_rel =
+  let doc =
+    "Relative count of the best lemmas to keep." in
+  Arg.(value & opt float 0.8 &
+         info ["keep-rel"] ~docv:"X" ~doc ~docs:"LEMMA GENERATION")
 
 let detect_commutativity_from_lemmas =
   let doc = "Detect commutativity from all lemmas (i.e. before removal)." in
@@ -1027,7 +1056,7 @@ let find_model_t =
   Term.(pure find_model $
           use_e $ e_exe $ e_opts $ e_max_secs $
           max_vars $ max_symbs $ max_vars_when_flat $ max_lits_when_flat $
-          detect_commutativity_from_lemmas $
+          keep_rel $ detect_commutativity_from_lemmas $
           transforms $ solver $
           n_from $ n_to $ all_models $
           nthreads $ max_secs $ verbose $ output_file $ base_dir $ in_file)
