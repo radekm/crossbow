@@ -375,7 +375,7 @@ let generate_lemmas_by_e
     max_symbs
     max_vars_when_flat
     max_lits_when_flat
-    keep_rel =
+    max_lemmas =
 
   let p = tp.Tptp_prob.prob in
 
@@ -479,14 +479,13 @@ let generate_lemmas_by_e
         false)
     eprover_clauses;
 
-  (* Keep only best lemmas (by weight). *)
-  let keep =
-    truncate (keep_rel *. (eprover_clauses |> BatDynArray.length |> float)) in
+  (* Keep at most [max_lemmas] with the smallest weights. *)
   let eprover_clauses =
-    let cls = Earray.of_dyn_array eprover_clauses in
-    Earray.sort compare_clauses cls;
-    let best = Earray.sub cls 0 keep in
-    Earray.to_dyn_array best in
+    eprover_clauses
+    |> BatDynArray.to_list
+    |> List.sort compare_clauses
+    |> BatList.take max_lemmas
+    |> BatDynArray.of_list in
 
   eprover_clauses
 
@@ -832,7 +831,7 @@ let find_model
     max_symbs
     max_vars_when_flat
     max_lits_when_flat
-    keep_rel
+    max_lemmas
     detect_commutativity_from_lemmas
     transforms
     solver
@@ -880,7 +879,7 @@ let find_model
         max_symbs
         max_vars_when_flat
         max_lits_when_flat
-        keep_rel in
+        max_lemmas in
     print_lemmas (verbose >= 1) tptp_prob lemmas;
     BatDynArray.append lemmas p.Prob.clauses
   end;
@@ -972,11 +971,11 @@ let max_lits_when_flat =
   Arg.(value & opt int 6 &
          info ["max-lits-when-flat"] ~docv:"N" ~doc ~docs:"LEMMA GENERATION")
 
-let keep_rel =
+let max_lemmas =
   let doc =
-    "Relative count of the best lemmas to keep." in
-  Arg.(value & opt float 0.8 &
-         info ["keep-rel"] ~docv:"X" ~doc ~docs:"LEMMA GENERATION")
+    "Keep at most $(docv) lemmas with the smallest weights." in
+  Arg.(value & opt int 20 &
+         info ["max-lemmas"] ~docv:"N" ~doc ~docs:"LEMMA GENERATION")
 
 let detect_commutativity_from_lemmas =
   let doc = "Detect commutativity from all lemmas (i.e. before removal)." in
@@ -1056,7 +1055,7 @@ let find_model_t =
   Term.(pure find_model $
           use_e $ e_exe $ e_opts $ e_max_secs $
           max_vars $ max_symbs $ max_vars_when_flat $ max_lits_when_flat $
-          keep_rel $ detect_commutativity_from_lemmas $
+          max_lemmas $ detect_commutativity_from_lemmas $
           transforms $ solver $
           n_from $ n_to $ all_models $
           nthreads $ max_secs $ verbose $ output_file $ base_dir $ in_file)
