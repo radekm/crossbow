@@ -1,0 +1,61 @@
+Compilation of Crossbow for CASC-J7
+
+-----
+
+OCaml 4.02.0+dev5-2014-04-29 from
+https://github.com/ocaml/ocaml/tarball/f8a3649190114bc7182c718837a2a1737ad676f1
+
+OCaml with extension points and without Printf refactoring is needed --
+library batteries 2.2.0 doesn't work with new Printf.
+
+-----
+
+gcc (SUSE Linux) 4.8.1 20130909 [gcc-4_8-branch revision 202388]
+
+-----
+
+OPAM packages:
+
+omake 0.9.8.6-0.rc1
+batteries 2.2.0
+tptp 0.3.0
+zarith 1.2
+oclock 0.4.0
+cmdliner 0.9.4
+ppx_tools 0.1
+ounit 2.0.0
+pprint 20140424
+
+-----
+
+To create static executable replace following line in src/OMakefile
+
+  OCAML_LINK_FLAGS += -cc g++
+
+by
+
+  OCAML_LINK_FLAGS += -cc g++ -ccopt -static
+
+-----
+
+Use E 1.8-001 "Gopaldhara" -- to create static executable change rule
+
+
+  eprover: $(EPROVER)
+  	$(LD) -o eprover $(EPROVER) $(LIBS)
+
+to
+
+  eprover: $(EPROVER)
+  	$(LD) -o eprover -static $(EPROVER) $(LIBS)
+
+in PROVER/Makefile
+
+-----
+
+Layout for StarExec archive with the solver is following:
+
+  bin/
+    crossbow.opt
+    eprover
+    starexec_run_Crossbow---0.1

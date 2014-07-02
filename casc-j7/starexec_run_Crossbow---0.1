@@ -1,0 +1,51 @@
+#!/bin/sh
+
+output_dir="/tmp"
+
+cnf="$output_dir/cnf"
+model="$output_dir/model"
+err="$output_dir/err"
+result="$output_dir/result"
+
+# Clausify with E (lines starting with `#` are removed from E output)
+./eprover --tstp-format --cnf "$1" | sed '/^#/ d' > "$cnf"
+
+# Run Crossbow on the clausified problem.
+./crossbow.opt --solver minisat --use-e --max-lits-when-flat 4 --max-vars-when-flat 4 --output-file "$model" "$cnf" 2> "$err"
+
+problem="`basename $1`"
+
+# Model was found.
+if [ -f "$model" ]; then
+    # Problem status.
+    if grep -qi conjecture "$1"; then
+        echo "% SZS status CounterSatisfiable for $problem" > "$result"
+    else
+        echo "% SZS status Satisfiable for $problem" > "$result"
+    fi
+
+    echo "% SZS output start FiniteModel for $problem" >> "$result"
+
+    # Output model.
+    cat "$model" >> "$result"
+
+    echo "% SZS output end FiniteModel for $problem" >> "$result"
+
+# No model was found.
+# We rely on the fact that the solver runs without any limits -
+# so when it doesn't find model no model exists.
+else
+    # Problem status.
+    if grep -qi conjecture "$1"; then
+        echo "% SZS status Theorem for $problem" > "$result"
+    else
+        echo "% SZS status Unsatisfiable for $problem" > "$result"
+    fi
+fi
+
+cat "$result"
+
+# Error output from Crossbow.
+sed 's/^/% /' "$err"
+
+rm -f "$cnf" "$model" "$err" "$result"
