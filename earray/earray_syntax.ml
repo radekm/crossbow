@@ -67,12 +67,6 @@ let lid = Convenience.lid
 
 let elid = Convenience.evar
 
-(** Expression [false]. *)
-let false_ = Convenience.constr "false" []
-
-(** Expression [true]. *)
-let true_ = Convenience.constr "true" []
-
 let ptuple = function
   | [ pat ] -> pat
   | pats -> Pat.tuple pats
@@ -111,14 +105,14 @@ let rec transform_pm_into_guard
     (result_var : string)
     (xs : (string * pattern list) list)
     : expression =
-  let and_app x y = Exp.apply (elid "&&") ["", x; "", y] in
+  let and_app x y = [%expr [%e x] && [%e y]] in
   let test_lengths_expr =
     let tests =
       List.map
         (fun (arr_var, ps) ->
-          let len = Exp.apply (elid "Earray.length") ["", elid arr_var] in
+          let len = [%expr Earray.length [%e elid arr_var]] in
           let const = Convenience.int (List.length ps) in
-          Exp.apply (elid "=") ["", len; "", const])
+          [%expr [%e len] = [%e const]])
         xs in
     List.fold_left and_app (List.hd tests) (List.tl tests) in
   let elems_tuple =
@@ -126,9 +120,7 @@ let rec transform_pm_into_guard
     |> List.map
          (fun (var, ps) ->
            let get_nth_elem i =
-             Exp.apply
-               (elid "Earray.get")
-               ["", elid var; "", Convenience.int i] in
+             [%expr Earray.get [%e elid var] [%e Convenience.int i]] in
            List.mapi (fun i _ -> get_nth_elem i) ps)
     |> List.concat
     |> etuple in
@@ -138,27 +130,23 @@ let rec transform_pm_into_guard
       match xs2 with
         (* Patterns don't contain any [Ppat_array] subpatterns. *)
         | [] ->
-            let save_rhs =
-              let opt_rhs = Convenience.constr "Some" [rhs] in
-              Exp.apply
-                (elid ":=")
-                ["", elid result_var; "", opt_rhs] in
+            let save_rhs = [%expr [%e elid result_var] := Some [%e rhs]] in
             case
               pats_tuple
               (* Guard is always set. Otherwise if the patterns are
                  irrefutable the [case_not_matches] would result in warning.
               *)
               (match guard with
-                | None -> Some true_
+                | None -> Some [%expr true]
                 | Some _ -> guard)
-              (Exp.sequence save_rhs true_)
+              [%expr [%e save_rhs]; true]
         (* Patterns contain some [Ppat_array] subpatterns. *)
         | _ ->
             case
               pats_tuple2
               (Some (transform_pm_into_guard guard rhs result_var xs2))
-              true_ in
-  let case_not_matches = Exp.case (Pat.any ()) false_ in
+              [%expr true] in
+  let case_not_matches = Exp.case [%pat? _] [%expr false] in
   let match_expr = Exp.match_ elems_tuple [case_matches; case_not_matches] in
 
   and_app test_lengths_expr match_expr
@@ -195,16 +183,14 @@ let transform_case
     | _ ->
         let read_result =
           Exp.match_
-            (Exp.apply (elid "!") ["", elid result_var])
+            [%expr ![%e elid result_var]]
             [
               Exp.case
-                (Convenience.pconstr "None" [])
-                (Exp.apply
-                   (elid "failwith")
-                   ["", Convenience.str "earr syntax: no result"]);
+                [%pat? None]
+                [%expr failwith "earr syntax: no result"];
               Exp.case
-                (Convenience.pconstr "Some" [Convenience.pvar "res"])
-                (elid "res");
+                [%pat? Some res]
+                [%expr res];
             ] in
         with_default_loc case.pc_lhs.ppat_loc
           (fun () ->
@@ -234,12 +220,6 @@ let mapper _ =
                 pexp_loc = loc; pexp_desc = Pexp_match (e, cases) }, _) }])
             ->
               let result_var = fresh_result_var () in
-              let result_vb =
-                Vb.mk
-                  (Convenience.pvar result_var)
-                  (Exp.apply
-                     (elid "ref")
-                     ["", Convenience.constr "None" []]) in
               let e2 = this.expr this e in
               let cases2 =
                 cases
@@ -247,7 +227,9 @@ let mapper _ =
                 |> List.concat
                 |> List.map (transform_case this result_var) in
               let match_expr = Exp.match_ ~loc e2 cases2 in
-              Convenience.let_in [result_vb] match_expr
+              [%expr
+                let [%p Convenience.pvar result_var] = ref None in
+                [%e match_expr]]
 
           | _ -> super.expr this e);
   }
