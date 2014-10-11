@@ -68,10 +68,12 @@ let lid = Convenience.lid
 let elid = Convenience.evar
 
 let ptuple = function
+  | [] -> [%pat? ()]
   | [ pat ] -> pat
   | pats -> Pat.tuple pats
 
 let etuple = function
+  | [] -> [%expr ()]
   | [ exp ] -> exp
   | exps -> Exp.tuple exps
 
