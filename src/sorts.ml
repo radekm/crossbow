@@ -143,7 +143,6 @@ let update_inferred
    constants. Missing constants are added to the signature.
 *)
 let merge_sorts_of_constants
-    (symdb : [> `R] S.db)
     (sorts : inferred)
     (consts : S.id BatEnum.t) =
 
@@ -191,9 +190,8 @@ let infer_sorts (p : [> `R] Prob.t) : t =
       cl.C.cl_lits in
   BatDynArray.iter each_clause p.Prob.clauses;
   merge_sorts_of_constants
-    p.Prob.symbols
     inf_sorts
-    (p.Prob.distinct_consts |> BatDynArray.enum);
+    (Symb.distinct_consts p.Prob.symbols |> Symb.Set.enum);
 
   (* Normalize sort ids. *)
 

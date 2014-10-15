@@ -366,11 +366,11 @@ let test_distinct_consts () =
   let c = T.func (Symb.add_func db 0, [| |]) in
   let d =
     let s = Symb.add_func db 0 in
-    BatDynArray.add prob.Prob.distinct_consts s;
+    Symb.set_distinct_constant db s true;
     T.func (s, [| |]) in
   let d2 =
     let s = Symb.add_func db 0 in
-    BatDynArray.add prob.Prob.distinct_consts s;
+    Symb.set_distinct_constant db s true;
     T.func (s, [| |]) in
   let c2 = T.func (Symb.add_func db 0, [| |]) in
   let x = T.var 0 in

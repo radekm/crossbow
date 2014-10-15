@@ -292,7 +292,7 @@ struct
       clauses = Earray.of_dyn_array clauses;
       max_clause_size;
       max_symb_size;
-      min_size = BatDynArray.length prob.Prob.distinct_consts;
+      min_size = Symb.distinct_consts prob.Prob.symbols |> Symb.Set.cardinal;
       totality_clauses_switch = None;
       max_size = 0;
       assig_by_symred = Hashtbl.create 50;

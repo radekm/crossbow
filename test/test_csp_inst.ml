@@ -942,7 +942,7 @@ let test_distinct_consts () =
   let d2 = Symb.add_func db 0 in
   let d3 = Symb.add_func db 0 in
   List.iter
-    (BatDynArray.add prob.Prob.distinct_consts)
+    (fun s -> Symb.set_distinct_constant db s true)
     [d1; d2; d3];
   let clause = {
     C2.cl_id = Prob.fresh_id prob;

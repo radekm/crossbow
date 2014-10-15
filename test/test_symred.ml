@@ -114,9 +114,9 @@ let test_distinct_consts () =
   let q = Symb.add_pred db 0 in
   let d = Symb.add_func db 0 in
   let e = Symb.add_func db 0 in
-  BatDynArray.add prob.Prob.distinct_consts c;
-  BatDynArray.add prob.Prob.distinct_consts d;
-  BatDynArray.add prob.Prob.distinct_consts e;
+  List.iter
+    (fun s -> Symb.set_distinct_constant db s true)
+    [c; d; e];
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 1; 1 |];
@@ -154,8 +154,9 @@ let test_distinct_consts_consts () =
   let c3 = Symb.add_func db 0 in
   let d1 = Symb.add_func db 0 in
   let d2 = Symb.add_func db 0 in
-  BatDynArray.add prob.Prob.distinct_consts c2;
-  BatDynArray.add prob.Prob.distinct_consts c3;
+  List.iter
+    (fun s -> Symb.set_distinct_constant db s true)
+    [c2; c3];
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 0; 2 |];
@@ -486,8 +487,9 @@ let test_distinct_consts_const_func () =
   let c2 = Symb.add_func db 0 in
   let c3 = Symb.add_func db 0 in
   let d = Symb.add_func db 0 in
-  BatDynArray.add prob.Prob.distinct_consts c3;
-  BatDynArray.add prob.Prob.distinct_consts c1;
+  List.iter
+    (fun s -> Symb.set_distinct_constant db s true)
+    [c3; c1];
 
   let symb_sorts = Hashtbl.create 20 in
   Hashtbl.add symb_sorts p [| 1; 0 |];
@@ -511,10 +513,10 @@ let test_distinct_consts_const_func () =
 
   let sr = Symred.create prob sorts in
   assert_equal
-    [(c3, [| |]), (0, 0); (d, [| |]), (0, 0)]
+    [(c1, [| |]), (0, 0); (d, [| |]), (0, 0)]
     (Symred.incr_max_size sr);
   assert_equal
-    [(c1, [| |]), (1, 1); (f, [| 0; 0 |]), (0, 1)]
+    [(c3, [| |]), (1, 1); (f, [| 0; 0 |]), (0, 1)]
     (Symred.incr_max_size sr);
   assert_equal
     [(c2, [| |]), (0, 2); (f, [| 1; 0 |]), (0, 2)]

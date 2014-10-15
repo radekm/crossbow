@@ -542,9 +542,12 @@ struct
       can_construct_model = true;
     } in
     (* Distinct constants. *)
-    BatDynArray.iter (add_func inst) prob.Prob.distinct_consts;
-    if BatDynArray.empty prob.Prob.distinct_consts |> not then
-      Earray.of_dyn_array prob.Prob.distinct_consts
+    let distinct_consts = Symb.distinct_consts prob.Prob.symbols in
+    BatEnum.iter (add_func inst) (Symb.Set.enum distinct_consts);
+    if Symb.Set.is_empty distinct_consts |> not then
+      distinct_consts
+      |> Symb.Set.enum
+      |> Earray.of_enum
       |> Earray.map (fun s -> (Hashtbl.find inst.func_arrays s).(0))
       |> Solv.all_different inst.solver;
     (* Clauses. *)

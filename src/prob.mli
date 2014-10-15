@@ -4,7 +4,6 @@
 
 type 'a t = {
   clauses : Clause2.t BatDynArray.t;
-  distinct_consts : Symb.id BatDynArray.t;
   symbols : 'a Symb.db;
   next_clause_id : Clause2.id ref;
 }

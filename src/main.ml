@@ -588,7 +588,7 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
     let dsize = cfg.n_from in
     print_instantiating dsize;
     Inst.incr_max_size inst;
-    if dsize < BatDynArray.length p.Prob.distinct_consts then
+    if dsize < (Symb.distinct_consts p.Prob.symbols |> Symb.Set.cardinal) then
       Printf.fprintf stderr "\n"
     else begin
       let tot_ms_model_cnt = ref 0 in
@@ -634,7 +634,9 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
         print_instantiating dsize;
         Inst.incr_max_size inst;
         let result =
-          if dsize < BatDynArray.length p.Prob.distinct_consts then
+          if
+            dsize < (Symb.distinct_consts p.Prob.symbols |> Symb.Set.cardinal)
+          then
             Sh.Lfalse
           else
             let _ = print_with_time cfg "Solving" in
@@ -669,7 +671,7 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
 
   if cfg.all_models then begin
     let dsize = cfg.n_from in
-    if dsize < BatDynArray.length p.Prob.distinct_consts then
+    if dsize < (Symb.distinct_consts p.Prob.symbols |> Symb.Set.cardinal) then
       Printf.fprintf stderr "\n"
     else begin
       print_instantiating dsize;
@@ -708,7 +710,9 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
         Printf.fprintf stderr "\n"
       else if not (has_time cfg) then
         print_with_time cfg "\nTime out"
-      else if dsize < BatDynArray.length p.Prob.distinct_consts then
+      else if
+        dsize < (Symb.distinct_consts p.Prob.symbols |> Symb.Set.cardinal)
+      then
         loop (dsize + 1)
       else begin
         print_instantiating dsize;

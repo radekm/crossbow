@@ -137,7 +137,7 @@ end = struct
     let c3symb = Symb.add_func db 0 in
     let c3 = T.func (c3symb, [| |]) in
     List.iter
-      (BatDynArray.add prob.Prob.distinct_consts)
+      (fun s -> Symb.set_distinct_constant db s true)
       [c1symb; c2symb; c3symb];
     let nconsts = 3 in
     let x = T.var 0 in

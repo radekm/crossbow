@@ -65,7 +65,11 @@ let create prob sorts =
     adeq_sizes = sorts.Sorts.adeq_sizes;
     consts = sorts.Sorts.consts;
     funcs = funcs_by_sorts ();
-    distinct_consts = Earray.of_dyn_array prob.Prob.distinct_consts;
+    distinct_consts =
+      prob.Prob.symbols
+      |> Symb.distinct_consts
+      |> Symb.Set.enum
+      |> Earray.of_enum;
     max_size = 0;
     used_elems = Earray.make nsorts 0;
     assigned = BatSet.empty;

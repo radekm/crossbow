@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013-14 Radek Micek *)
 
 type id = int
 
@@ -17,6 +17,7 @@ type symbol = {
   s_commutative : bool;
   s_auxiliary : bool;
   s_hints : hint list;
+  s_distinct_constant: bool;
 }
 
 type 'a db = {
@@ -65,6 +66,7 @@ let create_db () =
     s_commutative = true;
     s_auxiliary = false;
     s_hints = [];
+    s_distinct_constant = false;
   };
 
   { by_id }
@@ -81,6 +83,7 @@ let add_func db arity =
     s_commutative = false;
     s_auxiliary = false;
     s_hints = [];
+    s_distinct_constant = false;
   };
   id
 
@@ -92,6 +95,7 @@ let add_pred db arity =
     s_commutative = false;
     s_auxiliary = false;
     s_hints = [];
+    s_distinct_constant = false;
   };
   id
 
@@ -129,6 +133,17 @@ let set_auxiliary db sym aux =
   let symb = get db sym in
   BatDynArray.set db.by_id (Id.to_idx sym) { symb with s_auxiliary = aux }
 
+let distinct_constant db sym = (get db sym).s_distinct_constant
+
+let set_distinct_constant db sym distinct_constant =
+  if sym = sym_eq then
+    failwith "predefined symbol";
+  if kind sym <> Func || arity sym <> 0 then
+    failwith "not constant";
+  let symb = get db sym in
+  BatDynArray.set db.by_id (Id.to_idx sym)
+    { symb with s_distinct_constant = distinct_constant }
+
 let hints db sym = (get db sym).s_hints
 
 let add_hint db sym hint =
@@ -162,3 +177,26 @@ module Map = struct
   let enum = IntMap.enum
   let of_enum = IntMap.of_enum
 end
+
+module IntSet = Sh.IntSet
+
+module Set = struct
+  type t = IntSet.t
+
+  let empty = IntSet.empty
+  let is_empty = IntSet.is_empty
+  let cardinal = IntSet.cardinal
+  let add = IntSet.add
+  let compare = IntSet.compare
+  let equal = IntSet.equal
+  let enum = IntSet.enum
+  let of_enum = IntSet.of_enum
+end
+
+let distinct_consts db =
+  let xs = ref Set.empty in
+  iter
+    (fun s ->
+      if distinct_constant db s then xs := Set.add s !xs)
+    db;
+  !xs

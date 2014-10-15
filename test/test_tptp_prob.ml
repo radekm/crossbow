@@ -10,6 +10,12 @@ module C = Clause2
 
 let base_dir = "test/data/tptp_prob/"
 
+let distinct_consts tptp_prob =
+  tptp_prob.TP.prob.Prob.symbols
+  |> Symb.distinct_consts
+  |> Symb.Set.enum
+  |> BatList.of_enum
+
 let test_basic () =
   let p = Tptp_prob.of_file base_dir (base_dir ^ "01_test_basic.p") in
 
@@ -74,7 +80,7 @@ let test_basic () =
   (* Array distinct_consts. *)
   assert_equal
     [str_hi'; num_twelve_point_five'; num_seven'; str_hello_world']
-    (BatDynArray.to_list p.TP.prob.Prob.distinct_consts);
+    (distinct_consts p);
 
   (* Clauses. *)
   let q2 a b = L.lit (Sh.Pos, q2', [| a; b |]) in
@@ -173,7 +179,7 @@ let test_include () =
   (* Array distinct_consts. *)
   assert_equal
     [num_zero'; num_one']
-    (BatDynArray.to_list p.TP.prob.Prob.distinct_consts);
+    (distinct_consts p);
 
   (* Clauses. *)
   let q1 a = L.lit (Sh.Pos, q1', [| a |]) in
@@ -248,7 +254,7 @@ let test_nested_include () =
   (* Array distinct_consts. *)
   assert_equal
     []
-    (BatDynArray.to_list p.TP.prob.Prob.distinct_consts);
+    (distinct_consts p);
 
   (* Clauses. *)
   let exp_clauses = [
@@ -305,7 +311,7 @@ let test_nested_include_with_sel () =
   (* Array distinct_consts. *)
   assert_equal
     []
-    (BatDynArray.to_list prob.TP.prob.Prob.distinct_consts);
+    (distinct_consts prob);
 
   (* Clauses. *)
   let exp_clauses =

@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013-14 Radek Micek *)
 
 (** Symbol databases.
 
@@ -87,6 +87,15 @@ val auxiliary : [> `R] db -> id -> bool
 *)
 val set_auxiliary : [> `W] db -> id -> bool -> unit
 
+(** Returns whether the symbol is distinct constant. *)
+val distinct_constant : [> `R] db -> id -> bool
+
+(** Sets whether the symbol is distinct.
+
+   Raises [Failure] if the symbol is not a constant.
+*)
+val set_distinct_constant : [> `W] db -> id -> bool -> unit
+
 (** Returns the hints of the given symbol. *)
 val hints : [> `R] db -> id -> hint list
 
@@ -120,3 +129,19 @@ module Map : sig
   val enum : 'a t -> (id * 'a) BatEnum.t
   val of_enum : (id * 'a) BatEnum.t -> 'a t
 end
+
+module Set : sig
+  type t
+
+  val empty : t
+  val is_empty : t -> bool
+  val cardinal : t -> int
+  val add : id -> t -> t
+  val compare : t -> t -> int
+  val equal : t -> t -> bool
+  val enum : t -> id BatEnum.t
+  val of_enum : id BatEnum.t -> t
+end
+
+(** Returns the set with all distinct constants. *)
+val distinct_consts : [> `R] db -> Set.t

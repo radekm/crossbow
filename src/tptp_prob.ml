@@ -67,7 +67,7 @@ let add_clause p (Ast.Clause lits) =
             let id = add_func 0 in
             let _ = Hashtbl.add p.smap.of_tptp s id in
             let _ = Hashtbl.add p.smap.to_tptp id s in
-            let _ = BatDynArray.add p.prob.Prob.distinct_consts id in
+            let _ = Symb.set_distinct_constant p.prob.Prob.symbols id true in
             id in
         Term.func (id, Earray.empty)
     | Ast.String s ->
@@ -79,7 +79,7 @@ let add_clause p (Ast.Clause lits) =
             let id = add_func 0 in
             let _ = Hashtbl.add p.smap.of_tptp s id in
             let _ = Hashtbl.add p.smap.to_tptp id s in
-            let _ = BatDynArray.add p.prob.Prob.distinct_consts id in
+            let _ = Symb.set_distinct_constant p.prob.Prob.symbols id true in
             id in
         Term.func (id, Earray.empty) in
 
