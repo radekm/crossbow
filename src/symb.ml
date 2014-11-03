@@ -187,6 +187,7 @@ module Set = struct
   let is_empty = IntSet.is_empty
   let cardinal = IntSet.cardinal
   let add = IntSet.add
+  let iter = IntSet.iter
   let compare = IntSet.compare
   let equal = IntSet.equal
   let enum = IntSet.enum

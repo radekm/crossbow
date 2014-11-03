@@ -137,6 +137,7 @@ module Set : sig
   val is_empty : t -> bool
   val cardinal : t -> int
   val add : id -> t -> t
+  val iter : (id -> unit) -> t -> unit
   val compare : t -> t -> int
   val equal : t -> t -> bool
   val enum : t -> id BatEnum.t

@@ -68,15 +68,6 @@ let test_basic () =
     (fun k v -> assert_equal k (Hashtbl.find p.TP.smap.TP.to_tptp v))
     p.TP.smap.TP.of_tptp;
 
-  (* Hashtable preds. *)
-  assert_equal 6 (Hashtbl.length p.TP.preds);
-  assert_bool "" (Hashtbl.find p.TP.preds q2);
-  assert_bool "" (Hashtbl.find p.TP.preds q1);
-  assert_bool "" (not (Hashtbl.find p.TP.preds c0));
-  assert_bool "" (not (Hashtbl.find p.TP.preds d0));
-  assert_bool "" (not (Hashtbl.find p.TP.preds f2));
-  assert_bool "" (not (Hashtbl.find p.TP.preds f1));
-
   (* Array distinct_consts. *)
   assert_equal
     [str_hi'; num_twelve_point_five'; num_seven'; str_hello_world']
@@ -169,13 +160,6 @@ let test_include () =
     (fun k v -> assert_equal k (Hashtbl.find p.TP.smap.TP.to_tptp v))
     p.TP.smap.TP.of_tptp;
 
-  (* Hashtable preds. *)
-  assert_equal 4 (Hashtbl.length p.TP.preds);
-  assert_bool "" (Hashtbl.find p.TP.preds q1);
-  assert_bool "" (not (Hashtbl.find p.TP.preds c0));
-  assert_bool "" (not (Hashtbl.find p.TP.preds d0));
-  assert_bool "" (not (Hashtbl.find p.TP.preds g1));
-
   (* Array distinct_consts. *)
   assert_equal
     [num_zero'; num_one']
@@ -245,11 +229,6 @@ let test_nested_include () =
   Hashtbl.iter
     (fun k v -> assert_equal k (Hashtbl.find p.TP.smap.TP.to_tptp v))
     p.TP.smap.TP.of_tptp;
-
-  (* Hashtable preds. *)
-  assert_equal 2 (Hashtbl.length p.TP.preds);
-  assert_bool "" (Hashtbl.find p.TP.preds r0);
-  assert_bool "" (Hashtbl.find p.TP.preds s0);
 
   (* Array distinct_consts. *)
   assert_equal
@@ -366,7 +345,6 @@ let test_prob_to_tptp_vars () =
       TP.of_tptp = hashtbl_of_list [ftptp, fs];
       TP.to_tptp = hashtbl_of_list [fs, ftptp];
     };
-    TP.preds = hashtbl_of_list [ftptp, false];
   } in
   let exp = [
     Ast.Cnf_anno {
@@ -428,7 +406,6 @@ let test_prob_to_tptp_aux_symbs () =
       TP.of_tptp = hashtbl_of_list [z2tptp, z2s; z3tptp, z3s];
       TP.to_tptp = hashtbl_of_list [z2s, z2tptp; z3s, z3tptp];
     };
-    TP.preds = hashtbl_of_list [ z2tptp, true; z3tptp, false ];
   } in
   let exp = [
     Ast.Cnf_anno {
@@ -483,7 +460,6 @@ let test_prob_to_tptp_commutativity () =
       TP.of_tptp = hashtbl_of_list [ftptp, fs; ptptp, ps; ctptp, cs];
       TP.to_tptp = hashtbl_of_list [fs, ftptp; ps, ptptp; cs, ctptp];
     };
-    TP.preds = hashtbl_of_list [ftptp, false; ptptp, true; ctptp, false];
   } in
   let v s = Ast.Var (Ast.to_var s) in
   let exp_clause = Ast.Cnf_anno {
@@ -568,11 +544,8 @@ let test_model_to_tptp () =
         TP.to_tptp =
           hashtbl_of_list (BatList.map (fun (a, b) -> (b, a)) pairs);
       } in
-    let preds =
-      hashtbl_of_list [p', true; q', true; c', false; d', false; f', false] in
     {
       TP.smap;
-      TP.preds;
       TP.prob;
     } in
 

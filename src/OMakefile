@@ -60,6 +60,7 @@ FILES[] =
     josat_inst
     csp_inst
     gecode_inst
+    eprover
 
 libcrossbow.cmxa libcrossbow$(EXT_LIB): \
     ../earray/libearray$(EXT_LIB) \

@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013-14 Radek Micek *)
 
 (** Problems in TPTP format. *)
 
@@ -12,41 +12,50 @@ type tptp_symbol =
   | Number of Q.t
   | String of Tptp_ast.tptp_string
 
+(** Mapping between symbols from module [Symb] and TPTP symbols. *)
 type symb_map = {
   of_tptp : (tptp_symbol, Symb.id) Hashtbl.t;
   to_tptp : (Symb.id, tptp_symbol) Hashtbl.t;
 }
 
-(** Note: [preds.(s)] tells if the symbol [s] is used as a predicate or
-   as a function.
-*)
 type t = {
   smap : symb_map;
-  preds : (tptp_symbol, bool) Hashtbl.t;
   prob : [`R|`W] Prob.t;
 }
 
-(** Adds TPTP clause to the problem. *)
-val add_clause : t -> Tptp_ast.cnf_formula -> unit
+val clauses_of_tptp :
+  [> `W] Symb.db ->
+  symb_map ->
+  Tptp_ast.tptp_input list ->
+  Clause.t list
 
 (** [of_file base_dir file] reads a problem in the TPTP format from the given
    file [file] and the files which are included from [file].
    Relative include paths are resolved against [base_dir].
 
+   Symbols introduced by clausification are auxiliary.
+
    Note: [base_dir] does not affect the path to the file [file].
 *)
-val of_file : ?prob:(t option) -> string -> string -> t
+val of_file : string -> string -> t
 
 type commutativity =
-  | Ignore
   | Export
   | Export_flat
 
+(** New TPTP symbols will be generated and stored in [smap] if necessary.
+
+   Clauses for commutativity are generated only for the symbols
+   which occur in the clauses.
+*)
 val prob_to_tptp :
   t ->
   commutativity ->
   (Tptp_ast.tptp_input -> unit) ->
   unit
+
+(** New TPTP symbols will be generated and stored in [smap] if necessary. *)
+val clause_to_string : [> `R] Symb.db -> symb_map -> Clause.t -> string
 
 (** [model_to_tptp p m interp_name f] converts the given model [m]
    to the TPTP format and calls [f] for each of its formulas.

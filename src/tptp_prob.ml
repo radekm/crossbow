@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013-14 Radek Micek *)
 
 open BatPervasives
 
@@ -13,324 +13,406 @@ type tptp_symbol =
   | Number of Q.t
   | String of Ast.tptp_string
 
+let is_defined_or_system_symb = function
+  | Atomic_word (Ast.Plain_word _, _)
+  | Number _
+  | String _ -> false
+  | Atomic_word (Ast.Defined_word _, _)
+  | Atomic_word (Ast.System_word _, _) -> true
+
 type symb_map = {
   of_tptp : (tptp_symbol, S.id) Hashtbl.t;
   to_tptp : (S.id, tptp_symbol) Hashtbl.t;
 }
 
+(* Adds mapping between [symb] and [id] to [smap].
+
+   Defined and system symbols are not allowed.
+*)
+let add_to_smap smap symb id =
+  if is_defined_or_system_symb symb then
+    failwith "add_to_smap: Defined or system symbol";
+  Hashtbl.add smap.of_tptp symb id;
+  Hashtbl.add smap.to_tptp id symb
+
 type t = {
   smap : symb_map;
-  preds : (tptp_symbol, bool) Hashtbl.t;
   prob : [`R|`W] Prob.t;
 }
 
-let (|>) = BatPervasives.(|>)
+(* Calls [pred] resp. [func] for each occurence of a predicate
+   resp. a function symbol in the input formula.
 
-let add_clause p (Ast.Clause lits) =
-  let vars = Hashtbl.create 20 in
+   Predicates [$false/0], [$true/0] and [=/2] are ignored.
+   Occurences of symbols in annotations are ignored.
+*)
+let iter_symbols pred func input =
+  let rec proc_term = function
+    | Ast.Var _ -> ()
+    | Ast.Func (symb, args) ->
+        func (Atomic_word (symb, List.length args));
+        List.iter proc_term args
+    | Ast.Number n -> func (Number n)
+    | Ast.String s -> func (String s) in
+  let proc_atom = function
+    | Ast.Equals (a, b) ->
+        proc_term a;
+        proc_term b
+    | Ast.Pred (Ast.Defined_word s, [])
+      when List.mem (s :> string) ["$false"; "$true"] -> ()
+    | Ast.Pred (symb, args) ->
+        pred (Atomic_word (symb, List.length args));
+        List.iter proc_term args in
+  let rec proc_formula = function
+    | Ast.Binop (_, a, b) ->
+        proc_formula a;
+        proc_formula b
+    | Ast.Not a | Ast.Quant (_, _, a) -> proc_formula a
+    | Ast.Atom a -> proc_atom a in
+  let proc_lit (Ast.Lit (_, a)) = proc_atom a in
 
-  let add_func = Symb.add_func p.prob.Prob.symbols in
-  let add_pred = Symb.add_pred p.prob.Prob.symbols in
+  match input with
+    | Ast.Fof_anno { Ast.af_formula } ->
+        begin match af_formula with
+          | Ast.Sequent (xs, ys) ->
+              List.iter proc_formula xs;
+              List.iter proc_formula ys
+          | Ast.Formula x -> proc_formula x
+        end
+    | Ast.Cnf_anno { Ast.af_formula = Ast.Clause lits } ->
+        List.iter proc_lit lits
+    | Ast.Include _ | Ast.Comment _ -> ()
 
-  let rec transl_term = function
-    | Ast.Var x ->
-        let v =
-          if Hashtbl.mem vars x then
-            Hashtbl.find vars x
-          else
-            let v = Hashtbl.length vars in
-            let _ = Hashtbl.add vars x v in
-            v in
-        Term.var v
+(* By default new function symbols are auxiliary. *)
+let func_of_tptp ?(aux = true) symdb smap func =
+  try
+    let id = Hashtbl.find smap.of_tptp func in
+    if Symb.kind id = Symb.Func then
+      id
+    else
+      failwith "func_of_tptp: Symbol already used as predicate"
+  with
+    | Not_found ->
+        let id =
+          match func with
+            | Atomic_word (_, arity) -> Symb.add_func symdb arity
+            | Number _ | String _ ->
+                let id = Symb.add_func symdb 0 in
+                Symb.set_distinct_constant symdb id true;
+                id in
+        Symb.set_auxiliary symdb id aux;
+        add_to_smap smap func id;
+        id
+
+(* By default new predicate symbols are auxiliary. *)
+let pred_of_tptp ?(aux = true) symdb smap pred =
+  try
+    let id = Hashtbl.find smap.of_tptp pred in
+    if Symb.kind id = Symb.Pred then
+      id
+    else
+      failwith "pred_of_tptp: Symbol already used as function"
+  with
+    | Not_found ->
+        let id =
+          match pred with
+            | Atomic_word (_, arity) -> Symb.add_pred symdb arity
+            | Number _ | String _ ->
+                failwith "pred_of_tptp: Constant used as predicate" in
+        Symb.set_auxiliary symdb id aux;
+        add_to_smap smap pred id;
+        id
+
+let term_of_tptp tfunc tvar =
+  let rec transl = function
+    | Ast.Var x -> T.var (tvar x)
     | Ast.Func (func, args) ->
         let arity = List.length args in
-        let s = Atomic_word (func, arity) in
-        let id =
-          if Hashtbl.mem p.smap.of_tptp s then
-            if Hashtbl.find p.preds s then
-              failwith "Symbol is already used as a predicate"
-            else
-              Hashtbl.find p.smap.of_tptp s
-          else
-            let id = add_func arity in
-            let _ = Hashtbl.add p.smap.of_tptp s id in
-            let _ = Hashtbl.add p.smap.to_tptp id s in
-            let _ = Hashtbl.add p.preds s false in
-            id in
-        Term.func (id, Earray.of_list (BatList.map transl_term args))
+        let id = tfunc (Atomic_word (func, arity)) in
+        Term.func (id, Earray.of_list (BatList.map transl args))
     | Ast.Number n ->
-        let s = Number n in
-        let id =
-          if Hashtbl.mem p.smap.of_tptp s then
-            Hashtbl.find p.smap.of_tptp s
-          else
-            let id = add_func 0 in
-            let _ = Hashtbl.add p.smap.of_tptp s id in
-            let _ = Hashtbl.add p.smap.to_tptp id s in
-            let _ = Symb.set_distinct_constant p.prob.Prob.symbols id true in
-            id in
+        let id = tfunc (Number n) in
         Term.func (id, Earray.empty)
     | Ast.String s ->
-        let s = String s in
-        let id =
-          if Hashtbl.mem p.smap.of_tptp s then
-            Hashtbl.find p.smap.of_tptp s
-          else
-            let id = add_func 0 in
-            let _ = Hashtbl.add p.smap.of_tptp s id in
-            let _ = Hashtbl.add p.smap.to_tptp id s in
-            let _ = Symb.set_distinct_constant p.prob.Prob.symbols id true in
-            id in
+        let id = tfunc (String s) in
         Term.func (id, Earray.empty) in
+  transl
 
-  let transl_sign = function
-    | Ast.Pos -> Sh.Pos
-    | Ast.Neg -> Sh.Neg in
+let atom_of_tptp tpred tfunc tvar = function
+  | Ast.Equals (l, r) ->
+      let l = term_of_tptp tfunc tvar l in
+      let r = term_of_tptp tfunc tvar r in
+      (S.sym_eq, Earray.of_list [ l; r ])
+  | Ast.Pred (pred, args) ->
+      let arity = List.length args in
+      let id = tpred (Atomic_word (pred, arity)) in
+      (id, Earray.of_list (BatList.map (term_of_tptp tfunc tvar) args))
 
-  let transl_lit = function
-    | Ast.Lit (sign, Ast.Equals (l, r)) ->
-        let l = transl_term l in
-        let r = transl_term r in
-        L.lit (transl_sign sign, S.sym_eq, Earray.of_array [| l; r |])
-    | Ast.Lit (sign, Ast.Pred (pred, args)) ->
-        let sign = transl_sign sign in
-        let arity = List.length args in
-        let s = Atomic_word (pred, arity) in
-        let id =
-          if Hashtbl.mem p.smap.of_tptp s then
-            if not (Hashtbl.find p.preds s) then
-              failwith "Symbol is already used as a function"
-            else
-              Hashtbl.find p.smap.of_tptp s
-          else
-            let id = add_pred arity in
-            let _ = Hashtbl.add p.smap.of_tptp s id in
-            let _ = Hashtbl.add p.smap.to_tptp id s in
-            let _ = Hashtbl.add p.preds s true in
-            id in
-        L.lit (sign, id, Earray.of_list (BatList.map transl_term args)) in
+let lit_of_tptp tpred tfunc tvar (Ast.Lit (sign, atom)) =
+  let sign =
+    match sign with
+      | Ast.Pos -> Sh.Pos
+      | Ast.Neg -> Sh.Neg in
+  let (pred, args) = atom_of_tptp tpred tfunc tvar atom in
+  L.lit (sign, pred, args)
 
-  let clause = {
-    Clause2.cl_id = Prob.fresh_id p.prob;
-    Clause2.cl_lits = BatList.map transl_lit lits;
+let clause_of_tptp tpred tfunc (Ast.Clause lits) =
+  let vars = Hashtbl.create 20 in
+  let tvar x =
+    if Hashtbl.mem vars x then
+      Hashtbl.find vars x
+    else
+      let v = Hashtbl.length vars in
+      let _ = Hashtbl.add vars x v in
+      v in
+  BatList.map (lit_of_tptp tpred tfunc tvar) lits
+
+let check_role role =
+  let open Ast in
+  match role with
+    | R_axiom
+    | R_hypothesis
+    | R_definition
+    | R_lemma
+    | R_theorem
+    | R_corollary
+    | R_negated_conjecture
+    | R_plain
+    (* [R_fi_domain], [R_fi_functors], [R_fi_predicates] are allowed
+       so finite models can be checked.
+     *)
+    | R_fi_domain
+    | R_fi_functors
+    | R_fi_predicates -> ()
+    | R_assumption
+    (* [R_conjecture] is not allowed in CNF. *)
+    | R_conjecture
+    | R_type
+    | R_unknown -> failwith "check_role: Unsupported role"
+
+(* New symbols will be auxiliary. *)
+let clauses_of_tptp symdb smap inputs : Clause.t list =
+  let tpred = pred_of_tptp symdb smap in
+  let tfunc = func_of_tptp symdb smap in
+  BatList.filter_map
+    (function
+      | Ast.Fof_anno _ -> failwith "clauses_of_tptp: Unexpected FOF formula"
+      | Ast.Cnf_anno { Ast.af_role; Ast.af_formula } ->
+          check_role af_role;
+          Some (clause_of_tptp tpred tfunc af_formula)
+      | Ast.Include _ -> failwith "clauses_of_tptp: Unexpected include"
+      | Ast.Comment _ -> None)
+    inputs
+
+let is_fof_formula = function
+  | Ast.Fof_anno _ -> true
+  | Ast.Cnf_anno _ | Ast.Include _ | Ast.Comment _ -> false
+
+let prob_of_tptp inputs =
+  let needs_clausification = List.exists is_fof_formula inputs in
+
+  let prob = Prob.create () in
+  let symdb = prob.Prob.symbols in
+  let smap = {
+    of_tptp = Hashtbl.create 20;
+    to_tptp = Hashtbl.create 20;
   } in
 
-  BatDynArray.add p.prob.Prob.clauses clause
+  (* Read symbols from the original input. These won't be auxiliary. *)
+  let add_pred pred = pred_of_tptp ~aux:false symdb smap pred |> ignore in
+  let add_func func = func_of_tptp ~aux:false symdb smap func |> ignore in
+  List.iter
+    (iter_symbols add_pred add_func)
+    inputs;
 
-let rec iter_tptp_input
-    (proc_clause : Ast.formula_name -> Ast.cnf_formula -> unit)
-    (proc_include : Ast.file_name -> Ast.formula_name list -> unit)
-    (input : Tptp.input) : unit =
+  (* Clausification. *)
+  let inputs =
+    if needs_clausification then
+      failwith "prob_of_tptp: Clausification not supported"
+    else
+      inputs in
 
-  match Tptp.read input with
-    | None -> ()
-    | Some (Ast.Fof_anno _) -> failwith "Unexpected fof"
-    | Some (Ast.Cnf_anno ca) ->
-        begin match ca.Tptp_ast.af_role with
-          | Ast.R_axiom
-          | Ast.R_hypothesis
-          | Ast.R_definition
-          | Ast.R_lemma
-          | Ast.R_theorem
-          | Ast.R_negated_conjecture
-          | Ast.R_plain ->
-              proc_clause ca.Tptp_ast.af_name ca.Tptp_ast.af_formula;
-              iter_tptp_input proc_clause proc_include input
-          | _ -> failwith "Unexpected role"
-        end
-    | Some (Ast.Include (file_name, formula_selection)) ->
-        proc_include file_name formula_selection;
-        iter_tptp_input proc_clause proc_include input
-    | Some (Ast.Comment _) ->
-        iter_tptp_input proc_clause proc_include input
+  (* Read clauses. Symbols introduced by clausification will be auxiliary. *)
+  let add_clause lits =
+    BatDynArray.add prob.Prob.clauses
+      { Clause2.cl_id = Prob.fresh_id prob; Clause2.cl_lits = lits } in
+  inputs
+  |> clauses_of_tptp symdb smap
+  |> List.iter add_clause;
 
-let combine_paths (a : string) (b : string) : string =
-  let a = BatPathGen.OfString.of_string a in
-  let b = BatPathGen.OfString.of_string b in
-  let res =
-    if BatPathGen.OfString.is_absolute b
-    then b
-    else (BatPathGen.OfString.concat a b) in
-  BatPathGen.OfString.to_ustring
-    (BatPathGen.OfString.normalize_in_tree res)
+  {
+    smap;
+    prob;
+  }
 
-let of_file ?(prob = None) base_dir file =
+let of_file base_dir file =
+  let inputs = Tptp.File.read ~base_dir file in
+  prob_of_tptp inputs
 
-  let p =
-    match prob with
-      | Some p -> p
-      | None ->
-          let prob = Prob.create () in
-          {
-            smap = {
-              of_tptp = Hashtbl.create 20;
-              to_tptp = Hashtbl.create 20
-            };
-            preds = Hashtbl.create 20;
-            prob;
-          } in
+(* Translate variable names. *)
+let var_to_tptp =
+  let names =
+    BatChar.range ~until:'Z' 'A'
+    |> BatEnum.map (BatString.make 1)
+    |> BatEnum.map Ast.to_var
+    |> Earray.of_enum in
+  fun x ->
+    if x >= Earray.length names then
+      Ast.to_var (Printf.sprintf "X%i" x)
+    else if x < 0 then
+      Ast.to_var (Printf.sprintf "Y%i" ~-x)
+    else
+      names.(x)
 
-  let rec of_file file selected =
-    BatFile.with_file_in file (fun i ->
-      let lexbuf = BatLexing.from_input i in
-      let proc_clause name cl =
-        if selected name then
-          add_clause p cl in
-      let proc_include (file : Ast.file_name) sel =
-        let path = combine_paths base_dir (file :> string) in
-        let selected' =
-          if sel = [] then
-            selected
-          else
-            (fun name ->
-              selected name && Elist.contains name sel) in
-        of_file path selected' in
-      with_dispose
-        ~dispose:Tptp.close_in
-        (iter_tptp_input proc_clause proc_include)
-        (Tptp.create_in lexbuf)) in
+(* Creates a generator for integers.
 
-  of_file file (fun _ -> true);
-  p
+   Used when generating new TPTP symbols.
+*)
+let make_int_gen () =
+  let last = ref 0 in
+  fun () ->
+    incr last;
+    !last
+
+(* Translates symbol to TPTP symbol.
+
+   If no corresponding TPTP symbol exists in [smap]
+   then a new TPTP symbol will be created and added to [smap].
+*)
+let symb_to_tptp gen_int symdb smap id =
+  let rec fresh_symb distinct_const =
+    let s = Printf.sprintf "z%d" (gen_int ()) in
+    let symb =
+      if distinct_const then
+        String (Ast.to_tptp_string s)
+      else
+        Atomic_word (Ast.Plain_word (Ast.to_plain_word s), Symb.arity id) in
+    if Hashtbl.mem smap.of_tptp symb
+    then fresh_symb distinct_const
+    else symb in
+
+  try Hashtbl.find smap.to_tptp id
+  with
+    | Not_found ->
+        let symb = fresh_symb (S.distinct_constant symdb id) in
+        add_to_smap smap symb id;
+        symb
+
+let term_to_tptp tfunc tvar =
+  let rec transl = function
+    | T.Var x -> Ast.Var (tvar x)
+    | T.Func (s, args) ->
+        match tfunc s with
+          | Atomic_word (symb, _) ->
+              let args =
+                args
+                |> Earray.map transl
+                |> Earray.to_list in
+              Ast.Func (symb, args)
+          | Number q -> Ast.Number q
+          | String s -> Ast.String s in
+  transl
+
+let atom_to_tptp tpred tfunc tvar (s, args) =
+  match%earr args with
+    | [| l; r |] when s = S.sym_eq ->
+        let l = term_to_tptp tfunc tvar l in
+        let r = term_to_tptp tfunc tvar r in
+        Ast.Equals (l, r)
+    | _ ->
+        match tpred s with
+          | Atomic_word (symb, _) ->
+              let args =
+                args
+                |> Earray.map (term_to_tptp tfunc tvar)
+                |> Earray.to_list in
+              Ast.Pred (symb, args)
+          | Number _
+          | String _ -> failwith "atom_to_tptp: Constant used as predicate"
+
+let lit_to_tptp tpred tfunc tvar (L.Lit (sign, s, args)) =
+  let sign =
+    match sign with
+      | Sh.Pos -> Ast.Pos
+      | Sh.Neg -> Ast.Neg in
+  Ast.Lit (sign, atom_to_tptp tpred tfunc tvar (s, args))
+
+let clause_to_tptp tpred tfunc lits =
+  Ast.Clause (BatList.map (lit_to_tptp tpred tfunc var_to_tptp) lits)
 
 type commutativity =
-  | Ignore
   | Export
   | Export_flat
+
+(* Generates clauses which depict commutativity of [s]. *)
+let symb_commutativity_clauses symdb format s =
+  if S.commutative symdb s then
+    let arity = Symb.arity s in
+    let args = BatList.init arity T.var in
+    let args' =
+      (* Swap first two arguments. *)
+      match args with
+        | a :: b :: rest -> b :: a :: rest
+        | _ -> failwith "symb_commutativity_clauses" in
+    match S.kind s with
+      | S.Func ->
+          let l = T.func (s, Earray.of_list args) in
+          let r = T.func (s, Earray.of_list args') in
+          [
+            if format = Export_flat
+            then [ L.mk_eq (T.var arity) l; L.mk_ineq (T.var arity) r ]
+            else [ L.mk_eq l r ]
+          ]
+      | S.Pred ->
+          let u = [
+            L.lit (Sh.Pos, s, Earray.of_list args);
+            L.lit (Sh.Neg, s, Earray.of_list args');
+          ] in
+          let v = BatList.map Lit.neg u in
+          [ u; v ]
+  else
+    []
+
+
+let tptp_clause_to_input ?(name = "cl") clause =
+  Ast.Cnf_anno {
+    Ast.af_name = Ast.N_word (Ast.to_plain_word name);
+    Ast.af_role = Ast.R_axiom;
+    Ast.af_formula = clause;
+    Ast.af_annos = None;
+  }
 
 let prob_to_tptp tp comm f =
   let clauses = tp.prob.Prob.clauses in
 
-  (* Translate variable names. *)
-  let var =
-    let names =
-      BatChar.range ~until:'Z' 'A'
-      |> BatEnum.map (BatString.make 1)
-      |> BatEnum.map Ast.to_var
-      |> Earray.of_enum in
-    fun x ->
-      if x >= Earray.length names then
-        Ast.to_var (Printf.sprintf "X%i" x)
-      else if x < 0 then
-        Ast.to_var (Printf.sprintf "Y%i" ~-x)
-      else
-        names.(x) in
+  let seen_symbs = ref Symb.Set.empty in
 
-  (* Return name for auxiliary symbol. *)
-  let aux_symb =
-    let last = ref 0 in
-    let rec gen_symb s =
-      incr last;
-      let symb =
-        Ast.Plain_word (Ast.to_plain_word (Printf.sprintf "z%d" !last)) in
-      if Hashtbl.mem tp.smap.of_tptp (Atomic_word (symb, S.arity s))
-      then gen_symb s
-      else symb in
-    let symbs = Hashtbl.create 20 in
-    fun s ->
-      try Hashtbl.find symbs s
-      with Not_found ->
-        let symb = gen_symb s in
-        Hashtbl.add symbs s symb;
-        symb in
+  let gen_int = make_int_gen () in
+  let tsymb id =
+    seen_symbs := Symb.Set.add id !seen_symbs;
+    symb_to_tptp gen_int tp.prob.Prob.symbols tp.smap id in
+  let proc_clause lits =
+    lits
+    |> clause_to_tptp tsymb tsymb
+    |> tptp_clause_to_input
+    |> f in
 
-  let seen_funcs = ref BatSet.empty in
+  BatDynArray.iter (fun cl2 -> proc_clause cl2.Clause2.cl_lits) clauses;
 
-  let rec transl_term = function
-    | T.Var x -> Ast.Var (var x)
-    | T.Func (s, args) ->
-        seen_funcs := BatSet.add s !seen_funcs;
-        let args () =
-          args
-          |> Earray.map transl_term
-          |> Earray.to_list in
-        try
-          match Hashtbl.find tp.smap.to_tptp s with
-            | Atomic_word (symb, _) ->
-                Ast.Func (symb, args ())
-            | Number q -> Ast.Number q
-            | String s -> Ast.String s
-        with
-          | Not_found ->
-              let symb = aux_symb s in
-              Ast.Func (symb, args ()) in
-
-  let transl_lit (L.Lit (sign, s, args)) =
-    let atom =
-      match%earr args with
-        | [| l; r |] when s = S.sym_eq ->
-            let l' = transl_term l in
-            let r' = transl_term r in
-            Ast.Equals (l', r')
-        | _ ->
-            let args () =
-              args
-              |> Earray.map transl_term
-              |> Earray.to_list in
-            try
-              match Hashtbl.find tp.smap.to_tptp s with
-                | Number _
-                | String _ -> failwith "problem_to_tptp"
-                | Atomic_word (symb, _) ->
-                    Ast.Pred (symb, args ())
-            with
-              | Not_found ->
-                  let symb = aux_symb s in
-                  Ast.Pred (symb, args ()) in
-    let sign =
-      match sign with
-        | Sh.Pos -> Ast.Pos
-        | Sh.Neg -> Ast.Neg in
-    Ast.Lit (sign, atom) in
-
-  let make_cnf lits =
-    Ast.Cnf_anno {
-      Ast.af_name = Ast.N_word (Ast.to_plain_word "cl");
-      Ast.af_role = Ast.R_axiom;
-      Ast.af_formula = Ast.Clause lits;
-      Ast.af_annos = None;
-    } in
-
-  let proc_clause cl =
-    let lits =
-      cl.Clause2.cl_lits
-      |> BatList.map transl_lit in
-    f (make_cnf lits) in
-
-  BatDynArray.iter proc_clause clauses;
-
-  (* Generate commutativity clauses for seen commutative function symbols. *)
-  BatSet.iter
+  (* Clauses for commutative symbols. *)
+  Symb.Set.iter
     (fun s ->
-      if S.commutative tp.prob.Prob.symbols s then begin
-        let arity = Symb.arity s in
-        let args = BatList.init arity (fun i -> Ast.Var (var i)) in
-        let args' =
-          (* Swap first two arguments. *)
-          match args with
-            | a :: b :: rest -> b :: a :: rest
-            | _ -> failwith "problem_to_tptp" in
-        let lits symb =
-          let l = Ast.Func (symb, args) in
-          let r = Ast.Func (symb, args') in
-          if comm = Export_flat then
-            [
-              Ast.Lit (Ast.Pos, Ast.Equals (Ast.Var (var arity), l));
-              Ast.Lit (Ast.Neg, Ast.Equals (Ast.Var (var arity), r));
-            ]
-          else
-            [ Ast.Lit (Ast.Pos, Ast.Equals (l, r)) ] in
-        let lits =
-          try
-            match Hashtbl.find tp.smap.to_tptp s with
-              | Number _
-              | String _ -> failwith "problem_to_tptp"
-              | Atomic_word (symb, _) -> lits symb
-          with
-            | Not_found -> lits (aux_symb s) in
-        f (make_cnf lits)
-       end)
-    (if comm <> Ignore then !seen_funcs else BatSet.empty)
+      let cls = symb_commutativity_clauses tp.prob.Prob.symbols comm s in
+      List.iter proc_clause cls)
+    !seen_symbs
+
+let clause_to_string symdb smap lits =
+  let gen_int = make_int_gen () in
+  let tsymb = symb_to_tptp gen_int symdb smap in
+  lits
+  |> clause_to_tptp tsymb tsymb
+  |> tptp_clause_to_input
+  |> Tptp.to_string
 
 module M = Model
 
@@ -427,7 +509,7 @@ let model_to_tptp
               let a = Earray.make arity ~-1 in
               let i = ref 0 in
               let atoms = BatDynArray.make (Earray.length values) in
-              if Hashtbl.find p.preds tptp_symb then begin
+              if Symb.kind s == Symb.Pred then begin
                 Assignment.each a 0 arity param_sizes model.M.max_size
                   (fun a ->
                     let args =
