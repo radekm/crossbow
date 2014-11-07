@@ -56,9 +56,10 @@ FILES[] =
     gecode_inst
     eprover
 
+%.cmi %.cmo %.cmx: ../earray/earray_syntax$(EXE)
+
 libcrossbow.cmxa libcrossbow$(EXT_LIB): \
     ../earray/libearray$(EXT_LIB) \
-    ../earray/earray_syntax$(EXE) \
     ../minisat/libminisat$(EXT_LIB) \
     ../cmsat/libcmsat$(EXT_LIB) \
     ../josat/libjosat$(EXT_LIB) \
