@@ -1,9 +1,5 @@
 # Copyright (c) 2013 Radek Micek
 
-if $(not $(defined BISECT_REPORT))
-    BISECT_REPORT = bisect-report
-    export BISECT_REPORT
-
 USE_OCAMLFIND = true
 
 CLEAN = rm -f *.cmi *.cmo *.cma *.cmx *.cmxa *.run *.opt \
@@ -14,16 +10,4 @@ CLEAN = rm -f *.cmi *.cmo *.cma *.cmx *.cmxa *.run *.opt \
 .SUBDIRS: minisat cmsat josat gecode bliss earray earray_test src test scripts
 
 test:
-    if $(defined coverage)
-        rm -f bisect*.out
-        rm -rf coverage
-
     test/test_runner$(EXE)
-
-    if $(defined coverage)
-        cd src
-        $(BISECT_REPORT) -html ../coverage ../bisect*.out
-
-clean:
-    rm -f bisect*.out
-    rm -rf coverage

@@ -15,10 +15,6 @@ OCAMLPACKS[] =
     compiler-libs.common
     ppx_tools
 
-if $(defined coverage)
-    OCAMLPACKS[] += bisect
-    export OCAMLPACKS
-
 # Don't use syntax preprocessor while building syntax preprocessor
 # (i.e. get rid of inappropriate OCAMLFLAGS).
 section

@@ -19,12 +19,6 @@ OCAMLPACKS[] =
 
 OCAMLINCLUDES[] += ../earray
 
-if $(defined coverage)
-    OCAMLPACKS[] += bisect
-    OCAMLFLAGS += -syntax camlp4o
-    export OCAMLPACKS
-    export OCAMLFLAGS
-
 FILES[] =
     elist
     algo
