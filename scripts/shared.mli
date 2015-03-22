@@ -19,13 +19,6 @@ val file_in_dir : string -> string -> string
 *)
 val file_in_program_dir : string -> string
 
-type exit_status =
-  | ES_time
-  (** Program breached the time limit and it was killed. *)
-  | ES_memory
-  (** Program breached the memory limit and it was killed. *)
-  | ES_ok of int
-  (** Program exited normally. Carries the exit code. *)
 
 (** [run_with_limits timeout_exe max_time max_mem prog args
    new_stdin new_stdout new_stderr] executes a program in file [prog]
@@ -43,7 +36,7 @@ val run_with_limits :
   string -> int option -> int option ->
   string -> string array ->
   Unix.file_descr -> Unix.file_descr -> Unix.file_descr ->
-  int * int * exit_status
+  int * int * Report.exit_status
 
 (** [tptp_concat_map f base_dir in_files out_file] reads TPTP formulas and
    comments from [in_files] and files included from [in_files], transforms

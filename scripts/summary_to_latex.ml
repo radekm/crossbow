@@ -1,8 +1,9 @@
 (* Copyright (c) 2013 Radek Micek *)
 
+module R = Report
+
 open Report_reader
 
-let (|>) = BatPervasives.(|>)
 let (%>) = BatPervasives.(%>)
 
 (* Expects that the problems were same for all solvers.
@@ -25,23 +26,23 @@ Generates a table like this:
 
 *)
 let count_solved_problems report time_limit =
-  let max_time = BatOption.default max_int report.max_time in
-  let max_mem = BatOption.default max_int report.max_mem in
+  let max_time = BatOption.default max_int report.R.max_time in
+  let max_mem = BatOption.default max_int report.R.max_mem in
 
   let rec loop cnt = function
     | [] -> cnt
     | res :: results ->
-        let time = milisecs_to_secs res.time in
+        let time = milisecs_to_secs res.R.time in
         if
           model_found res &&
           time <= time_limit &&
           time <= max_time &&
-          res.mem_peak <= max_mem
+          res.R.mem_peak <= max_mem
         then
           loop (cnt+1) results
         else
           loop cnt results in
-  loop 0 report.results
+  loop 0 report.R.results
 
 let summary_to_latex
     output_file ngroups items
@@ -63,17 +64,17 @@ let summary_to_latex
 
   let rec read_reports acc = function
     | [] -> acc |> List.rev
-    | config_name :: rest ->
+    | rest ->
         let rep_dirs, rest = BatList.split_at ngroups rest in
         let reports =
           Array.init
             ngroups
             (fun i ->
               let dir = List.nth rep_dirs i in
-              let report_file = Shared.file_in_dir dir report_file_name in
+              let report_file = Shared.file_in_dir dir R.default_filename in
               if not (Sys.file_exists report_file) then
                 failwith "file with report not found";
-              report_from_file config_name report_file) in
+              R.read report_file) in
         read_reports (reports :: acc) rest in
 
   (* Reports grouped by prover. *)
@@ -97,7 +98,7 @@ let summary_to_latex
       (fun reps ->
         BatIO.nwrite o " & ";
         BatIO.nwrite o "\\multicolumn{1}{c}{\\adjustbox{angle=90}{";
-        BatIO.nwrite o (unimp reps.(0).config_name);
+        BatIO.nwrite o (unimp reps.(0).R.config_name);
         BatIO.nwrite o "}}")
       reports;
     BatIO.nwrite o "\\\\\n";
@@ -111,7 +112,7 @@ let summary_to_latex
       (* Number of problems. *)
       BatIO.nwrite o " & ";
       BatIO.nwrite o
-        ((List.hd reports).(gr).results |> List.length |> unimp_int);
+        ((List.hd reports).(gr).R.results |> List.length |> unimp_int);
       let max_solved =
         List.fold_left
           (fun m reps -> max m (count_solved_problems reps.(gr) max_int))
@@ -135,7 +136,7 @@ let summary_to_latex
     done;
     let total_problems =
       Array.fold_left
-        (fun sum rep -> sum + List.length rep.results)
+        (fun sum rep -> sum + List.length rep.R.results)
         0
         (List.hd reports) in
     (* Number of total solved problems for each solver. *)
@@ -202,7 +203,7 @@ let summary_to_latex
         done;
         BatIO.nwrite o "};\n";
         BatIO.nwrite o
-          (Printf.sprintf "\\addlegendentry{%s}\n" reps.(0).config_name))
+          (Printf.sprintf "\\addlegendentry{%s}\n" reps.(0).R.config_name))
       reports;
     (* Footer. *)
     BatIO.nwrite o "\\end{axis}\n";

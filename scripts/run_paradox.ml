@@ -1,13 +1,12 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
+module R = Report
 module RS = Run_shared
 
 module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
 
-let (|>) = BatPervasives.(|>)
-
-let main exe opts max_time max_mem problems out_dir =
+let main exe opts max_time max_mem config_name problems out_dir =
   let each_problem file =
     let output_file =
       Shared.file_in_dir out_dir (Shared.file_name file ^ ".out") in
@@ -18,7 +17,7 @@ let main exe opts max_time max_mem problems out_dir =
           [| "--tstp"; "--model" |];
           [| file |];
         ] in
-    let s_time, s_mem_peak, s_exit_status =
+    let time, mem_peak, exit_status =
       BatPervasives.with_dispose
         ~dispose:close_out
         (fun out ->
@@ -28,9 +27,9 @@ let main exe opts max_time max_mem problems out_dir =
             (Unix.descr_of_out_channel out)
             (Unix.descr_of_out_channel stderr))
         (open_out output_file) in
-    let s_model_size =
-      match s_exit_status with
-        | Shared.ES_ok _ when Sys.file_exists output_file ->
+    let model_size =
+      match exit_status with
+        | R.Exit_code _ when Sys.file_exists output_file ->
             BatFile.with_file_in output_file
               (fun inp ->
                 let s = "% domain size is " in
@@ -45,12 +44,13 @@ let main exe opts max_time max_mem problems out_dir =
                       |> snd
                       |> BatString.trim
                       |> (fun size_str -> Some (int_of_string size_str)))
-        | Shared.ES_time
-        | Shared.ES_memory
-        | Shared.ES_ok _ -> None in
-    { RS.s_time; RS.s_mem_peak; RS.s_exit_status; RS.s_model_size } in
+        | R.Out_of_time
+        | R.Out_of_memory
+        | R.Exit_code _ -> None in
+    { R.problem = file; R.time; R.mem_peak; R.exit_status; R.model_size } in
 
-  RS.shared_main "paradox" opts max_time max_mem problems out_dir each_problem
+  RS.shared_main config_name "paradox" opts max_time max_mem
+    problems out_dir each_problem
 
 let exe =
   let doc = "Paradox executable." in
@@ -59,7 +59,7 @@ let exe =
 
 let main_t =
   Term.(pure main $ exe $ RS.opts $ RS.max_time $ RS.max_mem $
-          RS.problems $ RS.out_dir)
+          RS.config_name $ RS.problems $ RS.out_dir)
 
 let info =
   Term.info "run_paradox" ~version:RS.version

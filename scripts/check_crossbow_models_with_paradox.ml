@@ -1,5 +1,6 @@
 (* Copyright (c) 2014 Radek Micek *)
 
+module R = Report
 module RS = Run_shared
 module Ast = Tptp_ast
 
@@ -128,7 +129,7 @@ let check_model_with_paradox
 
   (* Check that Paradox found model. *)
   begin match s_exit_status with
-    | Shared.ES_ok _ ->
+    | R.Exit_code _ ->
         BatFile.with_file_in paradox_out
           (fun inp ->
             let is_satisfiable line =
@@ -145,11 +146,11 @@ let check_model_with_paradox
                   failwith "Invalid model");
         Sys.remove paradox_in;
         Sys.remove paradox_out
-    | Shared.ES_time ->
+    | R.Out_of_time ->
         Printf.printf "Out of time: %s\n" paradox_in;
         flush stdout;
         Sys.remove paradox_out;
-    | Shared.ES_memory ->
+    | R.Out_of_memory ->
         Printf.printf "Out of memory: %s\n" paradox_in;
         flush stdout;
         Sys.remove paradox_out

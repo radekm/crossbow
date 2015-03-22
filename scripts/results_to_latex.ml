@@ -1,10 +1,11 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
+
+module R = Report
 
 open Report_reader
 
 module Path = BatPathGen.OfString
 
-let (|>) = BatPervasives.(|>)
 let (%>) = BatPervasives.(%>)
 
 (* Generates a table like this:
@@ -26,12 +27,11 @@ let results_to_latex output_file reports =
   (* Read reports given at command line. *)
   let rec read_reports acc = function
     | [] -> List.rev acc;
-    | config_name :: report_dir :: results ->
-        let report_file = Shared.file_in_dir report_dir report_file_name in
+    | report_dir :: results ->
+        let report_file = Shared.file_in_dir report_dir R.default_filename in
         if not (Sys.file_exists report_file) then
           failwith "file with report not found";
-        read_reports (report_from_file config_name report_file :: acc) results
-    | _ -> failwith "missing directory with report" in
+        read_reports (R.read report_file :: acc) results in
 
   (* Check that reports were created with same settings
      and contain same problems.
@@ -40,11 +40,12 @@ let results_to_latex output_file reports =
     | [] -> failwith "no reports given"
     | rep :: reports ->
         if
-          List.exists (fun r -> r.max_time <> rep.max_time) reports ||
-          List.exists (fun r -> r.max_mem <> rep.max_mem) reports
+          List.exists (fun r -> r.R.max_time <> rep.R.max_time) reports ||
+          List.exists (fun r -> r.R.max_mem <> rep.R.max_mem) reports
         then
           failwith "different settings";
-        let get_problems rep = BatList.map (fun r -> r.problem) rep.results in
+        let get_problems rep =
+          BatList.map (fun r -> r.R.problem) rep.R.results in
         let problems = get_problems rep in
         if List.exists (fun r -> get_problems r <> problems) reports then
           failwith "different problems"  in
@@ -62,11 +63,12 @@ let results_to_latex output_file reports =
       | [] -> BatList.map List.rev acc_rows
       | rep :: reports ->
           (* Add each result to corresponding row. *)
-          let new_acc = BatList.map2 BatList.cons rep.results acc_rows in
+          let new_acc = BatList.map2 BatList.cons rep.R.results acc_rows in
           to_rows new_acc reports in
     match reports with
       | [] -> failwith "impossible"
-      | r :: _ -> to_rows (BatList.make (List.length r.results) []) reports in
+      | r :: _ ->
+          to_rows (BatList.make (List.length r.R.results) []) reports in
 
   (* Formatting. *)
   let unimp = Printf.sprintf "{\\footnotesize %s}" in
@@ -82,7 +84,7 @@ let results_to_latex output_file reports =
       (fun rep ->
         BatIO.nwrite o " & ";
         BatIO.nwrite o "\\multicolumn{1}{c}{\\adjustbox{angle=90}{";
-        BatIO.nwrite o (unimp rep.config_name);
+        BatIO.nwrite o (unimp rep.R.config_name);
         BatIO.nwrite o "}}")
       reports;
     BatIO.nwrite o "\\\\\n";
@@ -98,7 +100,7 @@ let results_to_latex output_file reports =
               let model_sizes =
                 row
                 |> BatList.filter model_found
-                |> BatList.filter_map (fun res -> res.model_size) in
+                |> BatList.filter_map (fun res -> res.R.model_size) in
               (* Check that all models have equal size
                  (ignore non-positive sizes).
               *)
@@ -111,15 +113,15 @@ let results_to_latex output_file reports =
                         |> String.concat ", " in
                       print_endline
                         ("Warning: different model sizes " ^ sizes_str ^
-                           ",\n  problem " ^ result.problem)
+                           ",\n  problem " ^ result.R.problem)
               end;
               let min_time =
                 row
                 |> BatList.filter model_found
-                |> BatList.map (fun res -> res.time)
+                |> BatList.map (fun res -> res.R.time)
                 |> List.fold_left min max_int
                 |> milisecs_to_secs in
-              let name = Path.of_string result.problem |> Path.name_core in
+              let name = Path.of_string result.R.problem |> Path.name_core in
               (* Write row. *)
               BatIO.nwrite o (unimp name);
               List.iter
@@ -127,16 +129,16 @@ let results_to_latex output_file reports =
                   BatIO.nwrite o " & ";
                   BatIO.nwrite
                     o
-                    (match res.exit_status with
-                      | Out_of_time -> unimp "t"
-                      | Out_of_memory -> unimp "m"
-                      | Exit_code 0 when res.model_size <> None ->
-                          let time = milisecs_to_secs res.time in
+                    (match res.R.exit_status with
+                      | R.Out_of_time -> unimp "t"
+                      | R.Out_of_memory -> unimp "m"
+                      | R.Exit_code 0 when res.R.model_size <> None ->
+                          let time = milisecs_to_secs res.R.time in
                           if time = min_time then
                             imp_int time
                           else
                             unimp_int time
-                      | Exit_code _ -> unimp "x"))
+                      | R.Exit_code _ -> unimp "x"))
                 row;
               BatIO.nwrite o "\\\\\n";
               BatIO.nwrite o "\\hline\n")
@@ -167,7 +169,7 @@ let output_file =
   Arg.(required & pos 0 (some string) None & info [] ~docv:"OUTPUT" ~doc)
 
 let reports =
-  let doc = "Pairs: configuration name and directory with report." in
+  let doc = "Directories with reports." in
   Arg.(value & pos_right 0 string [] & info [] ~docv:"REPORTS" ~doc)
 
 let results_to_latex_t =

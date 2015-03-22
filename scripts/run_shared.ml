@@ -1,18 +1,11 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
 
-let (|>) = BatPervasives.(|>)
+module R = Report
 
-type stat = {
-  s_time : int;
-  s_mem_peak : int;
-  s_exit_status : Shared.exit_status;
-  s_model_size : int option;
-}
-
-let shared_main solver_name opts max_time max_mem problems out_dir f =
+let shared_main config_name solver opts max_time max_mem problems out_dir f =
   BatOption.may
     (fun max_time ->
       if max_time < 1 then
@@ -30,7 +23,7 @@ let shared_main solver_name opts max_time max_mem problems out_dir f =
 
   let problems = Shared.read_problems_of_file problems in
 
-  let stats = BatDynArray.create () in
+  let results = BatDynArray.create () in
 
   List.iter
     (fun file ->
@@ -38,58 +31,32 @@ let shared_main solver_name opts max_time max_mem problems out_dir f =
       Printf.fprintf stderr "%s\n" (BatString.repeat "' " 39);
       Printf.fprintf stderr "Solving: %s\n" file;
       flush stderr;
-      let s = f file in
-      BatDynArray.add stats (file, s);
+      let res = f file in
+      BatDynArray.add results res;
       Printf.fprintf stderr
         "\nTIME (ms): %d  MEM PEAK (kB): %d  MODEL SIZE: %s\n"
-        s.s_time
-        s.s_mem_peak
-        (BatOption.map_default string_of_int "no model" s.s_model_size);
+        res.R.time
+        res.R.mem_peak
+        (BatOption.map_default string_of_int "no model" res.R.model_size);
       Printf.fprintf stderr
         "EXIT: %s\n"
-        (match s.s_exit_status with
-          | Shared.ES_time -> "out of time"
-          | Shared.ES_memory -> "out of memory"
-          | Shared.ES_ok i -> string_of_int i);
+        (match res.R.exit_status with
+          | R.Out_of_time -> "out of time"
+          | R.Out_of_memory -> "out of memory"
+          | R.Exit_code i -> string_of_int i);
       flush stderr)
     problems;
 
-  let to_json (file, s) =
-    let exit_status =
-      match s.s_exit_status with
-        | Shared.ES_time -> `String "time"
-        | Shared.ES_memory -> `String "memory"
-        | Shared.ES_ok i -> `Int i in
-    let model_size =
-      BatOption.map_default (fun i -> `Int i) `Null s.s_model_size in
-    `Assoc
-      [
-        "problem", `String file;
-        "time", `Int s.s_time;
-        "mem_peak", `Int s.s_mem_peak;
-        "exit_status", exit_status;
-        "model_size", model_size;
-      ] in
-
-  (* Save statistics to JSON. *)
-  let json =
-    let max_time =
-      BatOption.map_default (fun max_time -> `Int max_time) `Null max_time in
-    let max_mem =
-      BatOption.map_default (fun max_mem -> `Int max_mem) `Null max_mem in
-    let results =
-      `List (BatDynArray.to_list stats |> BatList.map to_json) in
-    `Assoc
-      [
-        "solver", `String solver_name;
-        "opts", `List (BatList.map (fun opt -> `String opt) opts);
-        "max_time", max_time;
-        "max_mem", max_mem;
-        "results", results;
-      ] in
-  BatFile.with_file_out
-    (Shared.file_in_dir out_dir "__REPORT__")
-    (fun out -> BatIO.nwrite out (Yojson.Safe.pretty_to_string json))
+  R.write
+    (Shared.file_in_dir out_dir R.default_filename)
+    {
+      R.config_name;
+      R.solver;
+      R.opts;
+      R.max_time;
+      R.max_mem;
+      R.results = BatDynArray.to_list results;
+    }
 
 let run_solver_ex
     max_time max_mem solver args
@@ -126,13 +93,18 @@ let max_mem =
   Arg.(value & opt (some int) None &
          info ["max-mem"] ~docv:"MAX-MEM" ~doc)
 
+let config_name =
+  let doc = "Name of the current configuration." in
+  Arg.(required & pos 0 (some string) None &
+         info [] ~docv:"CONFIG-NAME" ~doc)
+
 let problems =
   let doc = "File with a list of problems in TPTP CNF format." in
-  Arg.(required & pos 0 (some non_dir_file) None &
+  Arg.(required & pos 1 (some non_dir_file) None &
          info [] ~docv:"PROBLEMS" ~doc)
 
 let out_dir =
   let doc = "Empty directory for storing results." in
-  Arg.(required & pos 1 (some dir) None & info [] ~docv:"OUTPUT-DIR" ~doc)
+  Arg.(required & pos 2 (some dir) None & info [] ~docv:"OUTPUT-DIR" ~doc)
 
 let version = "0.1"

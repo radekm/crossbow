@@ -1,17 +1,17 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
+module R = Report
 module RS = Run_shared
 
 module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
 
-let (|>) = BatPervasives.(|>)
 let (%>) = BatPervasives.(%>)
 
 let main
     exe opts tptp_to_ladr_exe
     max_time max_mem base_dir
-    problems out_dir =
+    config_name problems out_dir =
 
   let each_problem file =
     (* Convert from TPTP to LADR. *)
@@ -42,7 +42,7 @@ let main
         ] in
     let output_file =
       Shared.file_in_dir out_dir (Shared.file_name file ^ ".out") in
-    let s_time, s_mem_peak, s_exit_status =
+    let time, mem_peak, exit_status =
       BatPervasives.with_dispose
         ~dispose:close_in
         (fun inp ->
@@ -57,9 +57,9 @@ let main
             (open_out output_file))
         (open_in in_ladr) in
     Sys.remove in_ladr;
-    let s_model_size =
-      match s_exit_status with
-        | Shared.ES_ok _ when Sys.file_exists output_file ->
+    let model_size =
+      match exit_status with
+        | R.Exit_code _ when Sys.file_exists output_file ->
             BatFile.with_file_in output_file
               (fun inp ->
                 let model_start line =
@@ -80,12 +80,13 @@ let main
                       |> fst
                       |> BatString.trim
                       |> (fun size_str -> Some (int_of_string size_str)))
-        | Shared.ES_time
-        | Shared.ES_memory
-        | Shared.ES_ok _ -> None in
-    { RS.s_time; RS.s_mem_peak; RS.s_exit_status; RS.s_model_size } in
+        | R.Out_of_time
+        | R.Out_of_memory
+        | R.Exit_code _ -> None in
+    { R.problem = file; R.time; R.mem_peak; R.exit_status; R.model_size } in
 
-  RS.shared_main "mace4" opts max_time max_mem problems out_dir each_problem
+  RS.shared_main config_name "mace4" opts max_time max_mem
+    problems out_dir each_problem
 
 let exe =
   let doc = "Mace4 executable." in
@@ -104,7 +105,7 @@ let base_dir =
 let main_t =
   Term.(pure main $ exe $ RS.opts $ tptp_to_ladr_exe $
           RS.max_time $ RS.max_mem $ base_dir $
-          RS.problems $ RS.out_dir)
+          RS.config_name $ RS.problems $ RS.out_dir)
 
 let info =
   Term.info "run_mace4" ~version:RS.version

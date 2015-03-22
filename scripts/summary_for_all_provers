@@ -15,20 +15,20 @@ shift
 CMD="./summary_to_latex.opt $SUMMARY $# $@"
 
 PROVERS_FULL="\
-    Mace4,mace4 Paradox,paradox \
-    iProver,iprover iProver/Fin,iprover-fin \
-    CMSat,cryptominisat CMSat+E,cryptominisat-e \
-    MiniSat,minisat MiniSat+E,minisat-e \
-    Josat,josat Josat+E,josat-e \
-    Gecode,gecode Gecode+E,gecode-e \
-    FGecode,gecode-flat FGecode+E,gecode-flat-e"
+    mace4 paradox \
+    iprover iprover-fin \
+    cryptominisat cryptominisat-e \
+    minisat minisat-e \
+    josat josat-e \
+    gecode gecode-e \
+    gecode-flat gecode-flat-e"
 
 PROVERS_REDUCED="\
-    Mace4,mace4 \
-    Paradox,paradox \
-    iProver/Fin,iprover-fin \
-    MiniSat+E,minisat-e \
-    Gecode+E,gecode-e"
+    mace4 \
+    paradox \
+    iprover-fin \
+    minisat-e \
+    gecode-e"
 
 PROVERS="$PROVERS_FULL"
 
@@ -39,10 +39,7 @@ fi
 
 for prover in $PROVERS
 do
-    PROVER_NAME=`echo $prover | cut -d , -f1`
-    DIR=`echo $prover | cut -d , -f2`
-
-    CMD="$CMD $PROVER_NAME"
+    DIR="$prover"
 
     for group in "$@"
     do

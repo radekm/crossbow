@@ -20,20 +20,20 @@ mkdir -p "$OUT_DIR"
 
 OUT="$OUT_DIR/mace4"
 mkdir "$OUT"
-./run_mace4.opt "$PROBLEMS" "$OUT" \
+./run_mace4.opt "Mace" "$PROBLEMS" "$OUT" \
   --base-dir="$BASE_DIR" \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=-b --opt=-1
 
 OUT="$OUT_DIR/paradox"
 mkdir "$OUT"
-./run_paradox.opt "$PROBLEMS" "$OUT" \
+./run_paradox.opt "Paradox" "$PROBLEMS" "$OUT" \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--root --opt="$BASE_DIR"
 
 OUT="$OUT_DIR/iprover"
 mkdir "$OUT"
-./run_iprover.opt "$PROBLEMS" "$OUT" \
+./run_iprover.opt "iProver" "$PROBLEMS" "$OUT" \
   --exe="./iproveropt" \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--include_path --opt="$BASE_DIR" \
@@ -41,7 +41,7 @@ mkdir "$OUT"
 
 OUT="$OUT_DIR/iprover-fin"
 mkdir "$OUT"
-./run_iprover.opt "$PROBLEMS" "$OUT" \
+./run_iprover.opt "iProver/Fin" "$PROBLEMS" "$OUT" \
   --exe="./iproveropt" \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--include_path --opt="$BASE_DIR" \
@@ -51,16 +51,23 @@ mkdir "$OUT"
 
 for solver in "cryptominisat" "minisat" "josat" "gecode"
 do
+  case $solver in
+    cryptominisat) cfg="CMSat";;
+    minisat) cfg="MiniSat";;
+    josat) cfg="Josat";;
+    gecode) cfg="Gecode";;
+  esac
+
   OUT="$OUT_DIR/$solver"
   mkdir "$OUT"
-  ./run_crossbow.opt "$PROBLEMS" "$OUT" \
+  ./run_crossbow.opt "$cfg" "$PROBLEMS" "$OUT" \
     --exe=./crossbow.opt \
     --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
     --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver
 
   OUT="$OUT_DIR/$solver-e"
   mkdir "$OUT"
-  ./run_crossbow.opt "$PROBLEMS" "$OUT" \
+  ./run_crossbow.opt "$cfg+E" "$PROBLEMS" "$OUT" \
     --exe=./crossbow.opt \
     --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
     --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver \
@@ -69,7 +76,7 @@ done
 
 OUT="$OUT_DIR/gecode-flat"
 mkdir "$OUT"
-./run_crossbow.opt "$PROBLEMS" "$OUT" \
+./run_crossbow.opt "FGecode" "$PROBLEMS" "$OUT" \
   --exe=./crossbow.opt \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=gecode \
@@ -82,7 +89,7 @@ mkdir "$OUT"
 
 OUT="$OUT_DIR/gecode-flat-e"
 mkdir "$OUT"
-./run_crossbow.opt "$PROBLEMS" "$OUT" \
+./run_crossbow.opt "FGecode+E" "$PROBLEMS" "$OUT" \
   --exe=./crossbow.opt \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=gecode \
@@ -95,10 +102,10 @@ mkdir "$OUT"
   --opt=--use-e --opt=--e-max-secs --opt="$E_TIME"
 
 ./results_to_latex.opt "$OUT_DIR/results.tex" \
-  "Mace4" "$OUT_DIR/mace4" "Paradox" "$OUT_DIR/paradox" \
-  "iProver" "$OUT_DIR/iprover" "iProver/Fin" "$OUT_DIR/iprover-fin" \
-  "CMSat" "$OUT_DIR/cryptominisat" "CMSat+E" "$OUT_DIR/cryptominisat-e" \
-  "MiniSat" "$OUT_DIR/minisat" "MiniSat+E" "$OUT_DIR/minisat-e" \
-  "Josat" "$OUT_DIR/josat" "Josat+E" "$OUT_DIR/josat-e" \
-  "Gecode" "$OUT_DIR/gecode" "Gecode+E" "$OUT_DIR/gecode-e" \
-  "FGecode" "$OUT_DIR/gecode-flat" "FGecode+E" "$OUT_DIR/gecode-flat-e"
+  "$OUT_DIR/mace4" "$OUT_DIR/paradox" \
+  "$OUT_DIR/iprover" "$OUT_DIR/iprover-fin" \
+  "$OUT_DIR/cryptominisat" "$OUT_DIR/cryptominisat-e" \
+  "$OUT_DIR/minisat" "$OUT_DIR/minisat-e" \
+  "$OUT_DIR/josat" "$OUT_DIR/josat-e" \
+  "$OUT_DIR/gecode" "$OUT_DIR/gecode-e" \
+  "$OUT_DIR/gecode-flat" "$OUT_DIR/gecode-flat-e"

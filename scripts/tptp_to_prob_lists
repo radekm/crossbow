@@ -16,6 +16,7 @@ do
     dir=`basename "$path"`
     out_file="$OUT_DIR/$dir"
     echo $dir
+    # Note: CNF problems cannot be CounterSatisfiable
     "$TPTP/Scripts/tptp2T" -q3 -pp Form CNF Status Satisfiable Domains $dir \
         | awk -v path="$path" \
         '{print path "/" $1 ".p" }' > "$out_file"

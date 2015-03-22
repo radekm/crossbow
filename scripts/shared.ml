@@ -53,11 +53,6 @@ let file_in_program_dir file =
   |> Path.map_name (fun _ -> file)
   |> Path.to_ustring
 
-type exit_status =
-  | ES_time
-  | ES_memory
-  | ES_ok of int
-
 let run_with_limits
     timeout_exe max_time max_mem
     prog args
@@ -103,11 +98,11 @@ let run_with_limits
           | [reason; _; _; mem_peak] ->
               let mem_peak = int_of_string (BatString.lchop ~n:7 mem_peak) in
               if reason = "REASON:FINISHED" then
-                ms, mem_peak, ES_ok code
+                ms, mem_peak, Report.Exit_code code
               else if reason = "REASON:TIMEOUT" then
-                ms, mem_peak, ES_time
+                ms, mem_peak, Report.Out_of_time
               else if reason = "REASON:MEM" then
-                ms, mem_peak, ES_memory
+                ms, mem_peak, Report.Out_of_memory
               else
                 failwith "run_with_limits: reason"
           | _ -> failwith "run_with_limits: statistics"
