@@ -1,59 +1,39 @@
-(* Copyright (c) 2014 Radek Micek *)
+(* Copyright (c) 2014-2015 Radek Micek *)
 
 module R = Report
 module RS = Run_shared
 module Ast = Tptp_ast
 
-let with_tptp_in (file : string) (f : Tptp.input -> 'a) : 'a =
-  BatFile.with_file_in file
-    (fun inp ->
-      let lexbuf = BatLexing.from_input inp in
-      BatPervasives.with_dispose
-        ~dispose:Tptp.close_in
-        f
-        (Tptp.create_in lexbuf))
-
-let iter_tptp_input
-    (tptp_file : string)
-    (f : Ast.tptp_input -> unit)
-    : unit =
-  let rec iter inp =
-    match Tptp.read inp with
-      | None -> ()
-      | Some tptp_input ->
-          f tptp_input;
-          iter inp in
-
-  with_tptp_in tptp_file iter
-
 let iter_models
     (file_with_models : string)
     (f : int -> Ast.tptp_input list -> unit)
     : unit =
-  let rec iter dsize model_formulas inp =
-    match Tptp.read inp with
-      | None ->
-          if model_formulas <> [] then
-            f dsize (List.rev model_formulas)
+  let dsize = ref 0 in
+  let model_formulas = ref [] in
+  Tptp.File.iter
+    (function
       (* Comment with domain size - each model starts with it. *)
-      | Some (Ast.Comment cstr) ->
-          if model_formulas <> [] then
-            f dsize (List.rev model_formulas);
-          let dsize =
+      | Ast.Comment cstr ->
+          if !model_formulas <> [] then
+            f !dsize (List.rev !model_formulas);
+          dsize :=
             BatString.replace
               ~str:(cstr :> string)
               ~sub:" domain size: "
               ~by:""
             |> snd
-            |> int_of_string in
-          iter dsize [] inp
-      | Some (Ast.Cnf_anno _)
-      | Some (Ast.Include _) ->
+            |> int_of_string;
+          model_formulas := []
+      | Ast.Cnf_anno _
+      | Ast.Include _ ->
           failwith "iter_models: unexpected tptp_input"
-      | Some (Ast.Fof_anno af as tptp_input) ->
-          iter dsize (tptp_input :: model_formulas) inp in
+      | Ast.Fof_anno _ as tptp_input ->
+          model_formulas := tptp_input :: !model_formulas)
+    file_with_models;
 
-  with_tptp_in file_with_models (iter 0 [])
+  (* Last model. *)
+  if !model_formulas <> [] then
+    f !dsize (List.rev !model_formulas)
 
 let check_model_with_paradox
     problem_file
@@ -65,8 +45,6 @@ let check_model_with_paradox
     model_formulas =
   let paradox_in = BatFile.with_temporary_out
     (fun out file ->
-      let b = Buffer.create 1000 in
-
       (* Paradox doesn't treat integer constants as distinct,
          we have to add inequalities.
       *)
@@ -82,9 +60,7 @@ let check_model_with_paradox
               Ast.af_formula = Ast.Formula (Ast.Not (Ast.Atom eq));
               Ast.af_annos = None;
             } in
-          Tptp.write b af;
-          BatIO.nwrite out (Buffer.contents b);
-          Buffer.clear b
+          BatIO.nwrite out (Tptp.to_string af);
         done
       done;
 
@@ -92,10 +68,9 @@ let check_model_with_paradox
       BatList.iter
         (function
           | Ast.Fof_anno af ->
-              Tptp.write b
-                (Ast.Fof_anno { af with Ast.af_role = Ast.R_axiom });
-              BatIO.nwrite out (Buffer.contents b);
-              Buffer.clear b
+              let tptp_input =
+                Ast.Fof_anno { af with Ast.af_role = Ast.R_axiom } in
+              BatIO.nwrite out (Tptp.to_string tptp_input)
           | Ast.Comment _
           | Ast.Cnf_anno _
           | Ast.Include _ ->
@@ -103,11 +78,11 @@ let check_model_with_paradox
         model_formulas;
 
       (* Write problem formulas. *)
-      iter_tptp_input problem_file
+      Tptp.File.iter
+        ~base_dir
         (fun tptp_input ->
-          Tptp.write b tptp_input;
-          BatIO.nwrite out (Buffer.contents b);
-          Buffer.clear b);
+          BatIO.nwrite out (Tptp.to_string tptp_input))
+        problem_file;
 
       file) in
 
@@ -121,7 +96,7 @@ let check_model_with_paradox
         Shared.run_with_limits
           timeout_exe max_time max_mem
           paradox_exe
-          [| paradox_in; "--root"; base_dir |]
+          [| paradox_in |]
           Unix.stdin
           (Unix.descr_of_out_channel out)
           Unix.stderr)
