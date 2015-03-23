@@ -16,7 +16,7 @@ let main
   let each_problem file =
     (* Convert from TPTP to LADR. *)
     let in_tptp = BatFile.with_temporary_out (fun _ name -> name) in
-    Shared.tptp_concat_map (fun x -> x) base_dir [ file ] in_tptp;
+    Tptp.File.write in_tptp (Tptp.File.read ~base_dir file);
     let in_ladr = BatFile.with_temporary_out (fun _ name -> name) in
     BatPervasives.with_dispose
       ~dispose:close_in
