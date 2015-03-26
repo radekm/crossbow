@@ -1,6 +1,6 @@
 (* Copyright (c) 2014-2015 Radek Micek *)
 
-module R = Report
+module Res = Report.Result
 module RS = Run_shared
 module Ast = Tptp_ast
 
@@ -88,7 +88,7 @@ let check_model_with_paradox
 
   (* Execute Paradox. *)
   let paradox_out = BatFile.with_temporary_out (fun _ file -> file) in
-  let _, _, s_exit_status =
+  let _, _, exit_status =
     let timeout_exe = Shared.file_in_program_dir "timeout" in
     BatPervasives.with_dispose
       ~dispose:close_out
@@ -103,8 +103,8 @@ let check_model_with_paradox
       (open_out paradox_out) in
 
   (* Check that Paradox found model. *)
-  begin match s_exit_status with
-    | R.Exit_code _ ->
+  begin match exit_status with
+    | Res.Exit_code _ ->
         BatFile.with_file_in paradox_out
           (fun inp ->
             let is_satisfiable line =
@@ -121,11 +121,11 @@ let check_model_with_paradox
                   failwith "Invalid model");
         Sys.remove paradox_in;
         Sys.remove paradox_out
-    | R.Out_of_time ->
+    | Res.Out_of_time ->
         Printf.printf "Out of time: %s\n" paradox_in;
         flush stdout;
         Sys.remove paradox_out;
-    | R.Out_of_memory ->
+    | Res.Out_of_memory ->
         Printf.printf "Out of memory: %s\n" paradox_in;
         flush stdout;
         Sys.remove paradox_out

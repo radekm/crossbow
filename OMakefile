@@ -1,13 +1,14 @@
-# Copyright (c) 2013 Radek Micek
+# Copyright (c) 2013, 2015 Radek Micek
 
 USE_OCAMLFIND = true
 
 CLEAN = rm -f *.cmi *.cmo *.cma *.cmx *.cmxa *.run *.opt \
-    *$(EXT_OBJ) *$(EXT_LIB) *.cmp
+    *$(EXT_OBJ) *$(EXT_LIB)
 
 .PHONY: program doc test clean
 
-.SUBDIRS: minisat cmsat josat gecode bliss earray earray_test src test scripts
+.SUBDIRS: minisat cmsat josat gecode bliss earray earray_test src test \
+    scripts scripts_test
 
 test:
     test/test_runner$(EXE)

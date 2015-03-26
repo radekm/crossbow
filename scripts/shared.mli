@@ -36,4 +36,4 @@ val run_with_limits :
   string -> int option -> int option ->
   string -> string array ->
   Unix.file_descr -> Unix.file_descr -> Unix.file_descr ->
-  int * int * Report.exit_status
+  int * int * Report.Result.exit_status

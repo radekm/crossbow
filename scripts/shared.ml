@@ -97,11 +97,11 @@ let run_with_limits
           | [reason; _; _; mem_peak] ->
               let mem_peak = int_of_string (BatString.lchop ~n:7 mem_peak) in
               if reason = "REASON:FINISHED" then
-                ms, mem_peak, Report.Exit_code code
+                ms, mem_peak, Report.Result.Exit_code code
               else if reason = "REASON:TIMEOUT" then
-                ms, mem_peak, Report.Out_of_time
+                ms, mem_peak, Report.Result.Out_of_time
               else if reason = "REASON:MEM" then
-                ms, mem_peak, Report.Out_of_memory
+                ms, mem_peak, Report.Result.Out_of_memory
               else
                 failwith "run_with_limits: reason"
           | _ -> failwith "run_with_limits: statistics"

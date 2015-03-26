@@ -16,8 +16,6 @@ test/array_to_earray_syntax.opt
 test/test_runner
 test/test_runner.opt
 
-/coverage
-
 scripts/run_crossbow
 scripts/run_crossbow.opt
 scripts/run_paradox
@@ -26,12 +24,11 @@ scripts/run_mace4
 scripts/run_mace4.opt
 scripts/run_iprover
 scripts/run_iprover.opt
-scripts/results_to_latex
-scripts/results_to_latex.opt
-scripts/summary_to_latex
-scripts/summary_to_latex.opt
 scripts/check_crossbow_models_with_paradox
 scripts/check_crossbow_models_with_paradox.opt
+
+scripts_test/test_runner
+scripts_test/test_runner.opt
 
 # OCaml
 *.cmi
@@ -53,10 +50,6 @@ OMakeroot.omc
 # oUnit
 *.log
 oUnit-*.cache
-
-# Bisect
-/bisect*.out
-*.cmp
 
 # Backup files
 *.*~

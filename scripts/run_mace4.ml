@@ -1,6 +1,6 @@
 (* Copyright (c) 2013, 2015 Radek Micek *)
 
-module R = Report
+module R = Report.Result
 module RS = Run_shared
 
 module Arg = Cmdliner.Arg
@@ -9,9 +9,10 @@ module Term = Cmdliner.Term
 let (%>) = BatPervasives.(%>)
 
 let main
-    exe opts tptp_to_ladr_exe
-    max_time max_mem base_dir
-    config_name problems out_dir =
+    (* Required command-line arguments. *)
+    report config_name problems out_dir
+    (* Optional command-line arguments. *)
+    exe tptp_to_ladr_exe base_dir opts max_time max_mem =
 
   let each_problem file =
     (* Convert from TPTP to LADR. *)
@@ -85,8 +86,9 @@ let main
         | R.Exit_code _ -> None in
     { R.problem = file; R.time; R.mem_peak; R.exit_status; R.model_size } in
 
-  RS.shared_main config_name "mace4" opts max_time max_mem
-    problems out_dir each_problem
+  RS.shared_main report config_name "mace4"
+    opts max_time max_mem
+    problems each_problem
 
 let exe =
   let doc = "Mace4 executable." in
@@ -103,9 +105,9 @@ let base_dir =
   Arg.(value & opt dir "." & info ["base-dir"] ~docv:"DIR" ~doc)
 
 let main_t =
-  Term.(pure main $ exe $ RS.opts $ tptp_to_ladr_exe $
-          RS.max_time $ RS.max_mem $ base_dir $
-          RS.config_name $ RS.problems $ RS.out_dir)
+  Term.(pure main $ RS.report $ RS.config_name $ RS.problems $ RS.out_dir $
+          exe $ tptp_to_ladr_exe $ base_dir $
+          RS.opts $ RS.max_time $ RS.max_mem)
 
 let info =
   Term.info "run_mace4" ~version:RS.version

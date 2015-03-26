@@ -1,8 +1,8 @@
 #!/usr/bin/sh
 
-if [ $# -ne 6 ]
+if [ $# -ne 7 ]
 then
-    echo "Usage: `basename $0` problems base-dir out-dir max-time max-mem e-time"
+    echo "Usage: `basename $0` problems base-dir report out-dir max-time max-mem e-time"
     exit 65
 fi
 
@@ -10,38 +10,39 @@ fi
 PROBLEMS="$1"
 BASE_DIR="$2"
 # Output.
-OUT_DIR="$3"
+REPORT="$3"
+OUT_DIR="$4"
 # Settings.
-MAX_TIME="$4"
-MAX_MEM="$5"
-E_TIME="$6"
+MAX_TIME="$5"
+MAX_MEM="$6"
+E_TIME="$7"
 
 mkdir -p "$OUT_DIR"
 
 OUT="$OUT_DIR/mace4"
-mkdir "$OUT"
-./run_mace4.opt "Mace" "$PROBLEMS" "$OUT" \
+mkdir -p "$OUT"
+./run_mace4.opt "$REPORT" "Mace" "$PROBLEMS" "$OUT" \
   --base-dir="$BASE_DIR" \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=-b --opt=-1
 
 OUT="$OUT_DIR/paradox"
-mkdir "$OUT"
-./run_paradox.opt "Paradox" "$PROBLEMS" "$OUT" \
+mkdir -p "$OUT"
+./run_paradox.opt "$REPORT" "Paradox" "$PROBLEMS" "$OUT" \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--root --opt="$BASE_DIR"
 
 OUT="$OUT_DIR/iprover"
-mkdir "$OUT"
-./run_iprover.opt "iProver" "$PROBLEMS" "$OUT" \
+mkdir -p "$OUT"
+./run_iprover.opt "$REPORT" "iProver" "$PROBLEMS" "$OUT" \
   --exe="./iproveropt" \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--include_path --opt="$BASE_DIR" \
   --opt=--schedule --opt=sat
 
 OUT="$OUT_DIR/iprover-fin"
-mkdir "$OUT"
-./run_iprover.opt "iProver/Fin" "$PROBLEMS" "$OUT" \
+mkdir -p "$OUT"
+./run_iprover.opt "$REPORT" "iProver/Fin" "$PROBLEMS" "$OUT" \
   --exe="./iproveropt" \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--include_path --opt="$BASE_DIR" \
@@ -59,15 +60,15 @@ do
   esac
 
   OUT="$OUT_DIR/$solver"
-  mkdir "$OUT"
-  ./run_crossbow.opt "$cfg" "$PROBLEMS" "$OUT" \
+  mkdir -p "$OUT"
+  ./run_crossbow.opt "$REPORT" "$cfg" "$PROBLEMS" "$OUT" \
     --exe=./crossbow.opt \
     --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
     --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver
 
   OUT="$OUT_DIR/$solver-e"
-  mkdir "$OUT"
-  ./run_crossbow.opt "$cfg+E" "$PROBLEMS" "$OUT" \
+  mkdir -p "$OUT"
+  ./run_crossbow.opt "$REPORT" "$cfg+E" "$PROBLEMS" "$OUT" \
     --exe=./crossbow.opt \
     --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
     --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver \
@@ -75,8 +76,8 @@ do
 done
 
 OUT="$OUT_DIR/gecode-flat"
-mkdir "$OUT"
-./run_crossbow.opt "FGecode" "$PROBLEMS" "$OUT" \
+mkdir -p "$OUT"
+./run_crossbow.opt "$REPORT" "FGecode" "$PROBLEMS" "$OUT" \
   --exe=./crossbow.opt \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=gecode \
@@ -88,8 +89,8 @@ mkdir "$OUT"
   --opt=--paradox-mod-splitting
 
 OUT="$OUT_DIR/gecode-flat-e"
-mkdir "$OUT"
-./run_crossbow.opt "FGecode+E" "$PROBLEMS" "$OUT" \
+mkdir -p "$OUT"
+./run_crossbow.opt "$REPORT" "FGecode+E" "$PROBLEMS" "$OUT" \
   --exe=./crossbow.opt \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=gecode \
@@ -100,12 +101,3 @@ mkdir "$OUT"
   --opt=--define-ground-terms --opt=--flatten \
   --opt=--paradox-mod-splitting \
   --opt=--use-e --opt=--e-max-secs --opt="$E_TIME"
-
-./results_to_latex.opt "$OUT_DIR/results.tex" \
-  "$OUT_DIR/mace4" "$OUT_DIR/paradox" \
-  "$OUT_DIR/iprover" "$OUT_DIR/iprover-fin" \
-  "$OUT_DIR/cryptominisat" "$OUT_DIR/cryptominisat-e" \
-  "$OUT_DIR/minisat" "$OUT_DIR/minisat-e" \
-  "$OUT_DIR/josat" "$OUT_DIR/josat-e" \
-  "$OUT_DIR/gecode" "$OUT_DIR/gecode-e" \
-  "$OUT_DIR/gecode-flat" "$OUT_DIR/gecode-flat-e"

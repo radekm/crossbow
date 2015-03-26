@@ -1,0 +1,25 @@
+# Copyright (c) 2015 Radek Micek
+
+OCAMLPACKS[] =
+    batteries
+    sqlite3
+    sexplib
+    oUnit
+
+OCAMLINCLUDES += ../scripts
+
+FILES[] =
+    ../scripts/report
+    test_report
+    test
+
+OCamlProgram(test_runner, $(FILES))
+
+test: test_runner$(EXE)
+    ./test_runner$(EXE)
+
+clean:
+    $(CLEAN)
+    rm -f *.out *.log
+    rm -f oUnit-suite.cache
+    rm -f test_runner$(EXE)

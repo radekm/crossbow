@@ -1,12 +1,16 @@
 (* Copyright (c) 2013, 2015 Radek Micek *)
 
-module R = Report
+module R = Report.Result
 module RS = Run_shared
 
 module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
 
-let main exe opts max_time max_mem config_name problems out_dir =
+let main
+    (* Required command-line arguments. *)
+    report config_name problems out_dir
+    (* Optional command-line arguments. *)
+    exe opts max_time max_mem =
   let each_problem file =
     let model_file =
       Shared.file_in_dir out_dir (Shared.file_name file ^ ".m.mod") in
@@ -33,8 +37,9 @@ let main exe opts max_time max_mem config_name problems out_dir =
         | R.Exit_code _ -> None in
     { R.problem = file; R.time; R.mem_peak; R.exit_status; R.model_size } in
 
-  RS.shared_main config_name "crossbow" opts max_time max_mem
-    problems out_dir each_problem
+  RS.shared_main report config_name "crossbow"
+    opts max_time max_mem
+    problems each_problem
 
 let exe =
   let doc = "Crossbow executable." in
@@ -42,8 +47,8 @@ let exe =
          info ["exe"] ~docv:"FILE" ~doc)
 
 let main_t =
-  Term.(pure main $ exe $ RS.opts $ RS.max_time $ RS.max_mem $
-          RS.config_name $ RS.problems $ RS.out_dir)
+  Term.(pure main $ RS.report $ RS.config_name $ RS.problems $ RS.out_dir $
+          exe $ RS.opts $ RS.max_time $ RS.max_mem)
 
 let info =
   Term.info "run_crossbow" ~version:RS.version

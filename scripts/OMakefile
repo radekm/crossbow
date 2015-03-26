@@ -6,15 +6,15 @@ OCAMLPACKS[] =
     threads
     batteries
     tptp
-    zarith
     oclock
-    yojson
+    sqlite3
+    sexplib
     cmdliner
 
 .PHONY: all
 
 all: run_crossbow run_paradox run_mace4 run_iprover \
-    results_to_latex summary_to_latex check_crossbow_models_with_paradox
+    check_crossbow_models_with_paradox
 
 OCamlProgram(run_crossbow, report shared run_shared run_crossbow)
 
@@ -23,10 +23,6 @@ OCamlProgram(run_paradox, report shared run_shared run_paradox)
 OCamlProgram(run_mace4, report shared run_shared run_mace4)
 
 OCamlProgram(run_iprover, report shared run_shared run_iprover)
-
-OCamlProgram(results_to_latex, report shared report_reader results_to_latex)
-
-OCamlProgram(summary_to_latex, report shared report_reader summary_to_latex)
 
 OCamlProgram(check_crossbow_models_with_paradox, \
     report shared run_shared check_crossbow_models_with_paradox)
@@ -37,6 +33,4 @@ clean:
     rm -rf run_paradox$(EXE)
     rm -rf run_mace4$(EXE)
     rm -rf run_iprover$(EXE)
-    rm -rf results_to_latex$(EXE)
-    rm -rf summary_to_latex$(EXE)
     rm -rf check_crossbow_models_with_paradox$(EXE)
