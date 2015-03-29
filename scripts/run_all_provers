@@ -64,7 +64,8 @@ do
   ./run_crossbow.opt "$REPORT" "$cfg" "$PROBLEMS" "$OUT" \
     --exe=./crossbow.opt \
     --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
-    --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver
+    --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver \
+    --opt=--threads=1
 
   OUT="$OUT_DIR/$solver-e"
   mkdir -p "$OUT"
@@ -72,6 +73,7 @@ do
     --exe=./crossbow.opt \
     --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
     --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver \
+    --opt=--threads=1 \
     --opt=--use-e --opt=--e-max-secs --opt="$E_TIME"
 done
 
@@ -81,6 +83,7 @@ mkdir -p "$OUT"
   --exe=./crossbow.opt \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=gecode \
+  --opt=--threads=1 \
   --opt=--detect-commutativity --opt=--detect-hints-for-groups \
   --opt=--detect-hints-for-quasigroups \
   --opt=--detect-hints-for-involutive-funcs \
@@ -94,6 +97,7 @@ mkdir -p "$OUT"
   --exe=./crossbow.opt \
   --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
   --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=gecode \
+  --opt=--threads=1 \
   --opt=--detect-commutativity --opt=--detect-hints-for-groups \
   --opt=--detect-hints-for-quasigroups \
   --opt=--detect-hints-for-involutive-funcs \

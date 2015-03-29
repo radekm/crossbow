@@ -62,6 +62,14 @@ let s_of_ms ms = div_ceil ms 1000
 let mib_to_kib mib = mib * 1024
 let mib_of_kib kib = div_ceil kib 1024
 
+(* Note: The timeout script measures the time which the process has spent
+   on the CPU not the wall clock time. But the function [run_with_limits]
+   returns the wall clock time.
+
+   This means that a process running on [n] cores simultaneously
+   will be interrupted after [max_time / n] seconds of a wall clock time
+   which is [max_time] of a CPU time.
+*)
 let run_with_limits
     timeout_exe max_time max_mem
     prog args
