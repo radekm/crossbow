@@ -52,6 +52,16 @@ let file_in_program_dir file =
   |> Path.map_name (fun _ -> file)
   |> Path.to_ustring
 
+let div_ceil x y =
+  if x mod y = 0
+  then x / y
+  else x / y + 1
+
+let s_of_ms ms = div_ceil ms 1000
+
+let mib_to_kib mib = mib * 1024
+let mib_of_kib kib = div_ceil kib 1024
+
 let run_with_limits
     timeout_exe max_time max_mem
     prog args
@@ -67,8 +77,9 @@ let run_with_limits
           (fun max_time -> [| "-t"; string_of_int max_time |])
           [| |]
           max_time;
+        (* The script accepts a memory limit in kibibytes. *)
         BatOption.map_default
-          (fun max_mem -> [| "-m"; string_of_int max_mem |])
+          (fun max_mem -> [| "-m"; string_of_int (mib_to_kib max_mem) |])
           [| |]
           max_mem;
         [| "--"; prog |];
@@ -95,13 +106,17 @@ let run_with_limits
         Sys.remove stats_file;
         match stats with
           | [reason; _; _; mem_peak] ->
-              let mem_peak = int_of_string (BatString.lchop ~n:7 mem_peak) in
+              let s = s_of_ms ms in
+              let mem_peak =
+                BatString.lchop ~n:7 mem_peak
+                |> int_of_string
+                |> mib_of_kib in
               if reason = "REASON:FINISHED" then
-                ms, mem_peak, Report.Result.Exit_code code
+                s, mem_peak, Report.Result.Exit_code code
               else if reason = "REASON:TIMEOUT" then
-                ms, mem_peak, Report.Result.Out_of_time
+                s, mem_peak, Report.Result.Out_of_time
               else if reason = "REASON:MEM" then
-                ms, mem_peak, Report.Result.Out_of_memory
+                s, mem_peak, Report.Result.Out_of_memory
               else
                 failwith "run_with_limits: reason"
           | _ -> failwith "run_with_limits: statistics"

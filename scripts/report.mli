@@ -8,7 +8,9 @@ module Config : sig
     opts : string list;
     (** Options given to the solver. *)
     max_time : int option;
+    (** In seconds. *)
     max_mem : int option;
+    (** In mebibytes. *)
   }
 
   (** [ensure report config] ensures that the configuration [config]
@@ -51,7 +53,9 @@ module Result : sig
   type t = {
     problem : string;
     time : int;
+    (** In seconds. *)
     mem_peak : int;
+    (** In mebibytes. *)
     exit_status : exit_status;
     model_size : int option;
   }

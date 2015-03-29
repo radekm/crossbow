@@ -42,7 +42,7 @@ let shared_main
         let res = f file in
         Res.insert report config_name res;
         Printf.fprintf stderr
-          "\nTIME (ms): %d  MEM PEAK (kB): %d  MODEL SIZE: %s\n"
+          "\nTIME (s): %d  MEM PEAK (MiB): %d  MODEL SIZE: %s\n"
           res.Res.time
           res.Res.mem_peak
           (BatOption.map_default string_of_int "no model" res.Res.model_size);
@@ -90,7 +90,7 @@ let max_time =
          info ["max-time"] ~docv:"MAX-TIME" ~doc)
 
 let max_mem =
-  let doc = "Memory limit for the solver (in kilobytes)." in
+  let doc = "Memory limit for the solver (in mebibytes)." in
   Arg.(value & opt (some int) None &
          info ["max-mem"] ~docv:"MAX-MEM" ~doc)
 

@@ -23,14 +23,14 @@ val file_in_program_dir : string -> string
 (** [run_with_limits timeout_exe max_time max_mem prog args
    new_stdin new_stdout new_stderr] executes a program in file [prog]
    with arguments [args], time limit [max_time] (in seconds)
-   and memory limit [max_mem] (in kilobytes).
+   and memory limit [max_mem] (in mebibytes).
 
    [timeout_exe] is the path to a script which enforces the limits.
 
    Returns [(time, mem_peak, exit_status)]. [time] is the elapsed
-   number of miliseconds between the invocation and the termination of [prog].
-   [mem_peak] is the maximal amount of memory which was allocated
-   by the program and its children.
+   number of seconds between the invocation and the termination of [prog].
+   [mem_peak] is the maximal amount of memory (in mebibytes)
+   which was allocated by the program and its children.
 *)
 val run_with_limits :
   string -> int option -> int option ->
