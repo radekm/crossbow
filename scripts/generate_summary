@@ -1,0 +1,53 @@
+#!/usr/bin/sh
+
+if [ $# -lt 3 ]
+then
+    echo "Usage: `basename $0` report lang max_time prob-lists"
+    exit 65
+fi
+
+REPORT="$1"
+LANG="$2"
+MAX_TIME="$3"
+
+shift 3
+
+groups=""
+
+for prob_list in "$@"
+do
+    group="`basename $prob_list`"
+    groups="$groups --group $group --problems $prob_list"
+done
+
+all_configs="--config Mace --config Paradox \
+    --config iProver --config iProver/Fin \
+    --config CMSat --config CMSat+E \
+    --config MiniSat --config MiniSat+E \
+    --config Josat --config Josat+E \
+    --config Gecode --config Gecode+E \
+    --config FGecode --config FGecode+E"
+
+selected_configs="--config Mace --config Paradox \
+    --config iProver/Fin --config MiniSat+E"
+
+./results_to_latex.opt times "$REPORT" --output-file=sum_times.tex \
+    --lang "$LANG" \
+    $all_configs $groups
+
+./results_to_latex.opt counts "$REPORT" --output-file=sum_counts.tex \
+    --lang "$LANG" \
+    $all_configs $groups
+
+./results_to_latex.opt plots "$REPORT" --output-file=sum_plots.tex \
+    --lang "$LANG" --max-time "$MAX_TIME" \
+    $selected_configs $groups
+
+LATEX="pdflatex"
+
+for i in `seq 3`
+do
+    "$LATEX" sum_times.tex
+    "$LATEX" sum_counts.tex
+    "$LATEX" sum_plots.tex
+done

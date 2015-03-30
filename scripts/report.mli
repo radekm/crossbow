@@ -58,6 +58,11 @@ module Result : sig
     (** In mebibytes. *)
     exit_status : exit_status;
     model_size : int option;
+    (** Model size [-1] means that a model was found
+       but its size wasn't determined.
+
+       [None] means that no model was found.
+    *)
   }
 
   (** [insert report config_name res] inserts the result [res]
