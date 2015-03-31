@@ -4,13 +4,16 @@ OCAMLPACKS[] =
     batteries
     sqlite3
     sexplib
+    zarith
     oUnit
 
 OCAMLINCLUDES += ../scripts
 
 FILES[] =
     ../scripts/report
+    ../scripts/sign_test
     test_report
+    test_sign_test
     test
 
 OCamlProgram(test_runner, $(FILES))

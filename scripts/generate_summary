@@ -43,6 +43,11 @@ selected_configs="--config Mace --config Paradox \
     --lang "$LANG" --max-time "$MAX_TIME" \
     $selected_configs $groups
 
+./results_to_latex.opt hypothesis_tests "$REPORT" \
+    --output-file=sum_hypothesis_tests.tex \
+    --lang "$LANG" \
+    $all_configs $groups
+
 LATEX="pdflatex"
 
 for i in `seq 3`
@@ -50,4 +55,5 @@ do
     "$LATEX" sum_times.tex
     "$LATEX" sum_counts.tex
     "$LATEX" sum_plots.tex
+    "$LATEX" sum_hypothesis_tests.tex
 done

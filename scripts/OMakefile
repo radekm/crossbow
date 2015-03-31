@@ -9,6 +9,7 @@ OCAMLPACKS[] =
     oclock
     sqlite3
     sexplib
+    zarith
     cmdliner
 
 .PHONY: all
@@ -28,7 +29,7 @@ OCamlProgram(check_crossbow_models_with_paradox, \
     report shared run_shared check_crossbow_models_with_paradox)
 
 OCamlProgram(results_to_latex, \
-    report results_to_latex)
+    report sign_test results_to_latex)
 
 clean:
     $(CLEAN)

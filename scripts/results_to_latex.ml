@@ -307,7 +307,7 @@ let table_times
       |> BatList.map (fun r -> if is_solved r then r.Res.time else max_int)
       |> BatList.min in
     let row =
-      prob_name ::
+      Latex.unimp prob_name ::
       BatList.map
         (fun r ->
           match r.Res.exit_status with
@@ -407,13 +407,13 @@ let table_counts
       let max_solved = BatList.max nsolved in
       let row =
         Latex.unimp grp_name ::
-          Latex.unimp_int nproblems ::
-            BatList.map
-              (fun n ->
-                if n = max_solved
-                then Latex.imp_int n
-                else Latex.unimp_int n)
-              nsolved in
+        Latex.unimp_int nproblems ::
+        BatList.map
+          (fun n ->
+            if n = max_solved
+            then Latex.imp_int n
+            else Latex.unimp_int n)
+          nsolved in
       Latex.Table.row o row)
     res_all;
 
@@ -436,6 +436,99 @@ let table_counts
       nsolved_total in
   Latex.Table.hline o;
   Latex.Table.row o row;
+
+  Latex.Table.footer o
+
+(** Expects that the problems are same for all configurations
+   and have same order.
+
+Generates a table like this:
+
+        | Config    Config    Config
+        | name 1    name 2    name 3
+---------------------------------------
+ Config |         |    –    |    –
+ name 1 |         |         |
+---------------------------------------
+ Config |    ●    |         |    ●
+ name 2 |         |         |
+---------------------------------------
+ Config |    ○    |    –    |
+ name 3 |         |         |
+---------------------------------------
+
+where the cell (i, j) (i-th row, j-th column) represents a result
+of a sign test with
+
+  H0: i-th and j-th configurations are equally fast
+  HA: i-th configuration is faster than j-th configuration
+
+● is used when p-value < 0.01.
+○ is used when p-value < 0.05.
+– is used when p-value >= 0.05.
+
+So the second row of the table above shows that the configuration 2
+is faster than the other two configurations with the significance level 0.01.
+*)
+let table_hypothesis_tests o (res_all : Res_all.t) =
+  let header =
+    "" :: BatList.map (fun (cfg_name, _) -> cfg_name) res_all in
+  Latex.Table.header o header;
+
+  let compute_pvalue results results2 =
+    (* Negative number means that the first configuration is faster,
+       positive number means that the second configuration is faster
+       and zero means that both configurations are equally fast
+       or that it is not known which is faster.
+     *)
+    let signs =
+      BatList.map2
+        (fun r r2 ->
+          let t, t2 = r.Res.time, r2.Res.time in
+          (* Both configurations succeeded. *)
+          if is_solved r && is_solved r2 then
+            t - t2
+          (* Only the first configuration succeeded. *)
+          else if is_solved r then
+            (* Since the second configuration failed it isn't known how
+               fast it is. It's only known that it uses t2 or more seconds.
+               So the first configuration can be proclaimed faster
+               than the second only when it uses less than t2 seconds
+               (otherwise it can be as fast as the second or even slower).
+            *)
+            if t < t2 then -1 else 0
+          (* Only the second configuration succeeded. *)
+          else if is_solved r2 then
+            if t > t2 then 1 else 0
+          (* No configuration succeeded. *)
+          else 0)
+      results
+      results2 in
+    let nneg = signs |> BatList.filter (fun s -> s < 0) |> List.length in
+    let nzero = signs |> BatList.filter (fun s -> s = 0) |> List.length in
+    let npos = signs |> BatList.filter (fun s -> s > 0) |> List.length in
+    Sign_test.test ~nneg ~nzero ~npos ~ha:Sign_test.Lower in
+  let show_pvalue pval =
+    if pval < 0.01 then
+      Latex.unimp "$\\bullet$"
+    else if pval < 0.05 then
+      Latex.unimp "$\\circ$"
+    else
+      Latex.unimp "--" in
+  let res_total = Res_all.combine_results_for_all_groups res_all in
+  List.iteri
+    (fun i (cfg_name, results) ->
+      let row =
+        Latex.unimp cfg_name ::
+        BatList.mapi
+          (fun j (_, results2) ->
+            if i = j
+            then ""
+            else show_pvalue (compute_pvalue results results2))
+          res_total in
+      (* Print i-th row. *)
+      Latex.Table.row o row)
+    res_total;
 
   Latex.Table.footer o
 
@@ -602,6 +695,7 @@ type output_type =
   | Times
   | Counts
   | Plots
+  | Hypothesis_tests
 
 let main
     output_type
@@ -643,6 +737,7 @@ let main
               ~caption_one_group:lang.caption_one_group
               max_time
               res_all
+        | Hypothesis_tests -> table_hypothesis_tests o res_all
       end;
       Latex.Doc.footer o)
     output
@@ -651,11 +746,14 @@ module Arg = Cmdliner.Arg
 module Term = Cmdliner.Term
 
 let output_type =
-  let doc = "Which output is desired. One of: times, counts, plots" in
+  let doc =
+    "Which output is desired. " ^
+    "One of: times, counts, plots, hypothesis_tests" in
   let types = [
     "times", Times;
     "counts", Counts;
     "plots", Plots;
+    "hypothesis_tests", Hypothesis_tests;
   ] in
   Arg.(required & pos 0 (some & enum types) None & info []
          ~docv:"OUTPUT-TYPE" ~doc)
