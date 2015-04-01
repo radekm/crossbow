@@ -22,11 +22,14 @@ module Latex = struct
 
   let imp_int = string_of_int %> imp
 
+  let pdf_tooltip ~detail s = sprintf "\\pdftooltip{%s}{%s}" s detail
+
   module Doc = struct
 
     let header o =
       fprintf o "\\documentclass[a4paper]{article}\n";
       fprintf o "\\usepackage[utf8]{inputenc}\n";
+      fprintf o "\\usepackage{pdfcomment}\n";
       fprintf o "\\usepackage{pgfplots}\n";
       fprintf o "\\pgfplotsset{compat=1.8}\n";
       fprintf o "\\usepackage{longtable}\n";
@@ -284,6 +287,32 @@ let table_times
   Latex.Table.header o header;
 
   let nproblems = res_one |> List.hd |> snd |> List.length in
+  let show_result best_time r =
+    let detail =
+      let time = sprintf "time (s): %d" r.Res.time in
+      let mem_peak = sprintf "memory peak (MiB): %d" r.Res.mem_peak in
+      let exit_status =
+        sprintf "exit status: %s"
+          (match r.Res.exit_status with
+             | Res.Out_of_time -> "out of time"
+             | Res.Out_of_memory -> "out of memory"
+             | Res.Exit_code i -> string_of_int i) in
+      let model_size =
+        sprintf "model size: %s"
+          (match r.Res.model_size with
+             | Some i -> string_of_int i
+             | None -> "no model") in
+      String.concat "; " [time; mem_peak; exit_status; model_size] in
+    let basic_info =
+      match r.Res.exit_status with
+        | Res.Out_of_time -> Latex.unimp label_out_of_time
+        | Res.Out_of_memory -> Latex.unimp label_out_of_memory
+        | Res.Exit_code 0 ->
+            if r.Res.time = best_time
+            then Latex.imp_int r.Res.time
+            else Latex.unimp_int r.Res.time
+        | Res.Exit_code _ -> Latex.unimp label_error in
+    Latex.pdf_tooltip ~detail basic_info in
   let get_results_for_problem pr =
     BatList.map
       (fun (_, results) -> List.nth results pr)
@@ -308,17 +337,7 @@ let table_times
       |> BatList.min in
     let row =
       Latex.unimp prob_name ::
-      BatList.map
-        (fun r ->
-          match r.Res.exit_status with
-            | Res.Out_of_time -> Latex.unimp label_out_of_time
-            | Res.Out_of_memory -> Latex.unimp label_out_of_memory
-            | Res.Exit_code 0 ->
-                if r.Res.time = best_time
-                then Latex.imp_int r.Res.time
-                else Latex.unimp_int r.Res.time
-            | Res.Exit_code _ -> Latex.unimp label_error)
-        res_for_prob in
+      BatList.map (show_result best_time) res_for_prob in
     Latex.Table.row o row;
 
     (* Check that all models have equal size. *)
@@ -507,14 +526,20 @@ let table_hypothesis_tests o (res_all : Res_all.t) =
     let nneg = signs |> BatList.filter (fun s -> s < 0) |> List.length in
     let nzero = signs |> BatList.filter (fun s -> s = 0) |> List.length in
     let npos = signs |> BatList.filter (fun s -> s > 0) |> List.length in
+    nneg, nzero, npos,
     Sign_test.test ~nneg ~nzero ~npos ~ha:Sign_test.Lower in
-  let show_pvalue pval =
-    if pval < 0.01 then
-      Latex.unimp "$\\bullet$"
-    else if pval < 0.05 then
-      Latex.unimp "$\\circ$"
-    else
-      Latex.unimp "--" in
+  let show_pvalue (nneg, nzero, npos, pval) =
+    let detail =
+      sprintf "neg: %d; zero: %d; pos: %d; p-value %.5f\\%%"
+        nneg nzero npos (pval *. 100.) in
+    let basic_info =
+      if pval < 0.01 then
+        "$\\bullet$"
+      else if pval < 0.05 then
+        "$\\circ$"
+      else
+        "--" in
+    Latex.pdf_tooltip ~detail (Latex.unimp basic_info) in
   let res_total = Res_all.combine_results_for_all_groups res_all in
   List.iteri
     (fun i (cfg_name, results) ->
