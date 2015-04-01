@@ -55,7 +55,7 @@ module Result : sig
     time : int;
     (** In seconds. *)
     mem_peak : int;
-    (** In mebibytes. *)
+    (** In mebibytes. [-1] means that the memory peak wasn't determined. *)
     exit_status : exit_status;
     model_size : int option;
     (** Model size [-1] means that a model was found

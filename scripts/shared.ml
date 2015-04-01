@@ -69,6 +69,10 @@ let mib_of_kib kib = div_ceil kib 1024
    This means that a process running on [n] cores simultaneously
    will be interrupted after [max_time / n] seconds of a wall clock time
    which is [max_time] of a CPU time.
+
+   Note 2: The timeout script is unable to determine a memory peak
+   when a process terminates too quickly. In such case it returns -1
+   as the memory peak.
 *)
 let run_with_limits
     timeout_exe max_time max_mem
@@ -118,7 +122,8 @@ let run_with_limits
               let mem_peak =
                 BatString.lchop ~n:7 mem_peak
                 |> int_of_string
-                |> mib_of_kib in
+                (* Handle -1 when the memory peak wasn't determined. *)
+                |> (fun i -> if i = -1 then i else mib_of_kib i) in
               if reason = "REASON:FINISHED" then
                 s, mem_peak, Report.Result.Exit_code code
               else if reason = "REASON:TIMEOUT" then
