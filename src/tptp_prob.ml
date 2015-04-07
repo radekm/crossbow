@@ -1,4 +1,4 @@
-(* Copyright (c) 2013-14 Radek Micek *)
+(* Copyright (c) 2013-15 Radek Micek *)
 
 open BatPervasives
 
@@ -25,6 +25,17 @@ type symb_map = {
   to_tptp : (S.id, tptp_symbol) Hashtbl.t;
 }
 
+let restrict_symb_map symbs smap = {
+  of_tptp =
+    BatHashtbl.filter
+      (fun id -> Symb.Set.mem id symbs)
+      smap.of_tptp;
+  to_tptp =
+    BatHashtbl.filteri
+      (fun id _ -> Symb.Set.mem id symbs)
+      smap.to_tptp;
+}
+
 (* Adds mapping between [symb] and [id] to [smap].
 
    Defined and system symbols are not allowed.
@@ -38,6 +49,7 @@ let add_to_smap smap symb id =
 type t = {
   smap : symb_map;
   prob : [`R|`W] Prob.t;
+  has_conjecture : bool;
 }
 
 (* Calls [pred] resp. [func] for each occurence of a predicate
@@ -180,7 +192,7 @@ let check_role role =
     | R_plain
     (* [R_fi_domain], [R_fi_functors], [R_fi_predicates] are allowed
        so finite models can be checked.
-     *)
+    *)
     | R_fi_domain
     | R_fi_functors
     | R_fi_predicates -> ()
@@ -208,8 +220,14 @@ let is_fof_formula = function
   | Ast.Fof_anno _ -> true
   | Ast.Cnf_anno _ | Ast.Include _ | Ast.Comment _ -> false
 
-let prob_of_tptp inputs =
+let is_conjecture = function
+  | Ast.Fof_anno { Ast.af_role }
+  | Ast.Cnf_anno { Ast.af_role } -> af_role = Ast.R_conjecture
+  | Ast.Include _ | Ast.Comment _ -> false
+
+let prob_of_tptp clausify inputs =
   let needs_clausification = List.exists is_fof_formula inputs in
+  let has_conjecture = List.exists is_conjecture inputs in
 
   let prob = Prob.create () in
   let symdb = prob.Prob.symbols in
@@ -227,10 +245,9 @@ let prob_of_tptp inputs =
 
   (* Clausification. *)
   let inputs =
-    if needs_clausification then
-      failwith "prob_of_tptp: Clausification not supported"
-    else
-      inputs in
+    if needs_clausification
+    then clausify inputs
+    else inputs in
 
   (* Read clauses. Symbols introduced by clausification will be auxiliary. *)
   let add_clause lits =
@@ -243,11 +260,12 @@ let prob_of_tptp inputs =
   {
     smap;
     prob;
+    has_conjecture;
   }
 
-let of_file base_dir file =
+let of_file clausify base_dir file =
   let inputs = Tptp.File.read ~base_dir file in
-  prob_of_tptp inputs
+  prob_of_tptp clausify inputs
 
 (* Translate variable names. *)
 let var_to_tptp =
@@ -404,7 +422,9 @@ let prob_to_tptp tp comm f =
     (fun s ->
       let cls = symb_commutativity_clauses tp.prob.Prob.symbols comm s in
       List.iter proc_clause cls)
-    !seen_symbs
+    !seen_symbs;
+
+  !seen_symbs
 
 let clause_to_string symdb smap lits =
   let gen_int = make_int_gen () in

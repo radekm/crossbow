@@ -1,7 +1,6 @@
-(* Copyright (c) 2013-14 Radek Micek *)
+(* Copyright (c) 2013-15 Radek Micek *)
 
 let (%>) = BatPervasives.(%>)
-let (|>) = BatPervasives.(|>)
 
 module Array = Earray.Array
 module T = Term
@@ -355,7 +354,11 @@ let clause_weight lits =
 
 let compare_clauses a b = clause_weight a - clause_weight b
 
-(* [smap] will be extended to contain all symbols from the clauses. *)
+(* [smap] will be extended to contain all symbols from the clauses given
+   to the lemma generator. On the other hand symbols introduced
+   by the lemma generator will be added to [symdb]
+   and won't be added to [smap].
+*)
 let generate_lemmas_by_e
     tp
     e_exe
@@ -369,11 +372,11 @@ let generate_lemmas_by_e
     max_lemmas =
 
   let symdb = tp.Tptp_prob.prob.Prob.symbols in
-  let smap = tp.Tptp_prob.smap in
 
   (* Convert problem to TPTP. *)
   let inputs = BatDynArray.create () in
-  Tptp_prob.prob_to_tptp tp Tptp_prob.Export (BatDynArray.add inputs);
+  let seen_symbs =
+    Tptp_prob.prob_to_tptp tp Tptp_prob.Export (BatDynArray.add inputs) in
 
   (* Use E to generate lemmas. *)
   let lemmas =
@@ -382,6 +385,11 @@ let generate_lemmas_by_e
 
   (* Read generated lemmas from TPTP. *)
   let lemmas =
+    (* Using the restricted [smap] ensures that symbols introduced
+       by the lemma generator are treated as new symbols even if their names
+       coincide with the names from the original [smap].
+    *)
+    let smap = Tptp_prob.restrict_symb_map seen_symbs tp.Tptp_prob.smap in
     lemmas
     |> Tptp_prob.clauses_of_tptp symdb smap
     |> BatDynArray.of_list in
@@ -806,7 +814,8 @@ let find_model
     failwith "Invalid number of threads.";
   if e_max_secs < 1 then
     failwith "Minimal time for E is 1 second.";
-  let tptp_prob = Tptp_prob.of_file base_dir in_file in
+  let clausify _ = failwith "Clausification not supported" in
+  let tptp_prob = Tptp_prob.of_file clausify base_dir in_file in
   let p = tptp_prob.Tptp_prob.prob in
   let solver = List.assoc solver all_solvers in
   let transforms =

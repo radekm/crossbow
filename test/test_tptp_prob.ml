@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 open OUnit
 
@@ -8,7 +8,16 @@ module T = Term
 module L = Lit
 module C = Clause2
 
+let assert_seen_symbs expected set =
+  let expSet =
+    expected
+    |> BatList.enum
+    |> Symb.Set.of_enum in
+  assert_equal ~cmp:Symb.Set.equal expSet set
+
 let base_dir = "test/data/tptp_prob/"
+
+let clausify _ = failwith "No clausification"
 
 let distinct_consts tptp_prob =
   tptp_prob.TP.prob.Prob.symbols
@@ -17,7 +26,8 @@ let distinct_consts tptp_prob =
   |> BatList.of_enum
 
 let test_basic () =
-  let p = Tptp_prob.of_file base_dir (base_dir ^ "01_test_basic.p") in
+  let p =
+    Tptp_prob.of_file clausify base_dir (base_dir ^ "01_test_basic.p") in
 
   let q = Ast.Plain_word (Ast.to_plain_word "q") in
   let c = Ast.Plain_word (Ast.to_plain_word "c") in
@@ -62,7 +72,7 @@ let test_basic () =
   assert_equal (List.length all_ids) (List.length (BatList.unique all_ids));
 
   (* Hashtable to_tptp is inverse of of_tptp
-     (btw this implies that ids array different).
+     (BTW this implies that ids are different).
   *)
   Hashtbl.iter
     (fun k v -> assert_equal k (Hashtbl.find p.TP.smap.TP.to_tptp v))
@@ -72,6 +82,8 @@ let test_basic () =
   assert_equal
     [str_hi'; num_twelve_point_five'; num_seven'; str_hello_world']
     (distinct_consts p);
+
+  assert_equal false p.TP.has_conjecture;
 
   (* Clauses. *)
   let q2 a b = L.lit (Sh.Pos, q2', [| a; b |]) in
@@ -120,7 +132,8 @@ let test_basic () =
   assert_equal exp_clauses (BatDynArray.to_list p.TP.prob.Prob.clauses)
 
 let test_include () =
-  let p = Tptp_prob.of_file base_dir (base_dir ^ "02_test_include.p") in
+  let p =
+    Tptp_prob.of_file clausify base_dir (base_dir ^ "02_test_include.p") in
 
   let q = Ast.Plain_word (Ast.to_plain_word "q") in
   let c = Ast.Plain_word (Ast.to_plain_word "c") in
@@ -154,7 +167,7 @@ let test_include () =
   assert_equal (List.length all_ids) (List.length (BatList.unique all_ids));
 
   (* Hashtable to_tptp is inverse of of_tptp
-     (btw this implies that ids array different).
+     (BTW this implies that ids are different).
   *)
   Hashtbl.iter
     (fun k v -> assert_equal k (Hashtbl.find p.TP.smap.TP.to_tptp v))
@@ -164,6 +177,8 @@ let test_include () =
   assert_equal
     [num_zero'; num_one']
     (distinct_consts p);
+
+  assert_equal false p.TP.has_conjecture;
 
   (* Clauses. *)
   let q1 a = L.lit (Sh.Pos, q1', [| a |]) in
@@ -202,7 +217,8 @@ let test_include () =
 
 let test_nested_include () =
   let p =
-    Tptp_prob.of_file base_dir (base_dir ^ "03_test_nested_include.p") in
+    Tptp_prob.of_file clausify base_dir
+      (base_dir ^ "03_test_nested_include.p") in
 
   let r = Ast.Plain_word (Ast.to_plain_word "r") in
   let s = Ast.Plain_word (Ast.to_plain_word "s") in
@@ -224,7 +240,7 @@ let test_nested_include () =
   assert_bool "" (r0' <> s0');
 
   (* Hashtable to_tptp is inverse of of_tptp
-     (btw this implies that ids array different).
+     (BTW this implies that ids are different).
   *)
   Hashtbl.iter
     (fun k v -> assert_equal k (Hashtbl.find p.TP.smap.TP.to_tptp v))
@@ -234,6 +250,8 @@ let test_nested_include () =
   assert_equal
     []
     (distinct_consts p);
+
+  assert_equal false p.TP.has_conjecture;
 
   (* Clauses. *)
   let exp_clauses = [
@@ -249,7 +267,7 @@ let test_nested_include () =
 
 let test_nested_include_with_sel () =
   let prob =
-    Tptp_prob.of_file base_dir
+    Tptp_prob.of_file clausify base_dir
       (base_dir ^ "04_test_nested_include_with_sel.p") in
 
   let p = Ast.Plain_word (Ast.to_plain_word "p") in
@@ -281,7 +299,7 @@ let test_nested_include_with_sel () =
   assert_equal 5 (List.length (BatList.unique [p1'; a0'; b0'; c0'; d0']));
 
   (* Hashtable to_tptp is inverse of of_tptp
-     (btw this implies that ids array different).
+     (BTW this implies that ids are different).
   *)
   Hashtbl.iter
     (fun k v -> assert_equal k (Hashtbl.find prob.TP.smap.TP.to_tptp v))
@@ -291,6 +309,8 @@ let test_nested_include_with_sel () =
   assert_equal
     []
     (distinct_consts prob);
+
+  assert_equal false prob.TP.has_conjecture;
 
   (* Clauses. *)
   let exp_clauses =
@@ -316,10 +336,105 @@ let test_nested_include_with_sel () =
   ] in
   assert_equal exp_clauses (BatDynArray.to_list prob.TP.prob.Prob.clauses)
 
+let test_fof_with_conjecture () =
+  let nclausified = ref ~-1 in
+  let clausify formulas =
+    nclausified := List.length formulas;
+    [] in
+  let prob =
+    Tptp_prob.of_file clausify base_dir
+      (base_dir ^ "05_test_fof_with_conjecture.p") in
+
+  let q = Ast.Plain_word (Ast.to_plain_word "q") in
+  let c = Ast.Plain_word (Ast.to_plain_word "c") in
+
+  (* TPTP symbols. *)
+  let q2 = TP.Atomic_word (q, 2) in
+  let c0 = TP.Atomic_word (c, 0) in
+
+  (* All TPTP symbols are mapped. *)
+  assert_equal 2 (Hashtbl.length prob.TP.smap.TP.of_tptp);
+  assert_equal 2 (Hashtbl.length prob.TP.smap.TP.to_tptp);
+
+  (* Find ids of TPTP symbols. *)
+  let find = Hashtbl.find prob.TP.smap.TP.of_tptp in
+  let q2' = find q2 in
+  let c0' = find c0 in
+
+  (* Ids are different. *)
+  assert_equal 2 (List.length (BatList.unique [q2'; c0']));
+
+  (* Hashtable to_tptp is inverse of of_tptp
+     (BTW this implies that ids are different).
+  *)
+  Hashtbl.iter
+    (fun k v -> assert_equal k (Hashtbl.find prob.TP.smap.TP.to_tptp v))
+    prob.TP.smap.TP.of_tptp;
+
+  (* Array distinct_consts. *)
+  assert_equal
+    []
+    (distinct_consts prob);
+
+  assert_equal true prob.TP.has_conjecture;
+  assert_equal 2 !nclausified;
+
+  (* No clauses - current clausification throws everything away. *)
+  assert_equal [] (BatDynArray.to_list prob.TP.prob.Prob.clauses)
+
+let test_fof_without_conjecture () =
+  let nclausified = ref ~-1 in
+  let clausify formulas =
+    nclausified := List.length formulas;
+    [] in
+  let prob =
+    Tptp_prob.of_file clausify base_dir
+      (base_dir ^ "06_test_fof_without_conjecture.p") in
+
+  let s = Ast.Plain_word (Ast.to_plain_word "s") in
+
+  (* TPTP symbols. *)
+  let s1 = TP.Atomic_word (s, 1) in
+  let n0 = TP.Number Q.zero in
+  let n1 = TP.Number Q.one in
+  let n2 = TP.Number (Q.of_int 2) in
+
+  (* All TPTP symbols are mapped. *)
+  assert_equal 4 (Hashtbl.length prob.TP.smap.TP.of_tptp);
+  assert_equal 4 (Hashtbl.length prob.TP.smap.TP.to_tptp);
+
+  (* Find ids of TPTP symbols. *)
+  let find = Hashtbl.find prob.TP.smap.TP.of_tptp in
+  let s1' = find s1 in
+  let n0' = find n0 in
+  let n1' = find n1 in
+  let n2' = find n2 in
+
+  (* Ids are different. *)
+  assert_equal 4 (List.length (BatList.unique [s1'; n0'; n1'; n2';]));
+
+  (* Hashtable to_tptp is inverse of of_tptp
+     (BTW this implies that ids are different).
+  *)
+  Hashtbl.iter
+    (fun k v -> assert_equal k (Hashtbl.find prob.TP.smap.TP.to_tptp v))
+    prob.TP.smap.TP.of_tptp;
+
+  (* Array distinct_consts. *)
+  assert_equal
+    [n0'; n1'; n2']
+    (distinct_consts prob);
+
+  assert_equal false prob.TP.has_conjecture;
+  (* 4 inputs are given to the clausifier - 3 formulas and 1 comment. *)
+  assert_equal 4 !nclausified;
+
+  (* No clauses - current clausification throws everything away. *)
+  assert_equal [] (BatDynArray.to_list prob.TP.prob.Prob.clauses)
+
 (* TODO: Tests for invalid inputs:
    - predicate symbol is already a function symbol and the other way around
    - syntax error
-   - fof in the input
    - unsupported role
 *)
 
@@ -345,6 +460,7 @@ let test_prob_to_tptp_vars () =
       TP.of_tptp = hashtbl_of_list [ftptp, fs];
       TP.to_tptp = hashtbl_of_list [fs, ftptp];
     };
+    TP.has_conjecture = false;
   } in
   let exp = [
     Ast.Cnf_anno {
@@ -363,11 +479,13 @@ let test_prob_to_tptp_vars () =
     };
   ] in
   let res = ref [] in
-  TP.prob_to_tptp
-    tptp_prob
-    Tptp_prob.Export_flat
-    (fun cl -> res := cl :: !res);
-  assert_equal exp (List.rev !res)
+  let seen_symbs =
+    TP.prob_to_tptp
+      tptp_prob
+      Tptp_prob.Export_flat
+      (fun cl -> res := cl :: !res) in
+  assert_equal exp (List.rev !res);
+  assert_seen_symbs [fs] seen_symbs
 
 let test_prob_to_tptp_aux_symbs () =
   let prob = Prob.create () in
@@ -406,6 +524,7 @@ let test_prob_to_tptp_aux_symbs () =
       TP.of_tptp = hashtbl_of_list [z2tptp, z2s; z3tptp, z3s];
       TP.to_tptp = hashtbl_of_list [z2s, z2tptp; z3s, z3tptp];
     };
+    TP.has_conjecture = false;
   } in
   let exp = [
     Ast.Cnf_anno {
@@ -424,11 +543,13 @@ let test_prob_to_tptp_aux_symbs () =
     };
   ] in
   let res = ref [] in
-  TP.prob_to_tptp
-    tptp_prob
-    Tptp_prob.Export_flat
-    (fun cl -> res := cl :: !res);
-  assert_equal exp (List.rev !res)
+  let seen_symbs =
+    TP.prob_to_tptp
+      tptp_prob
+      Tptp_prob.Export_flat
+      (fun cl -> res := cl :: !res) in
+  assert_equal exp (List.rev !res);
+  assert_seen_symbs [fs; gs; hs] seen_symbs
 
 let test_prob_to_tptp_commutativity () =
   let prob = Prob.create () in
@@ -460,6 +581,7 @@ let test_prob_to_tptp_commutativity () =
       TP.of_tptp = hashtbl_of_list [ftptp, fs; ptptp, ps; ctptp, cs];
       TP.to_tptp = hashtbl_of_list [fs, ftptp; ps, ptptp; cs, ctptp];
     };
+    TP.has_conjecture = false;
   } in
   let v s = Ast.Var (Ast.to_var s) in
   let exp_clause = Ast.Cnf_anno {
@@ -493,17 +615,21 @@ let test_prob_to_tptp_commutativity () =
     Ast.af_annos = None;
   } in
   let res = ref [] in
-  TP.prob_to_tptp
-    tptp_prob
-    Tptp_prob.Export
-    (fun cl -> res := cl :: !res);
+  let seen_symbs =
+    TP.prob_to_tptp
+      tptp_prob
+      Tptp_prob.Export
+      (fun cl -> res := cl :: !res) in
   assert_equal [exp_clause; exp_comm] (List.rev !res);
+  assert_seen_symbs [fs; ps; cs] seen_symbs;
   let res_flat = ref [] in
-  TP.prob_to_tptp
-    tptp_prob
-    Tptp_prob.Export_flat
-    (fun cl -> res_flat := cl :: !res_flat);
-  assert_equal [exp_clause; exp_flat_comm] (List.rev !res_flat)
+  let seen_symbs =
+    TP.prob_to_tptp
+      tptp_prob
+      Tptp_prob.Export_flat
+      (fun cl -> res_flat := cl :: !res_flat) in
+  assert_equal [exp_clause; exp_flat_comm] (List.rev !res_flat);
+  assert_seen_symbs [fs; ps; cs] seen_symbs
 
 module M = Model
 
@@ -547,6 +673,7 @@ let test_model_to_tptp () =
     {
       TP.smap;
       TP.prob;
+      TP.has_conjecture = false;
     } in
 
   let interp_name = Ast.N_word (Ast.to_plain_word "interp") in
@@ -632,6 +759,36 @@ let test_model_to_tptp () =
 
   assert_equal exp_formulas formulas
 
+let hashtbl_to_list xs =
+  xs
+  |> BatHashtbl.enum
+  |> BatList.of_enum
+  |> BatList.sort compare
+
+let test_restrict_symb_map () =
+  let db = Symb.create_db () in
+  let p = Symb.add_pred db 1 in
+  let c = Symb.add_func db 0 in
+  Symb.set_distinct_constant db c true;
+  let f = Symb.add_func db 2 in
+  let p' = TP.Atomic_word (Ast.Plain_word (Ast.to_plain_word "p"), 1) in
+  let c' = TP.String (Ast.to_tptp_string "c") in
+  let f' = TP.Atomic_word (Ast.Plain_word (Ast.to_plain_word "f"), 2) in
+  let smap =
+    let pairs = [p', p; c', c; f', f] in
+    {
+      TP.of_tptp = hashtbl_of_list pairs;
+      TP.to_tptp = hashtbl_of_list (BatList.map (fun (a, b) -> b, a) pairs);
+    } in
+  let rsmap =
+    let symbs = [p; f] |> BatList.enum |> Symb.Set.of_enum in
+    TP.restrict_symb_map symbs smap in
+  let rsmap2 = TP.restrict_symb_map Symb.Set.empty smap in
+  assert_equal [f', f; p', p] (hashtbl_to_list rsmap.TP.of_tptp);
+  assert_equal [p, p'; f, f'] (hashtbl_to_list rsmap.TP.to_tptp);
+  assert_equal [] (hashtbl_to_list rsmap2.TP.of_tptp);
+  assert_equal [] (hashtbl_to_list rsmap2.TP.to_tptp)
+
 let suite =
   "Tptp_prob suite" >:::
     [
@@ -640,8 +797,11 @@ let suite =
       "of_file - nested include" >:: test_nested_include;
       "of_file - nested include with selection" >::
         test_nested_include_with_sel;
+      "of_file - FOF with conjecture" >:: test_fof_with_conjecture;
+      "of_file - FOF without conjecture" >:: test_fof_without_conjecture;
       "prob_to_tptp - vars" >:: test_prob_to_tptp_vars;
       "prob_to_tptp - aux symbs" >:: test_prob_to_tptp_aux_symbs;
       "prob_to_tptp - commutativity" >:: test_prob_to_tptp_commutativity;
       "model_to_tptp" >:: test_model_to_tptp;
+      "restrict_symb_map" >:: test_restrict_symb_map;
     ]

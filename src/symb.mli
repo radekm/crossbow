@@ -1,4 +1,4 @@
-(* Copyright (c) 2013-14 Radek Micek *)
+(* Copyright (c) 2013-15 Radek Micek *)
 
 (** Symbol databases.
 
@@ -137,6 +137,7 @@ module Set : sig
   val is_empty : t -> bool
   val cardinal : t -> int
   val add : id -> t -> t
+  val mem : id -> t -> bool
   val iter : (id -> unit) -> t -> unit
   val compare : t -> t -> int
   val equal : t -> t -> bool
