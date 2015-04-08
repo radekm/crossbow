@@ -783,11 +783,15 @@ let all_solvers =
 (* ************************************************************************ *)
 (* Main *)
 
+type lemma_gen =
+  | LG_none
+  | LG_e
+
 let find_model
-    use_e
-    e_exe
-    e_opts
-    e_max_secs
+    lemma_gen
+    lemma_gen_exe
+    lemma_gen_opts
+    lemma_gen_max_secs
     max_vars
     max_symbs
     max_vars_when_flat
@@ -812,8 +816,8 @@ let find_model
     failwith "Minimal domain size is 1.";
   if nthreads < 0 then
     failwith "Invalid number of threads.";
-  if e_max_secs < 1 then
-    failwith "Minimal time for E is 1 second.";
+  if lemma_gen_max_secs < 1 then
+    failwith "Minimal time for lemma generator is 1 second.";
   let clausify _ = failwith "Clausification not supported" in
   let tptp_prob = Tptp_prob.of_file clausify base_dir in_file in
   let p = tptp_prob.Tptp_prob.prob in
@@ -828,24 +832,30 @@ let find_model
   then
     failwith "Solver needs flat clauses.";
   (* Lemma generation. *)
-  if use_e then begin
-    let lemmas =
-      generate_lemmas_by_e
-        tptp_prob
-        e_exe
-        e_max_secs
-        e_opts
-        detect_commutativity_from_lemmas
-        max_vars
-        max_symbs
-        max_vars_when_flat
-        max_lits_when_flat
-        max_lemmas in
-    (* Symbol properties (eg. commutativity) discovered by lemma
-       generation won't be printed.
-    *)
-    print_lemmas (verbose >= 1) tptp_prob lemmas;
-    BatDynArray.append lemmas p.Prob.clauses
+  begin match lemma_gen with
+    | LG_none -> ()
+    | LG_e ->
+        let lemma_gen_exe =
+          match lemma_gen_exe with
+            | None -> failwith "Executable for lemma generator not specified."
+            | Some exe -> exe in
+        let lemmas =
+          generate_lemmas_by_e
+            tptp_prob
+            lemma_gen_exe
+            lemma_gen_max_secs
+            lemma_gen_opts
+            detect_commutativity_from_lemmas
+            max_vars
+            max_symbs
+            max_vars_when_flat
+            max_lits_when_flat
+            max_lemmas in
+        (* Symbol properties (eg. commutativity) discovered by lemma
+           generation won't be printed.
+        *)
+        print_lemmas (verbose >= 1) tptp_prob lemmas;
+        BatDynArray.append lemmas p.Prob.clauses
   end;
   (* Preprocessing. *)
   List.iter
@@ -890,24 +900,29 @@ let output_file =
   Arg.(value & opt (some string) None &
          info ["output-file"] ~docv:"FILE" ~doc)
 
-let use_e =
-  let doc = "Use E prover for lemma generation." in
-  Arg.(value & flag & info ["use-e"] ~doc ~docs:"LEMMA GENERATION")
+let lemma_gen =
+  let doc = "Lemma generator. One of: none, e." in
+  let lemma_gens = [
+    "none", LG_none;
+    "e", LG_e
+  ] in
+  Arg.(value & opt (enum lemma_gens) LG_none &
+         info ["lemma-gen"] ~doc ~docs:"LEMMA GENERATION")
 
-let e_exe =
-  let doc = "E prover executable." in
-  Arg.(value & opt string (file_in_program_dir "eprover") &
-         info ["e-exe"] ~docv:"FILE" ~doc  ~docs:"LEMMA GENERATION")
+let lemma_gen_exe =
+  let doc = "Lemma generator executable." in
+  Arg.(value & opt (some file) None &
+         info ["lemma-gen-exe"] ~docv:"FILE" ~doc ~docs:"LEMMA GENERATION")
 
-let e_opts =
-  let doc = "Pass the given option to the E prover." in
+let lemma_gen_opts =
+  let doc = "Pass the given option to lemma generator." in
   Arg.(value & opt_all string [] &
-         info ["e-opt"] ~docv:"OPTION" ~doc ~docs:"LEMMA GENERATION")
+         info ["lemma-gen-opt"] ~docv:"OPTION" ~doc ~docs:"LEMMA GENERATION")
 
-let e_max_secs =
-  let doc = "Run E prover for at most $(docv) seconds." in
+let lemma_gen_max_secs =
+  let doc = "Run lemma generator for at most $(docv) seconds." in
   Arg.(value & opt int 5 &
-         info ["e-max-secs"] ~docv:"N" ~doc ~docs:"LEMMA GENERATION")
+         info ["lemma-gen-max-secs"] ~docv:"N" ~doc ~docs:"LEMMA GENERATION")
 
 let max_vars =
   let doc = "Remove lemmas with more than $(docv) different variables." in
@@ -1017,7 +1032,7 @@ let transforms =
 
 let find_model_t =
   Term.(pure find_model $
-          use_e $ e_exe $ e_opts $ e_max_secs $
+          lemma_gen $ lemma_gen_exe $ lemma_gen_opts $ lemma_gen_max_secs $
           max_vars $ max_symbs $ max_vars_when_flat $ max_lits_when_flat $
           max_lemmas $ detect_commutativity_from_lemmas $
           transforms $ solver $

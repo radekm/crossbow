@@ -74,7 +74,8 @@ do
     --max-time="$MAX_TIME" --max-mem="$MAX_MEM" \
     --opt=--base-dir --opt="$BASE_DIR" --opt=--solver=$solver \
     --opt=--threads=1 \
-    --opt=--use-e --opt=--e-max-secs --opt="$E_TIME"
+    --opt=--lemma-gen=e --opt=--lemma-gen-exe=./eprover \
+    --opt=--lemma-gen-max-secs --opt="$E_TIME"
 done
 
 OUT="$OUT_DIR/gecode-flat"
@@ -104,4 +105,5 @@ mkdir -p "$OUT"
   --opt=--rewrite-ground-terms --opt=--unflatten \
   --opt=--define-ground-terms --opt=--flatten \
   --opt=--paradox-mod-splitting \
-  --opt=--use-e --opt=--e-max-secs --opt="$E_TIME"
+  --opt=--lemma-gen=e --opt=--lemma-gen-exe=./eprover \
+  --opt=--lemma-gen-max-secs --opt="$E_TIME"
