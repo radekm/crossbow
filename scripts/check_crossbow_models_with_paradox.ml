@@ -12,6 +12,9 @@ let iter_models
   let model_formulas = ref [] in
   Tptp.File.iter
     (function
+      (* Skip SZS data. *)
+      | Ast.Comment cstr
+        when BatString.starts_with (cstr :> string) " SZS " -> ()
       (* Comment with domain size - each model starts with it. *)
       | Ast.Comment cstr ->
           if !model_formulas <> [] then

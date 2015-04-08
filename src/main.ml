@@ -454,6 +454,8 @@ type solver_config = {
   all_models : bool;
   n_from : int;
   n_to : int;
+  in_file : string;
+  has_conjecture : bool;
   output_file : string option;
   start_ms : int;
   max_ms : int option;
@@ -465,6 +467,30 @@ let with_output ?(append = false) cfg f =
     | Some file ->
         let mode = if append then [`append] else [`create] in
         BatFile.with_file_out ~mode file (fun out -> f out; BatIO.flush out)
+
+type summary =
+  | S_satisfiable
+  | S_unsatisfiable
+  | S_timeout
+  | S_gave_up
+
+let write_summary cfg summary =
+  let s =
+    match summary with
+      | S_satisfiable ->
+          if cfg.has_conjecture
+          then "CounterSatisfiable"
+          else "Satisfiable"
+      | S_unsatisfiable ->
+          if cfg.has_conjecture
+          then "Theorem"
+          else "Unsatisfiable"
+      | S_timeout -> "Timeout"
+      | S_gave_up -> "GaveUp" in
+  let problem = Filename.basename cfg.in_file in
+  with_output cfg
+    (fun out ->
+      BatPrintf.fprintf out "%% SZS status %s for %s\n\n" s problem)
 
 let remaining_ms cfg =
   match cfg.max_ms with
@@ -482,13 +508,14 @@ type solver = {
   s_default_transforms : transform_id list;
 }
 
-let write_model tp model number out =
+let write_model in_file tp model number out =
   let b = Buffer.create 1024 in
+  let prob_name = Filename.basename in_file in
   let formula_name =
     match number with
       | None -> "interp"
       | Some n -> "interp" ^ string_of_int n in
-  Tptp_prob.model_to_tptp tp model
+  Tptp_prob.model_to_tptp ~prob_name tp model
     (Tptp_ast.N_word (Tptp_ast.to_plain_word formula_name))
     (fun f ->
       Tptp.write b f;
@@ -546,16 +573,22 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
     print_instantiating dsize;
     Inst.incr_max_size inst;
     if dsize < (Symb.distinct_consts p.Prob.symbols |> Symb.Set.cardinal) then
+      let () = write_summary cfg S_gave_up in
       Printf.fprintf stderr "\n"
     else begin
       let tot_ms_model_cnt = ref 0 in
+      let write_summary s =
+        if !tot_ms_model_cnt = 0 then
+          write_summary cfg s in
       let ms_models = ref (BatSet.PSet.create Ms_model.compare) in
       let rec loop () =
         if not (has_time cfg) then
+          let () = write_summary S_timeout in
           print_with_time cfg "\nTime out"
         else begin
           match call_solver cfg inst Inst.solve Inst.solve_timed with
             | Sh.Ltrue ->
+                write_summary S_satisfiable;
                 incr tot_ms_model_cnt;
                 let ms_model = Inst.construct_model inst in
                 Inst.block_model inst ms_model;
@@ -568,13 +601,18 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
                       with_output
                         ~append:true
                         cfg
-                        (write_model tp model (Some !model_cnt));
+                        (write_model cfg.in_file tp model (Some !model_cnt));
                       incr model_cnt)
                     models
                 end;
                 loop ()
-            | Sh.Lfalse -> Printf.fprintf stderr "\n"
-            | Sh.Lundef -> print_with_time cfg "\nTime out"
+            | Sh.Lfalse ->
+                (** No other models for this domain size exist. *)
+                write_summary S_gave_up;
+                Printf.fprintf stderr "\n"
+            | Sh.Lundef ->
+                write_summary S_timeout;
+                print_with_time cfg "\nTime out"
         end in
       print_with_time cfg "Solving";
       with_output cfg (fun _ -> ()); (* Truncate file. *)
@@ -584,8 +622,10 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
   end else begin
     let rec loop dsize =
       if dsize > cfg.n_to then
+        let () = write_summary cfg S_gave_up in
         Printf.fprintf stderr "\n"
       else if not (has_time cfg) then
+        let () = write_summary cfg S_timeout in
         print_with_time cfg "\nTime out"
       else begin
         print_instantiating dsize;
@@ -600,13 +640,19 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
             call_solver cfg inst Inst.solve Inst.solve_timed in
         match result with
           | Sh.Ltrue ->
+              write_summary cfg S_satisfiable;
               let ms_model = Inst.construct_model inst in
               let model = Model.of_ms_model ms_model sorts in
-              with_output cfg (write_model tp model None);
+              with_output
+                ~append:true
+                cfg
+                (write_model cfg.in_file tp model None);
               incr model_cnt;
               Printf.fprintf stderr "\n"
           | Sh.Lfalse -> loop (dsize + 1)
-          | Sh.Lundef -> print_with_time cfg "\nTime out"
+          | Sh.Lundef ->
+              write_summary cfg S_timeout;
+              print_with_time cfg "\nTime out"
       end in
     loop cfg.n_from
   end;
@@ -629,18 +675,24 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
   if cfg.all_models then begin
     let dsize = cfg.n_from in
     if dsize < (Symb.distinct_consts p.Prob.symbols |> Symb.Set.cardinal) then
+      let () = write_summary cfg S_gave_up in
       Printf.fprintf stderr "\n"
     else begin
       print_instantiating dsize;
       let inst = Inst.create ~nthreads:cfg.nthreads p dsize in
       let tot_model_cnt = ref 0 in
+      let write_summary s =
+        if !tot_model_cnt = 0 then
+          write_summary cfg s in
       let models = ref (BatSet.PSet.create Model.compare) in
       let rec loop () =
         if not (has_time cfg) then
+          let () = write_summary S_timeout in
           print_with_time cfg "\nTime out"
         else begin
           match call_solver cfg inst Inst.solve Inst.solve_timed with
             | Sh.Ltrue ->
+                write_summary S_satisfiable;
                 incr tot_model_cnt;
                 let model = Inst.construct_model inst in
                 let cano_model = Model.canonize model in
@@ -649,12 +701,16 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
                   with_output
                     ~append:true
                     cfg
-                    (write_model tp model (Some !model_cnt));
+                    (write_model cfg.in_file tp model (Some !model_cnt));
                   incr model_cnt;
                 end;
                 loop ()
-            | Sh.Lfalse -> Printf.fprintf stderr "\n"
-            | Sh.Lundef -> print_with_time cfg "\nTime out"
+            | Sh.Lfalse ->
+                write_summary S_gave_up;
+                Printf.fprintf stderr "\n"
+            | Sh.Lundef ->
+                write_summary S_timeout;
+                print_with_time cfg "\nTime out"
         end in
       print_with_time cfg "Solving";
       with_output cfg (fun _ -> ()); (* Truncate file. *)
@@ -664,8 +720,10 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
   end else begin
     let rec loop dsize =
       if dsize > cfg.n_to then
+        let () = write_summary cfg S_gave_up in
         Printf.fprintf stderr "\n"
       else if not (has_time cfg) then
+        let () = write_summary cfg S_timeout in
         print_with_time cfg "\nTime out"
       else if
         dsize < (Symb.distinct_consts p.Prob.symbols |> Symb.Set.cardinal)
@@ -678,14 +736,20 @@ let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
         print_with_time cfg "Solving";
         match call_solver cfg inst Inst.solve Inst.solve_timed with
           | Sh.Ltrue ->
+              write_summary cfg S_satisfiable;
               let model = Inst.construct_model inst in
-              with_output cfg (write_model tp model None);
+              with_output
+                ~append:true
+                cfg
+                (write_model cfg.in_file tp model None);
               incr model_cnt;
               Printf.fprintf stderr "\n"
           | Sh.Lfalse ->
               Inst.destroy inst;
               loop (dsize + 1)
-          | Sh.Lundef -> print_with_time cfg "\nTime out"
+          | Sh.Lundef ->
+              write_summary cfg S_timeout;
+              print_with_time cfg "\nTime out"
       end in
     loop cfg.n_from
   end;
@@ -878,11 +942,14 @@ let find_model
     all_models;
     n_from;
     n_to;
+    in_file;
+    has_conjecture = tptp_prob.Tptp_prob.has_conjecture;
     output_file;
     start_ms;
     max_ms = BatOption.map (fun secs -> secs * 1000) max_secs;
   } in
   if contains_empty_clause p then
+    let () = write_summary cfg S_unsatisfiable in
     print_with_time cfg "\nNo model found - empty clause"
   else
     solver.s_func tptp_prob sorts cfg

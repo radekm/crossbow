@@ -28,7 +28,12 @@ let main
         | R.Exit_code _ when Sys.file_exists model_file ->
             BatFile.with_file_in model_file
               (fun inp ->
-                let line = BatIO.read_line inp in
+                (* Domain size is on the 4th line. *)
+                let line =
+                  BatIO.read_line inp |> ignore;
+                  BatIO.read_line inp |> ignore;
+                  BatIO.read_line inp |> ignore;
+                  BatIO.read_line inp in
                 let size_str =
                   BatString.split line ":" |> snd |> BatString.trim in
                 Some (int_of_string size_str))

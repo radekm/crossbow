@@ -437,6 +437,7 @@ let clause_to_string symdb smap lits =
 module M = Model
 
 let model_to_tptp
+    ?prob_name
     ?(role_dom = Ast.R_fi_domain)
     ?(role_pred = Ast.R_fi_predicates)
     ?(role_func = Ast.R_fi_functors)
@@ -452,7 +453,7 @@ let model_to_tptp
     |> BatList.of_enum
     |> BatList.sort compare in
 
-  (* Maps doamin elements to TPTP symbols. *)
+  (* Maps domain elements to TPTP symbols. *)
   let dom_to_tptp =
     let dom_to_tptp = Earray.make model.M.max_size None in
     (* Numbers used by distinct constants. *)
@@ -496,6 +497,14 @@ let model_to_tptp
       | Some (Number n) -> Ast.Number n
       | Some (String str) -> Ast.String str)
       dom_to_tptp in
+
+  (* Comment - start of finite model. *)
+  let for_prob =
+    match prob_name with
+      | None -> ""
+      | Some n -> " for " ^ n in
+  f (Ast.Comment (Ast.to_comment_line
+                    (" SZS output start FiniteModel" ^ for_prob)));
 
   (* Comment with domain size. *)
   f (Ast.Comment (Ast.to_comment_line
@@ -569,4 +578,8 @@ let model_to_tptp
               })
         (* Skip distinct constants - they are interpreted as themselves. *)
         | Number _ | String _ -> ())
-    sorted_symbs
+    sorted_symbs;
+
+  (* Comment - end of finite model. *)
+  f (Ast.Comment (Ast.to_comment_line
+                    (" SZS output end FiniteModel" ^ for_prob)));

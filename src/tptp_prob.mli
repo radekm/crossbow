@@ -101,6 +101,7 @@ val clause_to_string : [> `R] Symb.db -> symb_map -> Clause.t -> string
    [Tptp_ast.R_fi_functors]).
 *)
 val model_to_tptp :
+  ?prob_name:string ->
   ?role_dom:Tptp_ast.formula_role ->
   ?role_pred:Tptp_ast.formula_role ->
   ?role_func:Tptp_ast.formula_role ->

@@ -749,6 +749,8 @@ let test_model_to_tptp () =
           Ast.af_formula = pred_q;
           Ast.af_annos = None;
         };
+      Ast.Comment (Ast.to_comment_line " SZS output end FiniteModel");
+      Ast.Comment (Ast.to_comment_line " SZS output start FiniteModel");
       Ast.Comment (Ast.to_comment_line " domain size: 4");
     ] in
 
