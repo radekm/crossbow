@@ -1,4 +1,4 @@
-(* Copyright (c) 2014 Radek Micek *)
+(* Copyright (c) 2014-15 Radek Micek *)
 
 let run e_exe e_opts inputs =
   (* Write input formulas to file. *)
@@ -49,6 +49,12 @@ let run e_exe e_opts inputs =
   Sys.remove out_file2;
 
   inputs
+
+let clausify e_exe e_opts inputs =
+  let e_opts = e_opts @ [
+    "--cnf";
+  ] in
+  run e_exe e_opts inputs
 
 let generate_lemmas e_exe e_opts e_max_secs inputs =
   let e_opts = e_opts @ [

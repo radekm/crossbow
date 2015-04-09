@@ -847,11 +847,18 @@ let all_solvers =
 (* ************************************************************************ *)
 (* Main *)
 
+type clausifier =
+  | C_none
+  | C_e
+
 type lemma_gen =
   | LG_none
   | LG_e
 
 let find_model
+    clausifier
+    clausifier_exe
+    clausifier_opts
     lemma_gen
     lemma_gen_exe
     lemma_gen_opts
@@ -882,7 +889,17 @@ let find_model
     failwith "Invalid number of threads.";
   if lemma_gen_max_secs < 1 then
     failwith "Minimal time for lemma generator is 1 second.";
-  let clausify _ = failwith "Clausification not supported" in
+  let clausify =
+    if clausifier <> C_none then begin
+      let clausifier_exe =
+        match clausifier_exe with
+          | None -> failwith "Executable for clausifier not specified."
+          | Some exe -> exe in
+      match clausifier with
+        | C_none -> failwith "impossible"
+        | C_e -> Eprover.clausify clausifier_exe clausifier_opts
+    end else
+      fun _ -> failwith "No clausifier specified" in
   let tptp_prob = Tptp_prob.of_file clausify base_dir in_file in
   let p = tptp_prob.Tptp_prob.prob in
   let solver = List.assoc solver all_solvers in
@@ -966,6 +983,25 @@ let output_file =
   let doc = "Write model to this file." in
   Arg.(value & opt (some string) None &
          info ["output-file"] ~docv:"FILE" ~doc)
+
+let clausifier =
+  let doc = "Clausifier. One of: none, e." in
+  let clausifiers = [
+    "none", C_none;
+    "e", C_e
+  ] in
+  Arg.(value & opt (enum clausifiers) C_none &
+         info ["clausifier"] ~doc ~docs:"CLAUSIFICATION")
+
+let clausifier_exe =
+  let doc = "Clausifier executable." in
+  Arg.(value & opt (some file) None &
+         info ["clausifier-exe"] ~docv:"FILE" ~doc ~docs:"CLAUSIFICATION")
+
+let clausifier_opts =
+  let doc = "Pass the given option to clausifier." in
+  Arg.(value & opt_all string [] &
+         info ["clausifier-opt"] ~docv:"OPTION" ~doc ~docs:"CLAUSIFICATION")
 
 let lemma_gen =
   let doc = "Lemma generator. One of: none, e." in
@@ -1099,6 +1135,7 @@ let transforms =
 
 let find_model_t =
   Term.(pure find_model $
+          clausifier $ clausifier_exe $ clausifier_opts $
           lemma_gen $ lemma_gen_exe $ lemma_gen_opts $ lemma_gen_max_secs $
           max_vars $ max_symbs $ max_vars_when_flat $ max_lits_when_flat $
           max_lemmas $ detect_commutativity_from_lemmas $
