@@ -111,7 +111,12 @@ let check_model_with_paradox
         BatFile.with_file_in paradox_out
           (fun inp ->
             let is_satisfiable line =
-              BatString.starts_with line "+++ RESULT: Satisfiable" in
+              List.exists
+                (BatString.starts_with line)
+                [
+                  "+++ RESULT: Satisfiable";
+                  "+++ RESULT: CounterSatisfiable";
+                ] in
             try
               while BatIO.read_line inp |> is_satisfiable |> not do
                 ()

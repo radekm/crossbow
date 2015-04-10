@@ -35,11 +35,17 @@ let main
         | R.Exit_code _ when Sys.file_exists output_file ->
             BatFile.with_file_in output_file
               (fun inp ->
-                let s = "% SZS status Satisfiable" in
+                let is_satisfiable l =
+                  List.exists
+                    (BatString.starts_with l)
+                    [
+                      "% SZS status Satisfiable";
+                      "% SZS status CounterSatisfiable"
+                    ] in
                 let lines =
                   inp
                   |> BatIO.lines_of
-                  |> BatEnum.filter (fun l -> BatString.starts_with l s) in
+                  |> BatEnum.filter is_satisfiable in
                 match BatEnum.peek lines with
                   | None -> None
                   (* Model size is not known. *)
