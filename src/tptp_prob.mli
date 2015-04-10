@@ -52,6 +52,10 @@ type t = {
    with a name of an existing function symbol (or the other way aroud)
    then an exception will be raised when translating
    a clause with that symbol from TPTP.
+
+   Note: If [given_symbs] contains all symbols then the restriction behaves
+   as a copy and is not necessary. This justifies that the restriction
+   is not used when doing clausification.
 *)
 val clauses_of_tptp :
   [> `W] Symb.db ->
