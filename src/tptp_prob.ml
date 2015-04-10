@@ -446,12 +446,17 @@ let model_to_tptp
     interp_name
     f =
 
-  (* Sort symbols to make model generation deterministic. *)
-  let sorted_symbs =
-    p.smap.of_tptp
-    |> BatHashtbl.enum
+  let symb_to_tptp =
+    let gen_int = make_int_gen () in
+    symb_to_tptp gen_int p.prob.Prob.symbols p.smap in
+
+  (* All distinct constants. *)
+  let distinct_consts =
+    p.prob.Prob.symbols
+    |> Symb.distinct_consts
+    |> Symb.Set.enum
     |> BatList.of_enum
-    |> BatList.sort compare in
+    |> BatList.map (fun id -> symb_to_tptp id, id) in
 
   (* Maps domain elements to TPTP symbols. *)
   let dom_to_tptp =
@@ -464,7 +469,8 @@ let model_to_tptp
       (fun (tptp_symb, s) ->
         try
           match tptp_symb with
-            | Atomic_word (_, _) -> ()
+            | Atomic_word (_, _) ->
+                failwith "distinct constant mapped to atomic word"
             | Number n ->
                 let v = (Symb.Map.find s model.M.symbs).M.values.(0) in
                 dom_to_tptp.(v) <- Some tptp_symb;
@@ -474,7 +480,7 @@ let model_to_tptp
                 dom_to_tptp.(v) <- Some tptp_symb
         with
           | Not_found -> failwith "distinct constant not in model")
-      sorted_symbs;
+      distinct_consts;
 
     (* Assign unused numbers to remaining domain elements. *)
     let last_num = ref ~-1 in
@@ -526,6 +532,16 @@ let model_to_tptp
         Ast.af_formula = formula;
         Ast.af_annos = None;
       }) in
+
+  (* Symbols from [model]. The symbols are sorted
+     to ensure that TPTP model generation is deterministic.
+  *)
+  let sorted_symbs =
+    model.Model.symbs
+    |> Symb.Map.enum
+    |> BatList.of_enum
+    |> BatList.map (fun (id, _) -> symb_to_tptp id, id)
+    |> BatList.sort compare in
 
   (* Interpretation of symbols - one formula for each symbol. *)
   List.iter

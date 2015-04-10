@@ -641,7 +641,9 @@ let test_model_to_tptp () =
   let p = Symb.add_pred db 1 in
   let q = Symb.add_pred db 0 in
   let c = Symb.add_func db 0 in
+  Symb.set_distinct_constant db c true;
   let d = Symb.add_func db 0 in
+  Symb.set_distinct_constant db d true;
   let f = Symb.add_func db 2 in
 
   let model = {
@@ -721,6 +723,8 @@ let test_model_to_tptp () =
       Ast.Formula conjunction in
     let pred_q = Ast.Formula (Ast.Atom (Ast.Pred (q', []))) in
     [
+      Ast.Comment (Ast.to_comment_line " SZS output start FiniteModel");
+      Ast.Comment (Ast.to_comment_line " domain size: 4");
       Ast.Fof_anno
         {
           Ast.af_name = interp_name;
@@ -750,14 +754,12 @@ let test_model_to_tptp () =
           Ast.af_annos = None;
         };
       Ast.Comment (Ast.to_comment_line " SZS output end FiniteModel");
-      Ast.Comment (Ast.to_comment_line " SZS output start FiniteModel");
-      Ast.Comment (Ast.to_comment_line " domain size: 4");
     ] in
 
   let formulas =
     let fs = ref [] in
     TP.model_to_tptp prob model interp_name (fun f -> fs := f :: !fs);
-    BatList.sort compare !fs in
+    List.rev !fs in
 
   assert_equal exp_formulas formulas
 

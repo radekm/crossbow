@@ -95,6 +95,9 @@ val clause_to_string : [> `R] Symb.db -> symb_map -> Clause.t -> string
    to the TPTP format and calls [f] for each of its formulas.
    [interp_name] is used as a name for all formulas.
 
+   The model [m] must interpret all distinct constants.
+   TPTP symbol names will be generated and stored in [smap] if necessary.
+
    Optional parameters [role_dom], [role_pred] and [role_func]
    affect the roles of formulas (default arguments are
    [Tptp_ast.R_fi_domain], [Tptp_ast.R_fi_predicates] and
