@@ -307,7 +307,7 @@ let table_times
       match r.Res.exit_status with
         | Res.Out_of_time -> Latex.unimp label_out_of_time
         | Res.Out_of_memory -> Latex.unimp label_out_of_memory
-        | Res.Exit_code 0 ->
+        | Res.Exit_code 0 when is_solved r ->
             if r.Res.time = best_time
             then Latex.imp_int r.Res.time
             else Latex.unimp_int r.Res.time
