@@ -1,13 +1,15 @@
 #!/usr/bin/sh
 
-if [ $# -ne 2 ]
+if [ $# -ne 4 ]
 then
-    echo "Usage: `basename $0` path-to-tptp output-directory"
+    echo "Usage: `basename $0` path-to-tptp output-directory cnf fof"
     exit 65
 fi
 
-TPTP=$1
-OUT_DIR=$2
+TPTP="$1"
+OUT_DIR="$2"
+CNF="$3"
+FOF="$4"
 
 mkdir -p "$OUT_DIR"
 
@@ -16,10 +18,30 @@ do
     dir=`basename "$path"`
     out_file="$OUT_DIR/$dir"
     echo $dir
-    # Note: CNF problems cannot be CounterSatisfiable
-    "$TPTP/Scripts/tptp2T" -q3 -pp Form CNF Status Satisfiable Domains $dir \
-        | awk -v path="$path" \
-        '{print path "/" $1 ".p" }' > "$out_file"
+    > "$out_file"
+
+    if [ "$CNF" -eq 1 ]
+    then
+        # Note: CNF problem cannot be CounterSatisfiable
+        "$TPTP/Scripts/tptp2T" -q3 -pp Form CNF \
+                Status Satisfiable Domains $dir \
+            | awk -v path="$path" \
+            '{print path "/" $1 ".p" }' >> "$out_file"
+    fi
+
+    if [ "$FOF" -eq 1 ]
+    then
+        "$TPTP/Scripts/tptp2T" -q3 -pp Form FOF \
+                Status Satisfiable Domains $dir \
+            | awk -v path="$path" \
+            '{print path "/" $1 ".p" }' >> "$out_file"
+
+        "$TPTP/Scripts/tptp2T" -q3 -pp Form FOF \
+                Status CounterSatisfiable Domains $dir \
+            | awk -v path="$path" \
+            '{print path "/" $1 ".p" }' >> "$out_file"
+    fi
+
     # Remove problem list if empty.
     find "$out_file" -empty -delete
 done
