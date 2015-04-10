@@ -849,6 +849,7 @@ let all_solvers =
 
 type clausifier =
   | C_none
+  | C_generic
   | C_e
 
 type lemma_gen =
@@ -897,6 +898,7 @@ let find_model
           | Some exe -> exe in
       match clausifier with
         | C_none -> failwith "impossible"
+        | C_generic -> Generic_prover.run clausifier_exe clausifier_opts
         | C_e -> Eprover.clausify clausifier_exe clausifier_opts
     end else
       fun _ -> failwith "No clausifier specified" in
@@ -985,10 +987,11 @@ let output_file =
          info ["output-file"] ~docv:"FILE" ~doc)
 
 let clausifier =
-  let doc = "Clausifier. One of: none, e." in
+  let doc = "Clausifier. One of: none, generic, e." in
   let clausifiers = [
     "none", C_none;
-    "e", C_e
+    "generic", C_generic;
+    "e", C_e;
   ] in
   Arg.(value & opt (enum clausifiers) C_none &
          info ["clausifier"] ~doc ~docs:"CLAUSIFICATION")
@@ -1007,7 +1010,7 @@ let lemma_gen =
   let doc = "Lemma generator. One of: none, e." in
   let lemma_gens = [
     "none", LG_none;
-    "e", LG_e
+    "e", LG_e;
   ] in
   Arg.(value & opt (enum lemma_gens) LG_none &
          info ["lemma-gen"] ~doc ~docs:"LEMMA GENERATION")

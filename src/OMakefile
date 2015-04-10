@@ -54,6 +54,7 @@ FILES[] =
     josat_inst
     csp_inst
     gecode_inst
+    generic_prover
     eprover
 
 %.cmi %.cmo %.cmx: ../earray/earray_syntax$(EXE)
