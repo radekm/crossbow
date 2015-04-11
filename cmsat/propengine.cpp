@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -47,33 +47,39 @@ using std::endl;
 @brief Sets a sane default config and allocates handler classes
 */
 PropEngine::PropEngine(
-    const SolverConf& _conf
+    const SolverConf* _conf, bool* _needToInterrupt
 ) :
-        CNF(_conf)
-        // Stats
+        CNF(_conf, _needToInterrupt)
         , qhead(0)
-        , agility(_conf.agilityG, _conf.agilityLimit)
 {
+    agility.setup(conf.agilityG, conf.agilityLimit);
 }
 
 PropEngine::~PropEngine()
 {
 }
 
-void PropEngine::newVar(const bool bva, Var orig_outer)
+void PropEngine::new_var(const bool bva, Var orig_outer)
 {
-    CNF::newVar(bva, orig_outer);
+    CNF::new_var(bva, orig_outer);
     //TODO
     //trail... update x->whatever
 }
 
-void PropEngine::saveVarMem()
+void PropEngine::new_vars(size_t n)
 {
-    CNF::saveVarMem();
+    CNF::new_vars(n);
+    //TODO
+    //trail... update x->whatever
+}
+
+void PropEngine::save_on_var_memory()
+{
+    CNF::save_on_var_memory();
 }
 
 
-void PropEngine::attachTriClause(
+void PropEngine::attach_tri_clause(
     Lit lit1
     , Lit lit2
     , Lit lit3
@@ -84,10 +90,8 @@ void PropEngine::attachTriClause(
     assert(value(lit1.var()) == l_Undef);
     assert(value(lit2) == l_Undef || value(lit2) == l_False);
 
-    assert(varData[lit1.var()].removed == Removed::none
-            || varData[lit1.var()].removed == Removed::queued_replacer);
-    assert(varData[lit2.var()].removed == Removed::none
-            || varData[lit2.var()].removed == Removed::queued_replacer);
+    assert(varData[lit1.var()].removed == Removed::none);
+    assert(varData[lit2.var()].removed == Removed::none);
     #endif //DEBUG_ATTACH
 
     //Order them
@@ -99,32 +103,44 @@ void PropEngine::attachTriClause(
     watches[lit3.toInt()].push(Watched(lit1, lit2, red));
 }
 
-void PropEngine::detachTriClause(
+void PropEngine::detach_tri_clause(
     const Lit lit1
     , const Lit lit2
     , const Lit lit3
     , const bool red
+    , const bool allow_empty_watch
 ) {
     Lit lits[3];
     lits[0] = lit1;
     lits[1] = lit2;
     lits[2] = lit3;
-    std::sort(lits, lits+3);
-    removeWTri(watches, lits[0], lits[1], lits[2], red);
-    removeWTri(watches, lits[1], lits[0], lits[2], red);
-    removeWTri(watches, lits[2], lits[0], lits[1], red);
+    orderLits(lits[0], lits[1], lits[2]);
+    if (!(allow_empty_watch && watches[lits[0].toInt()].empty())) {
+        removeWTri(watches, lits[0], lits[1], lits[2], red);
+    }
+    if (!(allow_empty_watch && watches[lits[1].toInt()].empty())) {
+        removeWTri(watches, lits[1], lits[0], lits[2], red);
+    }
+    if (!(allow_empty_watch && watches[lits[2].toInt()].empty())) {
+        removeWTri(watches, lits[2], lits[0], lits[1], red);
+    }
 }
 
-void PropEngine::detachBinClause(
+void PropEngine::detach_bin_clause(
     const Lit lit1
     , const Lit lit2
     , const bool red
+    , const bool allow_empty_watch
 ) {
-    removeWBin(watches, lit1, lit2, red);
-    removeWBin(watches, lit2, lit1, red);
+    if (!(allow_empty_watch && watches[lit1.toInt()].empty())) {
+        removeWBin(watches, lit1, lit2, red);
+    }
+    if (!(allow_empty_watch && watches[lit2.toInt()].empty())) {
+        removeWBin(watches, lit2, lit1, red);
+    }
 }
 
-void PropEngine::attachBinClause(
+void PropEngine::attach_bin_clause(
     const Lit lit1
     , const Lit lit2
     , const bool red
@@ -137,10 +153,8 @@ void PropEngine::attachBinClause(
         assert(value(lit2) == l_Undef || value(lit2) == l_False);
     }
 
-    assert(varData[lit1.var()].removed == Removed::none
-            || varData[lit1.var()].removed == Removed::queued_replacer);
-    assert(varData[lit2.var()].removed == Removed::none
-            || varData[lit2.var()].removed == Removed::queued_replacer);
+    assert(varData[lit1.var()].removed == Removed::none);
+    assert(varData[lit2.var()].removed == Removed::none);
     #endif //DEBUG_ATTACH
 
     watches[lit1.toInt()].push(Watched(lit2, red));
@@ -163,18 +177,21 @@ void PropEngine::attachClause(
         assert(value(c[1]) == l_Undef || value(c[1]) == l_False);
     }
 
+    if (c.red() && red_long_cls_is_reducedb(c)) {
+        num_red_cls_reducedb++;
+    }
+
     #ifdef DEBUG_ATTACH
     for (uint32_t i = 0; i < c.size(); i++) {
-        assert(varData[c[i].var()].removed == Removed::none
-                || varData[c[i].var()].removed == Removed::queued_replacer);
+        assert(varData[c[i].var()].removed == Removed::none);
     }
     #endif //DEBUG_ATTACH
 
-    const ClOffset offset = clAllocator.getOffset(&c);
+    const ClOffset offset = cl_alloc.get_offset(&c);
 
-    //blocked literal is the lit in the middle (c.size()/2). For no reason.
-    watches[c[0].toInt()].push(Watched(offset, c[c.size()/2]));
-    watches[c[1].toInt()].push(Watched(offset, c[c.size()/2]));
+    const Lit blocked_lit = find_good_blocked_lit(c);
+    watches[c[0].toInt()].push(Watched(offset, blocked_lit));
+    watches[c[1].toInt()].push(Watched(offset, blocked_lit));
 }
 
 /**
@@ -184,15 +201,18 @@ The first two literals might have chaned through modification, so they are
 passed along as arguments -- they are needed to find the correct place where
 the clause is
 */
-void PropEngine::detachModifiedClause(
+void PropEngine::detach_modified_clause(
     const Lit lit1
     , const Lit lit2
     , const uint32_t origSize
     , const Clause* address
 ) {
     assert(origSize > 3);
+    if (address->red() && red_long_cls_is_reducedb(*address)) {
+        num_red_cls_reducedb--;
+    }
 
-    ClOffset offset = clAllocator.getOffset(address);
+    ClOffset offset = cl_alloc.get_offset(address);
     removeWCl(watches[lit1.toInt()], offset);
     removeWCl(watches[lit2.toInt()], offset);
 }
@@ -204,6 +224,7 @@ Need to be somewhat tricky if the clause indicates that current assignement
 is incorrect (i.e. both literals evaluate to FALSE). If conflict if found,
 sets failBinLit
 */
+template<bool update_bogoprops>
 inline bool PropEngine::propBinaryClause(
     watch_subarray_const::const_iterator i
     , const Lit p
@@ -218,7 +239,7 @@ inline bool PropEngine::propBinaryClause(
             propStats.propsBinIrred++;
         #endif
 
-        enqueue(i->lit2(), PropBy(~p));
+        enqueue<update_bogoprops>(i->lit2(), PropBy(~p, i->red()));
     } else if (val == l_False) {
         //Update stats
         if (i->red())
@@ -226,7 +247,7 @@ inline bool PropEngine::propBinaryClause(
         else
             lastConflictCausedBy = ConflCausedBy::binirred;
 
-        confl = PropBy(~p);
+        confl = PropBy(~p, i->red());
         failBinLit = i->lit2();
         qhead = trail.size();
         return false;
@@ -235,46 +256,22 @@ inline bool PropEngine::propBinaryClause(
     return true;
 }
 
-
-void PropEngine::lazy_hyper_bin_resolve(
-    const Clause& c
-    , ClOffset offset
-) {
-    //Do lazy hyper-binary resolution if possible
-    const Lit other = varData[c[1].var()].reason.lit2();
-    bool OK = true;
-    for(uint32_t i = 2; i < c.size(); i++) {
-        if (varData[c[i].var()].reason.getType() != binary_t
-            || other != varData[c[i].var()].reason.lit2()
-        ) {
-            OK = false;
-            break;
-        }
-    }
-
-    //Is it possible?
-    if (OK) {
-        attachBinClause(other, c[0], true, false);
-        #ifdef STATS_NEEDED
-        propStats.longLHBR++;
-        #endif
-
-        *drup << other << c[0] << fin;
-        enqueue(c[0], PropBy(other));
-    } else {
-        //no, not possible, just enqueue as normal
-        enqueue(c[0], PropBy(offset));
-    }
-}
-
 void PropEngine::update_glue(Clause& c)
 {
     if (c.red()
         && c.stats.glue > 2
-        && conf.updateGlues
+        && conf.update_glues_on_prop
     ) {
-        uint16_t newGlue = calcGlue(c);
-        c.stats.glue = std::min(c.stats.glue, newGlue);
+        const uint32_t new_glue = calc_glue_using_seen2(c);
+        if (new_glue < c.stats.glue
+            && new_glue < conf.protect_clause_if_imrpoved_glue_below_this_glue_for_one_turn
+        ) {
+            if (red_long_cls_is_reducedb(c)) {
+                num_red_cls_reducedb--;
+            }
+            c.stats.ttl = 1;
+        }
+        c.stats.glue = std::min(c.stats.glue, new_glue);
     }
 }
 
@@ -285,8 +282,8 @@ PropResult PropEngine::prop_normal_helper(
     , const Lit p
 ) {
     #ifdef STATS_NEEDED
-    c.stats.numLookedAt++;
-    c.stats.numLitVisited++;
+    c.stats.clause_looked_at++;
+    c.stats.visited_literals++;
     #endif
 
     // Make sure the false literal is data[1]:
@@ -297,24 +294,30 @@ PropResult PropEngine::prop_normal_helper(
     assert(c[1] == ~p);
 
     // If 0th watch is true, then clause is already satisfied.
-    if (value(c[0]).getBool()) {
+    if (value(c[0]) == l_True) {
         *j = Watched(offset, c[0]);
         j++;
         return PROP_NOTHING;
     }
 
     // Look for new watch:
+    #ifdef STATS_NEEDED
     uint32_t numLitVisited = 0;
+    #endif
+
     for (Lit *k = c.begin() + 2, *end2 = c.end()
         ; k != end2
-        ; k++, numLitVisited++
+        ; k++
+        #ifdef STATS_NEEDED
+        , numLitVisited++
+        #endif
     ) {
         //Literal is either unset or satisfied, attach to other watchlist
         if (value(*k) != l_False) {
             c[1] = *k;
             #ifdef STATS_NEEDED
             //propStats.bogoProps += numLitVisited/10;
-            c.stats.numLitVisited+= numLitVisited;
+            c.stats.visited_literals+= numLitVisited;
             #endif
             *k = ~p;
             watches[c[1].toInt()].push(Watched(offset, c[0]));
@@ -323,7 +326,7 @@ PropResult PropEngine::prop_normal_helper(
     }
     #ifdef STATS_NEEDED
     //propStats.bogoProps += numLitVisited/10;
-    c.stats.numLitVisited+= numLitVisited;
+    c.stats.visited_literals+= numLitVisited;
     #endif
 
     return PROP_TODO;
@@ -344,7 +347,10 @@ PropResult PropEngine::handle_normal_prop_fail(
     #endif //VERBOSE_DEBUG_FULLPROP
 
     //Update stats
-    c.stats.numConfl++;
+    #ifdef STATS_NEEDED
+    c.stats.conflicts_made++;
+    c.stats.sum_of_branch_depth_conflict += decisionLevel() + 1;
+    #endif
     if (c.red())
         lastConflictCausedBy = ConflCausedBy::longred;
     else
@@ -354,22 +360,22 @@ PropResult PropEngine::handle_normal_prop_fail(
     return PROP_FAIL;
 }
 
-PropResult PropEngine::propNormalClause(
+inline PropResult PropEngine::propNormalClause(
     watch_subarray_const::const_iterator i
     , watch_subarray::iterator &j
     , const Lit p
     , PropBy& confl
 ) {
     //Blocked literal is satisfied, so clause is satisfied
-    if (value(i->getBlockedLit()).getBool()) {
+    if (value(i->getBlockedLit()) == l_True) {
         *j++ = *i;
         return PROP_NOTHING;
     }
 
     //Dereference pointer
     propStats.bogoProps += 4;
-    const ClOffset offset = i->getOffset();
-    Clause& c = *clAllocator.getPointer(offset);
+    const ClOffset offset = i->get_offset();
+    Clause& c = *cl_alloc.ptr(offset);
 
     PropResult ret = prop_normal_helper(c, offset, j, p);
     if (ret != PROP_TODO)
@@ -382,28 +388,23 @@ PropResult PropEngine::propNormalClause(
     }
 
     //Update stats
-    c.stats.numProp++;
     #ifdef STATS_NEEDED
+    c.stats.propagations_made++;
     if (c.red())
         propStats.propsLongRed++;
     else
         propStats.propsLongIrred++;
     #endif
 
-    if (conf.doLHBR
-        && varData[c[1].var()].reason.getType() == binary_t
-    ) {
-        lazy_hyper_bin_resolve(c, offset);
-    } else {
-        enqueue(c[0], PropBy(offset));
-    }
-
+    enqueue(c[0], PropBy(offset));
     update_glue(c);
 
     return PROP_SOMETHING;
 }
 
 
+template<bool update_bogoprops>
+inline
 bool PropEngine::propNormalClauseAnyOrder(
     watch_subarray_const::const_iterator i
     , watch_subarray::iterator &j
@@ -411,16 +412,25 @@ bool PropEngine::propNormalClauseAnyOrder(
     , PropBy& confl
 ) {
     //Blocked literal is satisfied, so clause is satisfied
-    if (value(i->getBlockedLit()).getBool()) {
+    const Lit blocker = i->getBlockedLit();
+    if (value(blocker) == l_True) {
         *j++ = *i;
         return true;
     }
-    propStats.bogoProps += 4;
-    const ClOffset offset = i->getOffset();
-    Clause& c = *clAllocator.getPointer(offset);
+    if (update_bogoprops) {
+        propStats.bogoProps += 4;
+    }
+    const ClOffset offset = i->get_offset();
+    Clause& c = *cl_alloc.ptr(offset);
+
+    #ifdef SLOW_DEBUG
+    assert(!c.getRemoved());
+    assert(!c.freed());
+    #endif
+
     #ifdef STATS_NEEDED
-    c.stats.numLookedAt++;
-    c.stats.numLitVisited++;
+    c.stats.clause_looked_at++;
+    c.stats.visited_literals++;
     #endif
 
     // Make sure the false literal is data[1]:
@@ -431,8 +441,9 @@ bool PropEngine::propNormalClauseAnyOrder(
     assert(c[1] == ~p);
 
     // If 0th watch is true, then clause is already satisfied.
-    if (value(c[0]).getBool()) {
-        *j = Watched(offset, c[0]);
+    const Lit first = c[0];
+    if (first != blocker && value(first) == l_True) {
+        *j = Watched(offset, first);
         j++;
         return true;
     }
@@ -453,7 +464,7 @@ bool PropEngine::propNormalClauseAnyOrder(
             c[1] = *k;
             //propStats.bogoProps += numLitVisited/10;
             #ifdef STATS_NEEDED
-            c.stats.numLitVisited+= numLitVisited;
+            c.stats.visited_literals+= numLitVisited;
             #endif
             *k = ~p;
             watches[c[1].toInt()].push(Watched(offset, c[0]));
@@ -462,13 +473,12 @@ bool PropEngine::propNormalClauseAnyOrder(
     }
     #ifdef STATS_NEEDED
     //propStats.bogoProps += numLitVisited/10;
-    c.stats.numLitVisited+= numLitVisited;
+    c.stats.visited_literals+= numLitVisited;
     #endif
 
     // Did not find watch -- clause is unit under assignment:
     *j++ = *i;
-    if (value(c[0]) == l_False) {
-
+    if (value(first) == l_False) {
         confl = PropBy(offset);
         #ifdef VERBOSE_DEBUG_FULLPROP
         cout << "Conflict from ";
@@ -479,7 +489,10 @@ bool PropEngine::propNormalClauseAnyOrder(
         #endif //VERBOSE_DEBUG_FULLPROP
 
         //Update stats
-        c.stats.numConfl++;
+        #ifdef STATS_NEEDED
+        c.stats.conflicts_made++;
+        c.stats.sum_of_branch_depth_conflict += decisionLevel() + 1;
+        #endif
         if (c.red())
             lastConflictCausedBy = ConflCausedBy::longred;
         else
@@ -490,23 +503,15 @@ bool PropEngine::propNormalClauseAnyOrder(
     } else {
 
         //Update stats
-        c.stats.numProp++;
         #ifdef STATS_NEEDED
+        c.stats.propagations_made++;
         if (c.red())
             propStats.propsLongRed++;
         else
             propStats.propsLongIrred++;
         #endif
-        enqueue(c[0], PropBy(offset));
-
-        //Update glues?
-        if (c.red()
-            && c.stats.glue > 2
-            && conf.updateGlues
-        ) {
-            uint16_t newGlue = calcGlue(c);
-            c.stats.glue = std::min(c.stats.glue, newGlue);
-        }
+        enqueue<update_bogoprops>(c[0], PropBy(offset));
+        update_glue(c);
     }
 
     return true;
@@ -523,7 +528,7 @@ PropResult PropEngine::handle_prop_tri_fail(
         << i->lit2() << " , "
         << i->lit3() << endl;
     #endif //VERBOSE_DEBUG_FULLPROP
-    confl = PropBy(~lit1, i->lit3());
+    confl = PropBy(~lit1, i->lit3(), i->red());
 
     //Update stats
     if (i->red())
@@ -536,7 +541,7 @@ PropResult PropEngine::handle_prop_tri_fail(
     return PROP_FAIL;
 }
 
-PropResult PropEngine::propTriClause(
+inline PropResult PropEngine::propTriClause(
     watch_subarray_const::const_iterator i
     , const Lit lit1
     , PropBy& confl
@@ -570,6 +575,7 @@ PropResult PropEngine::propTriClause(
     return PROP_NOTHING;
 }
 
+template<bool update_bogoprops>
 inline bool PropEngine::propTriClauseAnyOrder(
     watch_subarray_const::const_iterator i
     , const Lit lit1
@@ -596,7 +602,7 @@ inline bool PropEngine::propTriClauseAnyOrder(
             << i->lit2() << " , "
             << i->lit3() << endl;
         #endif //VERBOSE_DEBUG_FULLPROP
-        confl = PropBy(~lit1, i->lit3());
+        confl = PropBy(~lit1, i->lit3(), i->red());
 
         //Update stats
         if (i->red())
@@ -609,25 +615,21 @@ inline bool PropEngine::propTriClauseAnyOrder(
         return false;
     }
     if (val2 == l_Undef && val3 == l_False) {
-        propTriHelperAnyOrder(
+        propTriHelperAnyOrder<update_bogoprops>(
             lit1
             , lit2
             , lit3
-            #ifdef STATS_NEEDED
             , i->red()
-            #endif
         );
         return true;
     }
 
     if (val3 == l_Undef && val2 == l_False) {
-        propTriHelperAnyOrder(
+        propTriHelperAnyOrder<update_bogoprops>(
             lit1
             , lit3
             , lit2
-            #ifdef STATS_NEEDED
             , i->red()
-            #endif
         );
         return true;
     }
@@ -635,30 +637,7 @@ inline bool PropEngine::propTriClauseAnyOrder(
     return true;
 }
 
-void PropEngine::lazy_hyper_bin_resolve(Lit lit1, Lit lit2)
-{
-    Lit lit= varData[lit1.var()].reason.lit2();
-
-    attachBinClause(lit, lit2, true, false);
-    enqueue(lit2, PropBy(lit));
-    #ifdef STATS_NEEDED
-    propStats.triLHBR++;
-    #endif
-    *drup << lit << lit2 << fin;
-}
-
-bool PropEngine::can_do_lazy_hyper_bin(Lit lit1, Lit lit2, Lit lit3)
-{
-    bool ret;
-    ret = varData[lit1.var()].reason.getType() == binary_t
-        && ((varData[lit3.var()].reason.getType() == binary_t
-        && varData[lit3.var()].reason.lit2() == varData[lit1.var()].reason.lit2())
-        || (varData[lit1.var()].reason.lit2().var() == lit3.var()));
-
-    return ret;
-}
-
-PropResult PropEngine::propTriHelperSimple(
+inline PropResult PropEngine::propTriHelperSimple(
     const Lit lit1
     , const Lit lit2
     , const Lit lit3
@@ -671,26 +650,16 @@ PropResult PropEngine::propTriHelperSimple(
         propStats.propsTriIrred++;
     #endif
 
-    //Check if we could do lazy hyper-binary resoution
-    if (conf.doLHBR
-        && can_do_lazy_hyper_bin(lit1, lit2, lit3)
-    ) {
-        lazy_hyper_bin_resolve(lit1, lit2);
-    } else {
-        //Lazy hyper-bin is not possibe
-        enqueue(lit2, PropBy(~lit1, lit3));
-    }
-
+    enqueue(lit2, PropBy(~lit1, lit3, red));
     return PROP_SOMETHING;
 }
 
+template<bool update_bogoprops>
 inline void PropEngine::propTriHelperAnyOrder(
     const Lit lit1
     , const Lit lit2
     , const Lit lit3
-    #ifdef STATS_NEEDED
     , const bool red
-    #endif
 ) {
     #ifdef STATS_NEEDED
     if (red)
@@ -700,9 +669,10 @@ inline void PropEngine::propTriHelperAnyOrder(
     #endif
 
     //Lazy hyper-bin is not possibe
-    enqueue(lit2, PropBy(~lit1, lit3));
+    enqueue<update_bogoprops>(lit2, PropBy(~lit1, lit3, red));
 }
 
+template<bool update_bogoprops>
 PropBy PropEngine::propagateAnyOrder()
 {
     PropBy confl;
@@ -714,25 +684,47 @@ PropBy PropEngine::propagateAnyOrder()
     while (qhead < trail.size() && confl.isNULL()) {
         const Lit p = trail[qhead];     // 'p' is enqueued fact to propagate.
         watch_subarray ws = watches[(~p).toInt()];
+
+        /*
+        //propagate bin & tri
+        for (watch_subarray::iterator i = ws.begin(), end = ws.end(); i != end; i++) {
+            if (i->isBinary()) {
+                if (!propBinaryClause(i, p, confl)) {
+                    return confl;
+                }
+                continue;
+            }
+
+            //Propagate tri clause
+            if (i->isTri()) {
+                if (!propTriClauseAnyOrder(i, p, confl)) {
+                    return confl;
+                }
+                continue;
+            }
+        }*/
+
         watch_subarray::iterator i = ws.begin();
         watch_subarray::iterator j = ws.begin();
         watch_subarray_const::const_iterator end = ws.end();
-        propStats.bogoProps += ws.size()/4 + 1;
+        if (update_bogoprops) {
+            propStats.bogoProps += ws.size()/4 + 1;
+        }
+
         for (; i != end; i++) {
             if (i->isBinary()) {
                 *j++ = *i;
-                if (!propBinaryClause(i, p, confl)) {
+                if (!propBinaryClause<update_bogoprops>(i, p, confl)) {
                     i++;
                     break;
                 }
-
                 continue;
             }
 
             //Propagate tri clause
             if (i->isTri()) {
                 *j++ = *i;
-                if (!propTriClauseAnyOrder(i, p, confl)) {
+                if (!propTriClauseAnyOrder<update_bogoprops>(i, p, confl)) {
                     i++;
                     break;
                 }
@@ -741,12 +733,16 @@ PropBy PropEngine::propagateAnyOrder()
 
             //propagate normal clause
             if (i->isClause()) {
-                if (!propNormalClauseAnyOrder(i, j, p, confl)) {
+                if (!propNormalClauseAnyOrder<update_bogoprops>(i, j, p, confl)) {
                     i++;
                     break;
                 }
                 continue;
-            }
+            }/* else {
+                *j++ = *i;
+            }*/
+
+            assert(false);
         }
         while (i != end) {
             *j++ = *i++;
@@ -762,6 +758,8 @@ PropBy PropEngine::propagateAnyOrder()
 
     return confl;
 }
+template PropBy PropEngine::propagateAnyOrder<true>();
+template PropBy PropEngine::propagateAnyOrder<false>();
 
 void PropEngine::sortWatched()
 {
@@ -769,7 +767,7 @@ void PropEngine::sortWatched()
     cout << "Sorting watchlists:" << endl;
     #endif
 
-    //double myTime = cpuTime();
+    const double myTime = cpuTime();
     for (watch_array::iterator
         i = watches.begin(), end = watches.end()
         ; i != end
@@ -780,7 +778,7 @@ void PropEngine::sortWatched()
             continue;
 
         #ifdef VERBOSE_DEBUG
-        cout << "Before sorting:" << endl;
+        cout << "Before sorting: ";
         for (uint32_t i2 = 0; i2 < ws.size(); i2++) {
             if (ws[i2].isBinary()) cout << "Binary,";
             if (ws[i2].isTri()) cout << "Tri,";
@@ -789,24 +787,25 @@ void PropEngine::sortWatched()
         cout << endl;
         #endif //VERBOSE_DEBUG
 
-        std::sort(ws.begin(), ws.end(), WatchedSorter());
+        std::sort(ws.begin(), ws.end(), WatchedSorter(cl_alloc));
 
         #ifdef VERBOSE_DEBUG
-        cout << "After sorting:" << endl;
+        cout << "After sorting : ";
         for (uint32_t i2 = 0; i2 < ws.size(); i2++) {
             if (ws[i2].isBinary()) cout << "Binary,";
             if (ws[i2].isTri()) cout << "Tri,";
             if (ws[i2].isClause()) cout << "Normal,";
         }
         cout << endl;
+        cout << " -- " << endl;
         #endif //VERBOSE_DEBUG
     }
 
-    /*if (conf.verbosity >= 3) {
-        cout << "c watched "
-        << "sorting time: " << cpuTime() - myTime
+    if (conf.verbosity >= 2) {
+        cout << "c [w-sort] "
+        << conf.print_times(cpuTime()-myTime)
         << endl;
-    }*/
+    }
 }
 
 void PropEngine::printWatchList(const Lit lit) const
@@ -822,23 +821,11 @@ void PropEngine::printWatchList(const Lit lit) const
         } else if (it2->isTri()) {
             cout << "tri: " << lit << " , " << it2->lit2() << " , " <<  (it2->lit3()) << endl;
         } else if (it2->isClause()) {
-            cout << "cla:" << it2->getOffset() << endl;
+            cout << "cla:" << it2->get_offset() << endl;
         } else {
             assert(false);
         }
     }
-}
-
-vector<Lit> PropEngine::getUnitaries() const
-{
-    vector<Lit> unitaries;
-    if (decisionLevel() > 0) {
-        for (uint32_t i = 0; i != trail_lim[0]; i++) {
-            unitaries.push_back(trail[i]);
-        }
-    }
-
-    return unitaries;
 }
 
 void PropEngine::updateVars(
@@ -851,7 +838,12 @@ void PropEngine::updateVars(
     updateArray(varDataLT, interToOuter);
     #endif
     updateArray(assigns, interToOuter);
-    updateLitsMap(trail, outerToInter);
+    assert(decisionLevel() == 0);
+
+    //Trail is NOT correct, only its length is correct
+    for(Lit& lit: trail) {
+        lit = lit_Undef;
+    }
     updateBySwap(watches, seen, interToOuter2);
 
     for(size_t i = 0; i < watches.size(); i++) {
@@ -873,7 +865,7 @@ inline void PropEngine::updateWatch(
     for(watch_subarray::iterator
         it = ws.begin(), end = ws.end()
         ; it != end
-        ; it++
+        ; ++it
     ) {
         if (it->isBinary()) {
             it->setLit2(
@@ -945,8 +937,8 @@ PropBy PropEngine::propagateBinFirst(
             //Pre-fetch long clause
             if (i->isClause()) {
                 if (value(i->getBlockedLit()) != l_True) {
-                    const ClOffset offset = i->getOffset();
-                    __builtin_prefetch(clAllocator.getPointer(offset));
+                    const ClOffset offset = i->get_offset();
+                    __builtin_prefetch(cl_alloc.ptr(offset));
                 }
 
                 continue;
@@ -1048,4 +1040,236 @@ void PropEngine::print_trail()
         << " reason: " << varData[trail[i].var()].reason
         << endl;
     }
+}
+
+
+bool PropEngine::propagate_occur()
+{
+    if (!ok)
+        return false;
+
+    while (qhead < trail_size()) {
+        const Lit p = trail[qhead];
+        qhead++;
+        watch_subarray ws = watches[(~p).toInt()];
+
+        //Go through each occur
+        for (watch_subarray::const_iterator
+            it = ws.begin(), end = ws.end()
+            ; it != end
+            ; ++it
+        ) {
+            if (it->isClause()) {
+                if (!propagate_long_clause_occur(it->get_offset()))
+                    return false;
+            }
+
+            if (it->isTri()) {
+                if (!propagate_tri_clause_occur(*it))
+                    return false;
+            }
+
+            if (it->isBinary()) {
+                if (!propagate_binary_clause_occur(*it))
+                    return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool PropEngine::propagate_tri_clause_occur(const Watched& ws)
+{
+    const lbool val2 = value(ws.lit2());
+    const lbool val3 = value(ws.lit3());
+    if (val2 == l_True
+        || val3 == l_True
+    ) {
+        return true;
+    }
+
+    if (val2 == l_Undef
+        && val3 == l_Undef
+    ) {
+        return true;
+    }
+
+    if (val2 == l_False
+        && val3 == l_False
+    ) {
+        ok = false;
+        return false;
+    }
+
+    #ifdef STATS_NEEDED
+    if (ws.red())
+        propStats.propsTriRed++;
+    else
+        propStats.propsTriIrred++;
+    #endif
+
+    if (val2 == l_Undef) {
+        enqueue(ws.lit2());
+    } else {
+        enqueue(ws.lit3());
+    }
+    return true;
+}
+
+bool PropEngine::propagate_binary_clause_occur(const Watched& ws)
+{
+    const lbool val = value(ws.lit2());
+    if (val == l_False) {
+        ok = false;
+        return false;
+    }
+
+    if (val == l_Undef) {
+        enqueue(ws.lit2());
+        #ifdef STATS_NEEDED
+        if (ws.red())
+            propStats.propsBinRed++;
+        else
+            propStats.propsBinIrred++;
+        #endif
+    }
+
+    return true;
+}
+
+bool PropEngine::propagate_long_clause_occur(const ClOffset offset)
+{
+    const Clause& cl = *cl_alloc.ptr(offset);
+    assert(!cl.freed() && "Cannot be already removed in occur");
+
+    Lit lastUndef = lit_Undef;
+    uint32_t numUndef = 0;
+    bool satisfied = false;
+    for (const Lit lit: cl) {
+        const lbool val = value(lit);
+        if (val == l_True) {
+            satisfied = true;
+            break;
+        }
+        if (val == l_Undef) {
+            numUndef++;
+            if (numUndef > 1) break;
+            lastUndef = lit;
+        }
+    }
+    if (satisfied)
+        return true;
+
+    //Problem is UNSAT
+    if (numUndef == 0) {
+        ok = false;
+        return false;
+    }
+
+    if (numUndef > 1)
+        return true;
+
+    enqueue(lastUndef);
+    #ifdef STATS_NEEDED
+    if (cl.size() == 3)
+        if (cl.red())
+            propStats.propsTriRed++;
+        else
+            propStats.propsTriIrred++;
+    else {
+        if (cl.red())
+            propStats.propsLongRed++;
+        else
+            propStats.propsLongIrred++;
+    }
+    #endif
+
+    return true;
+}
+template<bool update_bogoprops>
+void PropEngine::enqueue(const Lit p, const PropBy from)
+{
+    #ifdef DEBUG_ENQUEUE_LEVEL0
+    #ifndef VERBOSE_DEBUG
+    if (decisionLevel() == 0)
+    #endif //VERBOSE_DEBUG
+    cout << "enqueue var " << p.var()+1
+    << " to val " << !p.sign()
+    << " level: " << decisionLevel()
+    << " sublevel: " << trail.size()
+    << " by: " << from << endl;
+    #endif //DEBUG_ENQUEUE_LEVEL0
+
+    #ifdef ENQUEUE_DEBUG
+    //assert(trail.size() <= nVarsOuter());
+    //assert(decisionLevel() == 0 || varData[p.var()].removed == Removed::none);
+    #endif
+
+    const Var v = p.var();
+    assert(value(v) == l_Undef);
+    if (!watches[(~p).toInt()].empty()) {
+        watches.prefetch((~p).toInt());
+    }
+
+    const bool sign = p.sign();
+    assigns[v] = boolToLBool(!sign);
+    #ifdef STATS_NEEDED_EXTRA
+    varData[v].stats.trailLevelHist.push(trail.size());
+    varData[v].stats.decLevelHist.push(decisionLevel());
+    #endif
+    varData[v].reason = from;
+    varData[v].level = decisionLevel();
+
+    trail.push_back(p);
+    propStats.propagations++;
+    if (update_bogoprops) {
+        propStats.bogoProps += 1;
+    }
+
+    if (sign) {
+        #ifdef STATS_NEEDED_EXTRA
+        varData[v].stats.negPolarSet++;
+        #endif
+
+        #ifdef STATS_NEEDED
+        propStats.varSetNeg++;
+        #endif
+    } else {
+        #ifdef STATS_NEEDED_EXTRA
+        varData[v].stats.posPolarSet++;
+        #endif
+
+        #ifdef STATS_NEEDED
+        propStats.varSetPos++;
+        #endif
+    }
+
+    if (varData[v].polarity != sign) {
+        #ifdef UPDATE_AGILITY
+        agility.update(true);
+        #endif
+        #ifdef STATS_NEEDED_EXTRA
+        varData[v].stats.flippedPolarity++;
+        #endif
+
+        #ifdef STATS_NEEDED
+        propStats.varFlipped++;
+        #endif
+    } else {
+        #ifdef UPDATE_AGILITY
+        agility.update(false);
+        #endif
+    }
+
+    //Only update non-decision: this way, flipped decisions don't get saved
+    if (update_polarity_and_activity
+        && from != PropBy()
+    ) {
+        varData[v].polarity = !sign;
+    }
+
+    #ifdef ANIMATE3D
+    std::cerr << "s " << v << " " << p.sign() << endl;
+    #endif
 }

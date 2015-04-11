@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -70,7 +70,7 @@ public:
         for(vector<uint32_t>::const_iterator
             it = touched.begin(), end = touched.end()
             ; it != end
-            ; it++
+            ; ++it
         ) {
             touchedBitset[*it] = 0;
         }
@@ -79,13 +79,21 @@ public:
         touched.clear();
     }
 
-    size_t memUsed() const
+    size_t mem_used() const
     {
         uint64_t mem = 0;
         mem += touched.capacity()*sizeof(uint32_t);
         mem += touchedBitset.capacity()*sizeof(char);
 
         return mem;
+    }
+
+    void shrink_to_fit()
+    {
+        touched.clear();
+        touched.shrink_to_fit();
+        touchedBitset.clear();
+        touchedBitset.shrink_to_fit();
     }
 
 private:

@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -28,6 +28,7 @@
 #include "varreplacer.h"
 #include "time_mem.h"
 #include "solver.h"
+#include "sqlstats.h"
 
 using namespace CMSat;
 using std::cout;
@@ -38,12 +39,12 @@ SCCFinder::SCCFinder(Solver* _solver) :
     , solver(_solver)
 {}
 
-bool SCCFinder::performSCC()
+bool SCCFinder::performSCC(uint64_t* bogoprops_given)
 {
+    assert(binxors.empty());
     runStats.clear();
     runStats.numCalls = 1;
     const double myTime = cpuTime();
-    size_t oldNumReplace = solver->varReplacer->getNewToReplaceVars();
 
     globalIndex = 0;
     index.clear();
@@ -56,32 +57,38 @@ bool SCCFinder::performSCC()
 
     for (uint32_t vertex = 0; vertex < solver->nVars()*2; vertex++) {
         //Start a DFS at each node we haven't visited yet
+        const Var v = vertex>>1;
+        if (solver->value(v) != l_Undef) {
+            continue;
+        }
         if (index[vertex] == std::numeric_limits<uint32_t>::max()) {
             tarjan(vertex);
             assert(stack.empty());
         }
     }
 
-    if (solver->ok)
-        solver->varReplacer->addLaterAddBinXor();
-
     //Update & print stats
     runStats.cpu_time = cpuTime() - myTime;
-    runStats.foundXorsNew = solver->varReplacer->getNewToReplaceVars() - oldNumReplace;
+    runStats.foundXorsNew = binxors.size();
     if (solver->conf.verbosity >= 1) {
         if (solver->conf.verbosity >= 3)
             runStats.print();
         else
-            runStats.printShort();
+            runStats.print_short(solver);
     }
     globalStats += runStats;
     solver->binTri.numNewBinsSinceSCC = 0;
+
+    if (bogoprops_given) {
+        *bogoprops_given += runStats.bogoprops;
+    }
 
     return solver->ok;
 }
 
 void SCCFinder::tarjan(const uint32_t vertex)
 {
+    runStats.bogoprops += 1;
     index[vertex] = globalIndex;  // Set the depth index for v
     lowlink[vertex] = globalIndex;
     globalIndex++;
@@ -89,50 +96,52 @@ void SCCFinder::tarjan(const uint32_t vertex)
     stackIndicator[vertex] = true;
 
     Var vertexVar = Lit::toLit(vertex).var();
-    if (solver->varData[vertexVar].removed == Removed::none
-        || solver->varData[vertexVar].removed == Removed::queued_replacer
-    ) {
+    if (solver->varData[vertexVar].removed == Removed::none) {
         Lit vertLit = Lit::toLit(vertex);
 
         vector<LitExtra>* transCache = NULL;
 
-        if (solver->conf.doCache) {
-            transCache = &(solver->implCache[(~vertLit).toInt()].lits);
-        }
-
-        //Prefetch cache in case we are doing extended SCC
-        if (solver->conf.doExtendedSCC
-            && transCache
-            && transCache->size() > 0
+        if (solver->conf.doCache
+            && solver->conf.doExtendedSCC
+            && (!solver->drup->enabled() || solver->conf.otfHyperbin)
         ) {
+            transCache = &(solver->implCache[(~vertLit).toInt()].lits);
             __builtin_prefetch(transCache->data());
         }
 
-
         //Go through the watch
         watch_subarray_const ws = solver->watches[(~vertLit).toInt()];
+        runStats.bogoprops += ws.size()/4;
         for (watch_subarray_const::const_iterator
             it = ws.begin(), end = ws.end()
             ; it != end
-            ; it++
+            ; ++it
         ) {
             //Only binary clauses matter
             if (!it->isBinary())
                 continue;
 
             const Lit lit = it->lit2();
-
+            if (solver->value(lit) != l_Undef) {
+                continue;
+            }
             doit(lit, vertex);
         }
 
         if (transCache) {
+            runStats.bogoprops += transCache->size()/4;
             for (vector<LitExtra>::iterator
                 it = transCache->begin(), end = transCache->end()
                 ; it != end
-                ; it++
+                ; ++it
             ) {
                 Lit lit = it->getLit();
-                if (lit != ~vertLit) doit(lit, vertex);
+                if (solver->value(lit) != l_Undef) {
+                    continue;
+                }
+                if (lit != ~vertLit) {
+                    doit(lit, vertex);
+                }
             }
         }
 
@@ -150,46 +159,60 @@ void SCCFinder::tarjan(const uint32_t vertex)
             tmp.push_back(vprime);
         } while (vprime != vertex);
         if (tmp.size() >= 2) {
+            runStats.bogoprops += 3;
             for (uint32_t i = 1; i < tmp.size(); i++) {
-                if (!solver->ok) break;
-                Var vars[2];
-                vars[0] = Lit::toLit(tmp[0]).var();
-                vars[1] = Lit::toLit(tmp[i]).var();
-                const bool xorEqualsFalse =
-                    Lit::toLit(tmp[0]).sign()
-                    ^ Lit::toLit(tmp[i]).sign()
-                    ^ true;
+                if (!solver->ok) {
+                    break;
+                }
+
+                bool rhs = Lit::toLit(tmp[0]).sign()
+                    ^ Lit::toLit(tmp[i]).sign();
+
+                BinaryXor binxor(Lit::toLit(tmp[0]).var(), Lit::toLit(tmp[i]).var(), rhs);
+                binxors.insert(binxor);
 
                 //Both are UNDEF, so this is a proper binary XOR
-                if (solver->value(vars[0]) == l_Undef
-                    && solver->value(vars[1]) == l_Undef
+                if (solver->value(binxor.vars[0]) == l_Undef
+                    && solver->value(binxor.vars[1]) == l_Undef
                 ) {
                     runStats.foundXors++;
                     #ifdef VERBOSE_DEBUG
                     cout << "SCC says: "
-                    << vars[0] +1
+                    << binxor.vars[0] +1
                     << " XOR "
-                    << vars[1] +1
-                    << " = " << !xorEqualsFalse
+                    << binxor.vars[1] +1
+                    << " = " << binxor.rhs
                     << endl;
                     #endif
-                    solver->varReplacer->replace(
-                        vars[0]
-                        , vars[1]
-                        , xorEqualsFalse
-                        //Because otherwise queued varreplacer could be reducible
-                        //and during var-elim, we would remove one of the binary clauses
-                        //and then we would be in a giant mess: the equivalence is stored in replacer
-                        //but if its parent/child is set, the child/parent won't be set :S
-                        , true
-                    );
                 }
             }
         }
     }
 }
 
-size_t SCCFinder::memUsed() const
+void SCCFinder::Stats::print_short(Solver* solver) const
+{
+    cout
+    << "c [scc]"
+    << " new: " << foundXorsNew
+    << " BP " << bogoprops/(1000*1000) << "M";
+    if (solver) {
+        cout << solver->conf.print_times(cpu_time);
+    } else {
+        cout << "  T: " << std::setprecision(2) << std::fixed << cpu_time;
+    }
+    cout << endl;
+
+    if (solver && solver->sqlStats) {
+        solver->sqlStats->time_passed_min(
+            solver
+            , "scc"
+            , cpu_time
+        );
+    }
+}
+
+size_t SCCFinder::mem_used() const
 {
     size_t mem = 0;
     mem += index.capacity()*sizeof(uint32_t);

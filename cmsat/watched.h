@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -28,7 +28,6 @@
 #include "constants.h"
 #include "cloffset.h"
 #include "solvertypes.h"
-#include "vec.h"
 
 #include <limits>
 
@@ -38,6 +37,7 @@ enum WatchType {
     watch_clause_t = 0
     , watch_binary_t = 1
     , watch_tertiary_t = 2
+    , watch_idx_t = 3
 };
 
 /**
@@ -64,7 +64,7 @@ class Watched {
         /**
         @brief Constructor for a long (>3) clause
         */
-        Watched(const ClOffset offset, CL_ABST_TYPE abst) :
+        Watched(const ClOffset offset, cl_abst_type abst) :
             data1(abst)
             , type(watch_clause_t)
             , data2(offset)
@@ -93,6 +93,15 @@ class Watched {
             data1(lit1.toInt())
             , type(watch_tertiary_t)
             , data2((lit2.toInt() << 1) | (uint32_t)red)
+        {
+        }
+
+        /**
+        @brief Constructor for an OR gate
+        */
+        Watched(const uint32_t or_gate_idx) :
+            data1(or_gate_idx)
+            , type(watch_idx_t)
         {
         }
 
@@ -140,6 +149,19 @@ class Watched {
             return (type == watch_tertiary_t);
         }
 
+        bool isIdx() const
+        {
+            return (type == watch_idx_t);
+        }
+
+        uint32_t get_idx() const
+        {
+            #ifdef DEBUG_WATCHED
+            assert(type == watch_idx_t);
+            #endif
+            return data1;
+        }
+
         /**
         @brief Get the sole other lit of the binary clause, or get lit2 of the tertiary clause
         */
@@ -174,14 +196,10 @@ class Watched {
         {
             #ifdef DEBUG_WATCHED
             assert(isBinary() || isTri());
-            assert(toSet == false);
             assert(red());
             #endif
-            if (toSet) {
-                data2 |= 1U;
-            } else {
-                data2 &= (~(1U));
-            }
+            assert(toSet == false);
+            data2 &= (~(1U));
         }
 
         /**
@@ -203,6 +221,30 @@ class Watched {
             data2 = (lit2.toInt()<<1) | (data2&1);
         }
 
+        void mark_bin_cl()
+        {
+            #ifdef DEBUG_WATCHED
+            assert(isBinary());
+            #endif
+            data2 |= 2;
+        }
+
+        void unmark_bin_cl()
+        {
+            #ifdef DEBUG_WATCHED
+            assert(isBinary());
+            #endif
+            data2 &= 1;
+        }
+
+        bool bin_cl_marked() const
+        {
+            #ifdef DEBUG_WATCHED
+            assert(isBinary());
+            #endif
+            return data2&2;
+        }
+
         /**
         @brief Get example literal (blocked lit) of a normal >3-long clause
         */
@@ -214,7 +256,7 @@ class Watched {
             return Lit::toLit(data1);
         }
 
-        CL_ABST_TYPE getAbst() const
+        cl_abst_type getAbst() const
         {
             #ifdef DEBUG_WATCHED
             assert(isClause());
@@ -225,7 +267,7 @@ class Watched {
         /**
         @brief Get offset of a >3-long normal clause or of an xor clause (which may be 3-long)
         */
-        ClOffset getOffset() const
+        ClOffset get_offset() const
         {
             #ifdef DEBUG_WATCHED
             assert(isClause());
@@ -307,7 +349,7 @@ inline std::ostream& operator<<(std::ostream& os, const Watched& ws)
 {
 
     if (ws.isClause()) {
-        os << "Clause offset " << ws.getOffset();
+        os << "Clause offset " << ws.get_offset();
     }
 
     if (ws.isBinary()) {

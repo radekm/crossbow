@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -31,6 +31,7 @@
 #include "varreplacer.h"
 #include "clausecleaner.h"
 #include "clauseallocator.h"
+#include "sqlstats.h"
 
 using namespace CMSat;
 
@@ -46,13 +47,72 @@ using std::endl;
 //#define PART_FINDING
 
 CompFinder::CompFinder(Solver* _solver) :
-    timeUsed(0)
-    , timedout(false)
+    timedout(false)
+    , seen(_solver->seen)
     , solver(_solver)
 {
 }
 
-bool CompFinder::findComps()
+void CompFinder::time_out_print(const double myTime) const
+{
+    if (solver->conf.verbosity >= 2) {
+        cout
+        << "c [comp] Timed out finding components "
+        << "BP: "
+        << std::setprecision(2) << std::fixed
+        << (double)(orig_bogoprops-bogoprops_remain)/(1000.0*1000.0)
+        << "M"
+        << solver->conf.print_times(cpuTime() - myTime)
+        << endl;
+    }
+}
+
+void CompFinder::print_found_components() const
+{
+    size_t notPrinted = 0;
+    size_t totalSmallSize = 0;
+    size_t i = 0;
+    size_t print_limit = 300;
+    for(map<uint32_t, vector<Var> >::const_iterator
+        it = reverseTable.begin(), end = reverseTable.end()
+        ; it != end
+        ; ++it, i++
+    ) {
+        if (it->second.size() < print_limit || solver->conf.verbosity >= 3) {
+            totalSmallSize += it->second.size();
+            notPrinted++;
+        } else {
+            cout
+            << "c [comp] large component " << std::setw(5) << i
+            << " size: " << std::setw(10) << it->second.size()
+            << endl;
+        }
+    }
+
+    if (solver->conf.verbosity < 3 && notPrinted > 0) {
+        cout
+        << "c [comp] Unprinted small (<" << print_limit << " var) components:" << notPrinted
+        << " vars: " << totalSmallSize
+        << endl;
+    }
+}
+
+bool CompFinder::reverse_table_is_correct() const
+{
+    for (map<uint32_t, vector<Var> >::const_iterator
+        it = reverseTable.begin()
+        ; it != reverseTable.end()
+        ; ++it
+    ) {
+        for (size_t i2 = 0; i2 < it->second.size(); i2++) {
+            assert(table[(it->second)[i2]] == it->first);
+        }
+    }
+
+    return true;
+}
+
+bool CompFinder::find_components()
 {
     const double myTime = cpuTime();
 
@@ -62,108 +122,76 @@ bool CompFinder::findComps()
     comp_no = 0;
     used_comp_no = 0;
 
-    solver->clauseCleaner->removeAndCleanAll();
+    solver->clauseCleaner->remove_and_clean_all();
 
     if (solver->conf.doFindAndReplaceEqLits
-        && !solver->varReplacer->performReplace()
+        && !solver->varReplacer->replace_if_enough_is_found()
     ) {
         return false;
     }
 
     //Add the clauses to the sets
-    timeUsed = 0;
+    bogoprops_remain =
+        solver->conf.comp_find_time_limitM*1000ULL*1000ULL
+        *solver->conf.global_timeout_multiplier;
+    orig_bogoprops = bogoprops_remain;
     timedout = false;
-    addToCompClauses(solver->longIrredCls);
+    add_clauses_to_component(solver->longIrredCls);
     addToCompImplicits();
+    print_and_add_to_sql_result(myTime);
 
-    //We timed-out while searching, internal datas are wrong!
-    if (timedout) {
-        if (solver->conf.verbosity >= 2) {
-            cout
-            << "c [comp] Timed out finding components, BP: "
-            << std::setprecision(2) << std::fixed
-            << (double)timeUsed/(1000.0*1000.0)
-            << "M T: "
-            << std::setprecision(2) << std::fixed
-            << cpuTime() - myTime
-            << endl;
-        }
-
-        return solver->okay();
-    }
-
-    //const uint32_t comps = setComps();
-
-    #ifndef NDEBUG
-    for (map<uint32_t, vector<Var> >::const_iterator
-        it = reverseTable.begin()
-        ; it != reverseTable.end()
-        ; it++
-    ) {
-        for (size_t i2 = 0; i2 < it->second.size(); i2++) {
-            assert(table[(it->second)[i2]] == it->first);
-        }
-    }
-    #endif
-
-    if (solver->conf.verbosity  >= 2
-        || (solver->conf.verbosity  >=1 && used_comp_no > 1)
-    ) {
-        cout
-        << "c [comp] Found component(s): " <<  reverseTable.size()
-        << " BP: "
-        << std::setprecision(2) << std::fixed
-        << (double)timeUsed/(1000.0*1000.0)<< "M"
-        << " time: "
-        << std::setprecision(2) << std::fixed << cpuTime() - myTime
-        << " s"
-        << endl;
-
-        if (reverseTable.size() == 1) {
-            return solver->okay();
-        }
-
-        size_t notPrinted = 0;
-        size_t totalSmallSize = 0;
-        size_t i = 0;
-        size_t print_limit = 300;
-        for(map<uint32_t, vector<Var> >::const_iterator
-            it = reverseTable.begin(), end = reverseTable.end()
-            ; it != end
-            ; it++, i++
-        ) {
-            if (it->second.size() < print_limit || solver->conf.verbosity >= 3) {
-                totalSmallSize += it->second.size();
-                notPrinted++;
-            } else {
-                cout
-                << "c [comp] large component " << std::setw(5) << i
-                << " size: " << std::setw(10) << it->second.size()
-                << endl;
-            }
-        }
-
-        if (solver->conf.verbosity < 3 && notPrinted > 0) {
-            cout
-            << "c [comp] Unprinted small (<" << print_limit << " var) components:" << notPrinted
-            << " vars: " << totalSmallSize
-            << endl;
-        }
-    }
-
-    return true;
+    return solver->okay();
 }
 
-void CompFinder::addToCompClauses(const vector<ClOffset>& cs)
+void CompFinder::print_and_add_to_sql_result(const double myTime) const
+{
+    const double time_used = cpuTime() - myTime;
+    const double time_remain = (double)bogoprops_remain/((double)orig_bogoprops);
+
+    if (timedout) {
+        time_out_print(myTime);
+    } else {
+        assert(reverse_table_is_correct());
+
+        if (solver->conf.verbosity >= 2
+            || (solver->conf.verbosity >=1 && used_comp_no > 1)
+        ) {
+            cout
+            << "c [comp] Found component(s): " <<  reverseTable.size()
+            << " BP: "
+            << std::setprecision(2) << std::fixed
+            << (double)(orig_bogoprops-bogoprops_remain)/(1000.0*1000.0)<< "M"
+            << " T-r: " << time_remain*100.0 << "%"
+            << solver->conf.print_times(time_used)
+            << endl;
+
+            if (reverseTable.size() != 1) {
+                print_found_components();
+            }
+        }
+    }
+
+    if (solver->sqlStats) {
+        solver->sqlStats->time_passed(
+            solver
+            , "compfinder"
+            , time_used
+            , timedout
+            , time_remain
+        );
+     }
+}
+
+void CompFinder::add_clauses_to_component(const vector<ClOffset>& cs)
 {
     for (ClOffset offset: cs) {
-        if (timeUsed/(1000ULL*1000ULL) > solver->conf.compFindLimitMega) {
+        if (bogoprops_remain <= 0) {
             timedout = true;
             break;
         }
-        timeUsed += 10;
-        Clause* cl = solver->clAllocator.getPointer(offset);
-        addToCompClause(*cl);
+        bogoprops_remain -= 10;
+        Clause* cl = solver->cl_alloc.ptr(offset);
+        add_clause_to_component(*cl);
     }
 }
 
@@ -173,12 +201,12 @@ void CompFinder::addToCompImplicits()
     vector<uint16_t>& seen = solver->seen;
 
     for (size_t var = 0; var < solver->nVars(); var++) {
-        if (timeUsed/(1000ULL*1000ULL) > solver->conf.compFindLimitMega) {
+        if (bogoprops_remain <= 0) {
             timedout = true;
             break;
         }
 
-        timeUsed += 2;
+        bogoprops_remain -= 2;
         Lit lit(var, false);
         lits.clear();
         lits.push_back(lit);
@@ -190,7 +218,7 @@ void CompFinder::addToCompImplicits()
             if (ws.empty())
                 continue;
 
-            timeUsed += ws.size() + 10;
+            bogoprops_remain -= ws.size() + 10;
             for(watch_subarray::const_iterator
                 it2 = ws.begin(), end2 = ws.end()
                 ; it2 != end2
@@ -233,83 +261,89 @@ void CompFinder::addToCompImplicits()
             for(vector<Lit>::const_iterator
                 it = lits.begin(), end = lits.end()
                 ; it != end
-                ; it++
+                ; ++it
             ) {
                 seen[it->var()] = 0;
             }
 
-            addToCompClause(lits);
+            add_clause_to_component(lits);
         }
 
     }
 }
 
 template<class T>
-void CompFinder::addToCompClause(const T& cl)
+bool CompFinder::belong_to_same_component(const T& cl)
+{
+    if (table[cl[0].var()] != std::numeric_limits<uint32_t>::max()) {
+        bogoprops_remain -= cl.size()/2 + 1;
+        const uint32_t comp = table[cl[0].var()];
+
+        for (const Lit l: cl) {
+            if (table[l.var()] != comp) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+template<class T>
+void CompFinder::fill_newset_and_tomerge(const T& cl)
+{
+    bogoprops_remain -= cl.size()*2;
+
+    for (const Lit lit: cl) {
+        if (table[lit.var()] != std::numeric_limits<uint32_t>::max()
+        ) {
+            if (!seen[table[lit.var()]]) {
+                tomerge.push_back(table[lit.var()]);
+                seen[table[lit.var()]] = 1;
+            }
+        } else {
+            newSet.push_back(lit.var());
+        }
+    }
+}
+
+void CompFinder::merge_newset_into_single_component()
+{
+    const uint32_t into = tomerge[0];
+    seen[into] = 0;
+    map<uint32_t, vector<Var> >::iterator intoReverse
+        = reverseTable.find(into);
+
+    //Put the new lits into this set
+    for (const Var v: newSet) {
+        intoReverse->second.push_back(v);
+        table[v] = into;
+    }
+}
+
+template<class T>
+void CompFinder::add_clause_to_component(const T& cl)
 {
     assert(cl.size() > 1);
     tomerge.clear();
     newSet.clear();
-    vector<uint16_t>& seen = solver->seen;
-    timeUsed += cl.size()/2 + 1;
 
-    //Do they all belong to the same place?
-    bool allsame = false;
-    if (table[cl[0].var()] != std::numeric_limits<uint32_t>::max()) {
-        uint32_t comp = table[cl[0].var()];
-        allsame = true;
-        for (typename T::const_iterator
-            it = cl.begin(), end = cl.end()
-            ; it != end
-            ; it++
-        ) {
-            if (table[it->var()] != comp) {
-                allsame = false;
-                break;
-            }
-        }
-    }
-
-    //They already all belong to the same comp, skip
-    if (allsame) {
+    if (belong_to_same_component(cl)) {
         return;
     }
 
-    //Where should each literal go?
-    timeUsed += cl.size()*2;
-    for (typename T::const_iterator
-        it = cl.begin(), end = cl.end()
-        ; it != end
-        ; it++
-    ) {
-        if (table[it->var()] != std::numeric_limits<uint32_t>::max()
-        ) {
-            if (!seen[table[it->var()]]) {
-                tomerge.push_back(table[it->var()]);
-                seen[table[it->var()]] = 1;
-            }
-        } else {
-            newSet.push_back(it->var());
-        }
-    }
+    fill_newset_and_tomerge(cl);
 
-    //no trees to merge, only merge the clause into one tree
+    //no sets to merge, only merge the clause into one tree
     if (tomerge.size() == 1) {
-        const uint32_t into = tomerge[0];
-        seen[into] = 0;
-        map<uint32_t, vector<Var> >::iterator intoReverse
-            = reverseTable.find(into);
-
-        //Put the new lits into this set
-        for (Var v: newSet) {
-            intoReverse->second.push_back(v);
-            table[v] = into;
-        }
+        merge_newset_into_single_component();
         return;
     }
 
     //Expensive merging coming up
-    timeUsed += 20;
+    bogoprops_remain -= 20;
 
     //Delete tables to merge and put their elements into newSet
     for (const uint32_t merge: tomerge) {
@@ -317,12 +351,12 @@ void CompFinder::addToCompClause(const T& cl)
         seen[merge] = 0;
 
         //Find in reverseTable
-        timeUsed += reverseTable.size()*2;
+        bogoprops_remain -= reverseTable.size()*2;
         map<uint32_t, vector<Var> >::iterator it2 = reverseTable.find(merge);
         assert(it2 != reverseTable.end());
 
         //Add them all
-        timeUsed += it2->second.size();
+        bogoprops_remain -= it2->second.size();
         newSet.insert(
             newSet.end()
             , it2->second.begin()
@@ -330,7 +364,7 @@ void CompFinder::addToCompClause(const T& cl)
         );
 
         //Delete this comp
-        timeUsed += reverseTable.size();
+        bogoprops_remain -= reverseTable.size();
         reverseTable.erase(it2);
         used_comp_no--;
     }
@@ -340,7 +374,7 @@ void CompFinder::addToCompClause(const T& cl)
         return;
 
     //Mark all lits not belonging to seen components as belonging to comp_no
-    timeUsed += newSet.size();
+    bogoprops_remain -= newSet.size();
     for (const Var v: newSet) {
         table[v] = comp_no;
     }

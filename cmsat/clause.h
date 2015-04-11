@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -28,6 +28,7 @@
 #include <string.h>
 #include <limits>
 
+#include "solverconf.h"
 #include "solvertypes.h"
 #include "constants.h"
 #include "watched.h"
@@ -42,13 +43,6 @@ class ClauseAllocator;
 template <class T>
 struct ResolutionTypes
 {
-    ResolutionTypes() :
-        bin(0)
-        , tri(0)
-        , irredL(0)
-        , redL(0)
-    {}
-
     void clear()
     {
         *this = ResolutionTypes<T>();
@@ -80,60 +74,76 @@ struct ResolutionTypes
         return *this;
     }
 
-    T bin;
-    T tri;
-    T irredL;
-    T redL;
+    T bin = 0;
+    T tri = 0;
+    T irredL = 0;
+    T redL = 0;
 };
 
 struct ClauseStats
 {
-    ClauseStats() :
-        glue(std::numeric_limits<uint16_t>::max())
-        , activity(0)
-        , conflictNumIntroduced(std::numeric_limits<uint32_t>::max())
-        , numProp(0)
-        , numConfl(0)
-        #ifdef STATS_NEEDED
-        , numLitVisited(0)
-        , numLookedAt(0)
-        #endif
-        , numUsedUIP(0)
-        , locked(false)
-    {}
-
-    uint32_t numPropAndConfl() const
-    {
-        return numProp + numConfl;
+    #ifdef STATS_NEEDED
+    double weighted_prop_and_confl(
+        const double prop_weight
+        , const double confl_weight
+    ) const {
+        return ((double)propagations_made)*prop_weight
+            + ((double)conflicts_made)*confl_weight;
     }
 
-    //Stored data
-    uint16_t glue;    ///<Clause glue
-    double   activity;
-    uint32_t conflictNumIntroduced; ///<At what conflict number the clause  was introduced
-    uint32_t numProp; ///<Number of times caused propagation
-    uint32_t numConfl; ///<Number of times caused conflict
-    #ifdef STATS_NEEDED
-    uint32_t numLitVisited; ///<Number of literals visited
-    uint32_t numLookedAt; ///<Number of times the clause has been deferenced during propagation
+    double calc_usefulness_depth() const
+    {
+        double useful = 0;
+        if (conflicts_made > 0) {
+            uint64_t sum_tmp = sum_of_branch_depth_conflict;
+            if (sum_tmp == 0) {
+                sum_tmp = 1;
+            }
+            useful += ((double)conflicts_made*(double)conflicts_made)/(double)sum_tmp;
+        }
+        return useful;
+    }
     #endif
-    uint32_t numUsedUIP; ///Number of times the claue was using during 1st UIP conflict generation
-    bool locked;
+
+    ClauseStats() :
+        glue(0x7fffff)
+        , used_for_uip_creation(0)
+        , locked(false)
+        , marked_clause(false)
+        , ttl(0)
+    {}
+
+    //Stored data
+    double   activity = 0.0;
+    #ifdef STATS_NEEDED
+    uint64_t introduced_at_conflict = std::numeric_limits<uint32_t>::max(); ///<At what conflict number the clause  was introduced
+    uint32_t conflicts_made = 0; ///<Number of times caused conflict
+    uint64_t sum_of_branch_depth_conflict = 0;
+    uint32_t propagations_made = 0; ///<Number of times caused propagation
+    uint64_t visited_literals = 0; ///<Number of literals visited
+    uint64_t clause_looked_at = 0; ///<Number of times the clause has been deferenced during propagation
+    #endif
+    uint32_t glue:23;
+    uint32_t used_for_uip_creation:6; ///Number of times the claue was using during 1st UIP conflict generation
+    uint32_t locked:1;
+    uint32_t marked_clause:1;
+    uint32_t ttl:1;
 
     ///Number of resolutions it took to make the clause when it was
     ///originally learnt. Only makes sense for redundant clauses
     ResolutionTypes<uint16_t> resolutions;
 
-    void clearAfterReduceDB()
+    void clear(const double multiplier)
     {
         activity = 0;
-        numProp = 0;
-        numConfl = 0;
         #ifdef STATS_NEEDED
-        numLitVisited = 0;
-        numLookedAt = 0;
+        conflicts_made = (double)conflicts_made * multiplier;
+        sum_of_branch_depth_conflict = (double)sum_of_branch_depth_conflict * multiplier;
+        propagations_made = (double)propagations_made * multiplier;
+        visited_literals = 0;
+        clause_looked_at = 0;
         #endif
-        numUsedUIP = 0;
+        used_for_uip_creation = (double)used_for_uip_creation*multiplier;
     }
 
     static ClauseStats combineStats(const ClauseStats& first, const ClauseStats& second)
@@ -144,32 +154,33 @@ struct ClauseStats
         //Combine stats
         ret.glue = std::min(first.glue, second.glue);
         ret.activity = std::max(first.activity, second.activity);
-        ret.conflictNumIntroduced = std::min(first.conflictNumIntroduced, second.conflictNumIntroduced);
-        ret.numProp = first.numProp + second.numProp;
-        ret.numConfl = first.numConfl + second.numConfl;
         #ifdef STATS_NEEDED
-        ret.numLitVisited = first.numLitVisited + second.numLitVisited;
-        ret.numLookedAt = first.numLookedAt + second.numLookedAt;
+        ret.introduced_at_conflict = std::min(first.introduced_at_conflict, second.introduced_at_conflict);
+        ret.conflicts_made = first.conflicts_made + second.conflicts_made;
+        ret.sum_of_branch_depth_conflict = first.sum_of_branch_depth_conflict  + second.sum_of_branch_depth_conflict;
+        ret.propagations_made = first.propagations_made + second.propagations_made;
+        ret.visited_literals = first.visited_literals + second.visited_literals;
+        ret.clause_looked_at = first.clause_looked_at + second.clause_looked_at;
         #endif
-        ret.numUsedUIP = first.numUsedUIP + second.numUsedUIP;
+        ret.used_for_uip_creation = first.used_for_uip_creation + second.used_for_uip_creation;
         ret.locked = first.locked | second.locked;
 
         return ret;
-    };
+    }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const ClauseStats& stats)
 {
 
     os << "glue " << stats.glue << " ";
-    os << "conflIntro " << stats.conflictNumIntroduced<< " ";
-    os << "numProp " << stats.numProp<< " ";
-    os << "numConfl " << stats.numConfl<< " ";
     #ifdef STATS_NEEDED
-    os << "numLitVisit " << stats.numLitVisited<< " ";
-    os << "numLook " << stats.numLookedAt<< " ";
+    os << "conflIntro " << stats.introduced_at_conflict<< " ";
+    os << "numConfl " << stats.conflicts_made<< " ";
+    os << "numProp " << stats.propagations_made<< " ";
+    os << "numLitVisit " << stats.visited_literals<< " ";
+    os << "numLook " << stats.clause_looked_at<< " ";
     #endif
-    os << "numUsedUIP" << stats.numUsedUIP << " ";
+    os << "used_for_uip_creation" << stats.used_for_uip_creation << " ";
 
     return os;
 }
@@ -186,12 +197,12 @@ class Clause
 {
 protected:
 
+    uint32_t mySize;
     uint16_t isRed:1; ///<Is the clause a redundant clause?
     uint16_t isRemoved:1; ///<Is this clause queued for removal because of usless binary removal?
     uint16_t isFreed:1; ///<Has this clause been marked as freed by the ClauseAllocator ?
-    uint16_t isAsymmed:1;
+    uint16_t is_distilled:1;
     uint16_t occurLinked:1;
-    uint16_t mySize; ///<The current size of the clause
 
 
     Lit* getData()
@@ -205,26 +216,32 @@ protected:
     }
 
 public:
-    //char defOfOrGate; //TODO make it into a bitfield above
-    CL_ABST_TYPE abst;
+    cl_abst_type abst;
     ClauseStats stats;
 
     template<class V>
-    Clause(const V& ps, const uint32_t _conflictNumIntroduced)
+    Clause(const V& ps
+        , const uint32_t
+        #ifdef STATS_NEEDED
+        _introduced_at_conflict
+        #endif
+        )
     {
         //assert(ps.size() > 2);
 
-        stats.conflictNumIntroduced = _conflictNumIntroduced;
-        stats.glue = std::min<uint16_t>(stats.glue, ps.size());
-        //defOfOrGate = false;
+        #ifdef STATS_NEEDED
+        stats.introduced_at_conflict = _introduced_at_conflict;
+        #endif
+        stats.glue = std::min<uint32_t>(stats.glue, ps.size());
         isFreed = false;
         mySize = ps.size();
         isRed = false;
         isRemoved = false;
-        isAsymmed = false;
+        is_distilled = false;
 
-        for (uint32_t i = 0; i < ps.size(); i++)
+        for (uint32_t i = 0; i < ps.size(); i++) {
             getData()[i] = ps[i];
+        }
 
         setChanged();
     }
@@ -232,9 +249,7 @@ public:
     typedef Lit* iterator;
     typedef const Lit* const_iterator;
 
-    friend class ClauseAllocator;
-
-    uint16_t size() const
+    uint32_t size() const
     {
         return mySize;
     }
@@ -317,11 +332,19 @@ public:
 
     const Lit* begin() const
     {
+        #ifdef SLOW_DEBUG
+        assert(!freed());
+        assert(!getRemoved());
+        #endif
         return getData();
     }
 
     Lit* begin()
     {
+        #ifdef SLOW_DEBUG
+        assert(!freed());
+        assert(!getRemoved());
+        #endif
         return getData();
     }
 
@@ -345,14 +368,14 @@ public:
         return isRemoved;
     }
 
+    void unset_removed()
+    {
+        isRemoved = false;
+    }
+
     void setFreed()
     {
         isFreed = true;
-    }
-
-    bool getFreed() const
-    {
-        return isFreed;
     }
 
     void combineStats(const ClauseStats& other)
@@ -360,14 +383,14 @@ public:
         stats = ClauseStats::combineStats(stats, other);
     }
 
-    void setAsymmed(bool asymmed)
+    void set_distilled(bool distilled)
     {
-        isAsymmed = asymmed;
+        is_distilled = distilled;
     }
 
-    bool getAsymmed() const
+    bool getdistilled() const
     {
-        return isAsymmed;
+        return is_distilled;
     }
 
     bool getOccurLinked() const
@@ -375,7 +398,7 @@ public:
         return occurLinked;
     }
 
-    void setOccurLinked(bool toset)
+    void set_occur_linked(bool toset)
     {
         occurLinked = toset;
     }
@@ -387,21 +410,21 @@ public:
         if (red()) {
             cout << " glue : " << std::setw(4) << stats.glue;
         }
-        cout
-        << " Props: " << std::setw(10) << stats.numProp
-        << " Confls: " << std::setw(10) << stats.numConfl
         #ifdef STATS_NEEDED
-        << " Lit visited: " << std::setw(10)<< stats.numLitVisited
-        << " Looked at: " << std::setw(10)<< stats.numLookedAt
+        cout
+        << " Confls: " << std::setw(10) << stats.conflicts_made
+        << " Props: " << std::setw(10) << stats.propagations_made
+        << " Lit visited: " << std::setw(10)<< stats.visited_literals
+        << " Looked at: " << std::setw(10)<< stats.clause_looked_at
         << " Props&confls/Litsvisited*10: ";
-        if (stats.numLitVisited > 0) {
+        if (stats.visited_literals > 0) {
             cout
             << std::setw(6) << std::fixed << std::setprecision(4)
-            << (10.0*(double)stats.numPropAndConfl()/(double)stats.numLitVisited);
+            << (10.0*(double)stats.weighted_prop_and_confl(1.0, 1.0)/(double)stats.visited_literals);
         }
-        #endif
         ;
-        cout << " UIP used: " << std::setw(10)<< stats.numUsedUIP;
+        #endif
+        cout << " UIP used: " << std::setw(10)<< stats.used_for_uip_creation;
         cout << endl;
     }
 };
@@ -418,360 +441,35 @@ inline std::ostream& operator<<(std::ostream& os, const Clause& cl)
     return os;
 }
 
-struct ClauseUsageStats
+struct BinaryXor
 {
-    ClauseUsageStats() :
-        num(0)
-        , sumProp(0)
-        , sumConfl(0)
-        , sumLitVisited(0)
-        , sumLookedAt(0)
-        , sumUsedUIP(0)
-    {}
+    Var vars[2];
+    bool rhs;
 
-    uint64_t sumPropAndConfl() const
-    {
-        return sumProp + sumConfl;
+    BinaryXor(Var var1, Var var2, const bool _rhs) {
+        if (var1 > var2) {
+            std::swap(var1, var2);
+        }
+        vars[0] = var1;
+        vars[1] = var2;
+        rhs = _rhs;
     }
 
-    uint64_t num;
-    uint64_t sumProp;
-    uint64_t sumConfl;
-    uint64_t sumLitVisited;
-    uint64_t sumLookedAt;
-    uint64_t sumUsedUIP;
-
-    ClauseUsageStats& operator+=(const ClauseUsageStats& other)
+    bool operator<(const BinaryXor& other) const
     {
-        num += other.num;
-        sumProp += other.sumProp;
-        sumConfl += other.sumConfl;
-        sumLitVisited += other.sumLitVisited;
-        sumLookedAt += other.sumLookedAt;
-        sumUsedUIP += other.sumUsedUIP;
-
-        return *this;
-    }
-
-    void addStat(const Clause& cl)
-    {
-        num++;
-        sumProp += cl.stats.numProp;
-        sumConfl += cl.stats.numConfl;
-        #ifdef STATS_NEEDED
-        sumLitVisited += cl.stats.numLitVisited;
-        sumLookedAt += cl.stats.numLookedAt;
-        #endif
-        sumUsedUIP += cl.stats.numUsedUIP;
-    }
-
-    void print() const
-    {
-        cout
-        #ifdef STATS_NEEDED
-        << " lits visit: "
-        << std::setw(8) << sumLitVisited/1000UL
-        << "K"
-
-        << " cls visit: "
-        << std::setw(7) << sumLookedAt/1000UL
-        << "K"
-        #endif
-
-        << " prop: "
-        << std::setw(5) << sumProp/1000UL
-        << "K"
-
-        << " conf: "
-        << std::setw(5) << sumConfl/1000UL
-        << "K"
-
-        << " UIP used: "
-        << std::setw(5) << sumUsedUIP/1000UL
-        << "K"
-        << endl;
-    }
-};
-
-enum ClauseCleaningTypes {
-    CLEAN_CLAUSES_GLUE_BASED
-    , CLEAN_CLAUSES_SIZE_BASED
-    , CLEAN_CLAUSES_PROPCONFL_BASED
-    ,  CLEAN_CLAUSES_ACTIVITY_BASED
-};
-
-inline std::string getNameOfCleanType(ClauseCleaningTypes clauseCleaningType)
-{
-    switch(clauseCleaningType) {
-        case CLEAN_CLAUSES_GLUE_BASED :
-            return "glue";
-
-        case CLEAN_CLAUSES_SIZE_BASED:
-            return "size";
-
-        case CLEAN_CLAUSES_PROPCONFL_BASED:
-            return "propconfl";
-
-        case CLEAN_CLAUSES_ACTIVITY_BASED:
-            return "activity";
-
-        default:
-            assert(false && "Unknown clause cleaning type?");
-    };
-
-    return "";
-}
-
-struct CleaningStats
-{
-    struct Data
-    {
-        Data() :
-            num(0)
-            , lits(0)
-            , age(0)
-
-            , glue(0)
-            , numProp(0)
-            , numConfl(0)
-            , numLitVisited(0)
-            , numLookedAt(0)
-            , numUsedUIP(0)
-
-            , act(0)
-        {}
-
-        uint64_t sumResolutions() const
-        {
-            return resol.sum();
+        if (vars[0] != other.vars[0]) {
+            return vars[0] < other.vars[0];
         }
 
-        Data& operator+=(const Data& other)
-        {
-            num += other.num;
-            lits += other.lits;
-            age += other.age;
-
-            glue += other.glue;
-            numProp += other.numProp;
-            numConfl += other.numConfl;
-            numLitVisited += other.numLitVisited;
-            numLookedAt += other.numLookedAt;
-            numUsedUIP += other.numUsedUIP;
-            resol += other.resol;
-
-            act += other.act;
-
-            return *this;
+        if (vars[1] != other.vars[1]) {
+            return vars[1] < other.vars[1];
         }
 
-        uint64_t num;
-        uint64_t lits;
-        uint64_t age;
-
-        uint64_t glue;
-        uint64_t numProp;
-        uint64_t numConfl;
-        uint64_t numLitVisited;
-        uint64_t numLookedAt;
-        uint64_t numUsedUIP;
-        ResolutionTypes<uint64_t> resol;
-        double   act;
-
-        void incorporate(const Clause* cl)
-        {
-            num ++;
-            lits += cl->size();
-            glue += cl->stats.glue;
-            act += cl->stats.activity;
-            numConfl += cl->stats.numConfl;
-            #ifdef STATS_NEEDED
-            numLitVisited += cl->stats.numLitVisited;
-            numLookedAt += cl->stats.numLookedAt;
-            #endif
-            numProp += cl->stats.numProp;
-            resol += cl->stats.resolutions;
-            numUsedUIP += cl->stats.numUsedUIP;
+        if (rhs != other.rhs) {
+            return (int)rhs < (int)other.rhs;
         }
-
-
-    };
-    CleaningStats() :
-        cpu_time(0)
-        //Before remove
-        , origNumClauses(0)
-        , origNumLits(0)
-
-        //Type of clean
-        , glueBasedClean(0)
-        , sizeBasedClean(0)
-        , propConflBasedClean(0)
-        , actBasedClean(0)
-    {}
-
-    CleaningStats& operator+=(const CleaningStats& other)
-    {
-        //Time
-        cpu_time += other.cpu_time;
-
-        //Before remove
-        origNumClauses += other.origNumClauses;
-        origNumLits += other.origNumLits;
-
-        //Type of clean
-        glueBasedClean += other.glueBasedClean;
-        sizeBasedClean += other.sizeBasedClean;
-        propConflBasedClean += other.propConflBasedClean;
-        actBasedClean += other.actBasedClean;
-
-        //Clause Cleaning data
-        preRemove += other.preRemove;
-        removed += other.removed;
-        remain += other.remain;
-
-        return *this;
+        return false;
     }
-
-    void print(const size_t nbReduceDB) const
-    {
-        cout << "c ------ CLEANING STATS ---------" << endl;
-        //Pre-clean
-        printStatsLine("c pre-removed"
-            , preRemove.num
-            , (double)preRemove.num/(double)origNumClauses*100.0
-            , "% long redundant clauses"
-        );
-
-        printStatsLine("c pre-removed lits"
-            , preRemove.lits
-            , (double)preRemove.lits/(double)origNumLits*100.0
-            , "% long red lits"
-        );
-        printStatsLine("c pre-removed cl avg size"
-            , (double)preRemove.lits/(double)preRemove.num
-        );
-        printStatsLine("c pre-removed cl avg glue"
-            , (double)preRemove.glue/(double)preRemove.num
-        );
-        printStatsLine("c pre-removed cl avg num resolutions"
-            , (double)preRemove.sumResolutions()/(double)preRemove.num
-        );
-
-        //Types of clean
-        printStatsLine("c clean by glue"
-            , glueBasedClean
-            , (double)glueBasedClean/(double)nbReduceDB*100.0
-            , "% cleans"
-        );
-        printStatsLine("c clean by size"
-            , sizeBasedClean
-            , (double)sizeBasedClean/(double)nbReduceDB*100.0
-            , "% cleans"
-        );
-        printStatsLine("c clean by prop&confl"
-            , propConflBasedClean
-            , (double)propConflBasedClean/(double)nbReduceDB*100.0
-            , "% cleans"
-        );
-
-        //--- Actual clean --
-
-        //-->CLEAN
-        printStatsLine("c cleaned cls"
-            , removed.num
-            , (double)removed.num/(double)origNumClauses*100.0
-            , "% long redundant clauses"
-        );
-        printStatsLine("c cleaned lits"
-            , removed.lits
-            , (double)removed.lits/(double)origNumLits*100.0
-            , "% long red lits"
-        );
-        printStatsLine("c cleaned cl avg size"
-            , (double)removed.lits/(double)removed.num
-        );
-        printStatsLine("c cleaned avg glue"
-            , (double)removed.glue/(double)removed.num
-        );
-
-        //--> REMAIN
-        printStatsLine("c remain cls"
-            , remain.num
-            , (double)remain.num/(double)origNumClauses*100.0
-            , "% long redundant clauses"
-        );
-        printStatsLine("c remain lits"
-            , remain.lits
-            , (double)remain.lits/(double)origNumLits*100.0
-            , "% long red lits"
-        );
-        printStatsLine("c remain cl avg size"
-            , (double)remain.lits/(double)remain.num
-        );
-        printStatsLine("c remain avg glue"
-            , (double)remain.glue/(double)remain.num
-        );
-
-        cout << "c ------ CLEANING STATS END ---------" << endl;
-    }
-
-    void printShort() const
-    {
-        //Pre-clean
-        cout
-        << "c [DBclean]"
-        << " Pre-removed: "
-        << preRemove.num
-        << " clean type will be " << getNameOfCleanType(clauseCleaningType)
-        << endl;
-
-        cout
-        << "c [DBclean]"
-        << " rem " << removed.num
-
-        << " avgGlue " << std::fixed << std::setprecision(2)
-        << ((double)removed.glue/(double)removed.num)
-
-        << " avgSize "
-        << std::fixed << std::setprecision(2)
-        << ((double)removed.lits/(double)removed.num)
-        << endl;
-
-        cout
-        << "c [DBclean]"
-        << " remain " << remain.num
-
-        << " avgGlue " << std::fixed << std::setprecision(2)
-        << ((double)remain.glue/(double)remain.num)
-
-        << " avgSize " << std::fixed << std::setprecision(2)
-        << ((double)remain.lits/(double)remain.num)
-
-        << " T " << std::fixed << std::setprecision(2)
-        << cpu_time
-        << endl;
-    }
-
-    //Time
-    double cpu_time;
-
-    //Before remove
-    uint64_t origNumClauses;
-    uint64_t origNumLits;
-
-    //Clause Cleaning --pre-remove
-    Data preRemove;
-
-    //Clean type
-    ClauseCleaningTypes clauseCleaningType;
-    size_t glueBasedClean;
-    size_t sizeBasedClean;
-    size_t propConflBasedClean;
-    size_t actBasedClean;
-
-    //Clause Cleaning
-    Data removed;
-    Data remain;
 };
 
 } //end namespace

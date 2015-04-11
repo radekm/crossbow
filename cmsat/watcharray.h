@@ -1,8 +1,38 @@
+/*************************************************************
+MiniSat       --- Copyright (c) 2003-2006, Niklas Een, Niklas Sorensson
+CryptoMiniSat --- Copyright (c) 2014, Mate Soos
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+***************************************************************/
+
 #ifndef __WATCHARRAY_H__
 #define __WATCHARRAY_H__
 
 #include "watched.h"
 #include <vector>
+
+#ifdef USE_TBB
+#include "tbb/scalable_allocator.h"
+#define TBB ,tbb::scalable_allocator<Watched>
+#else
+#define TBB
+#endif
 
 namespace CMSat {
 using namespace CMSat;
@@ -10,14 +40,19 @@ using std::vector;
 
 struct watch_subarray
 {
-    explicit watch_subarray(vector<Watched>& _array) :
+    explicit watch_subarray(vector<Watched TBB>& _array) :
         array(_array)
     {}
 
-    vector<Watched>& array;
+    vector<Watched TBB>& array;
     Watched& operator[](const size_t at)
     {
         return array[at];
+    }
+
+    Watched& at(const size_t at)
+    {
+        return array.at(at);
     }
 
     void clear()
@@ -76,19 +111,24 @@ struct watch_subarray
 
 struct watch_subarray_const
 {
-    explicit watch_subarray_const(const vector<Watched>& _array) :
+    explicit watch_subarray_const(const vector<Watched TBB >& _array) :
         array(_array)
     {}
 
-    const vector<Watched>& array;
+    const vector<Watched TBB >& array;
 
     watch_subarray_const(const watch_subarray& other) :
         array(other.array)
     {}
 
-    const Watched& operator[](const size_t at) const
+    const Watched& operator[](const size_t pos) const
     {
-        return array[at];
+        return array[pos];
+    }
+
+    const Watched& at(const size_t pos) const
+    {
+        return array.at(pos);
     }
 
     size_t size() const
@@ -114,13 +154,41 @@ struct watch_subarray_const
     typedef const Watched* const_iterator;
 };
 
-struct watch_array
+class watch_array
 {
-    vector<vector<Watched> > watches;
+public:
+    vector<vector<Watched TBB > > watches;
+    vector<Lit> smudged_list;
+    vector<char> smudged;
 
-    watch_subarray operator[](size_t at)
+    void smudge(const Lit lit) {
+        if (!smudged[lit.toInt()]) {
+            smudged_list.push_back(lit);
+            smudged[lit.toInt()] = true;
+        }
+    }
+
+    const vector<Lit>& get_smudged_list() const {
+        return smudged_list;
+    }
+
+    void clear_smudged()
     {
-        return watch_subarray(watches[at]);
+        for(const Lit lit: smudged_list) {
+            assert(smudged[lit.toInt()]);
+            smudged[lit.toInt()] = false;
+        }
+        smudged_list.clear();
+    }
+
+    watch_subarray operator[](size_t pos)
+    {
+        return watch_subarray(watches[pos]);
+    }
+
+    watch_subarray at(size_t pos)
+    {
+        return watch_subarray(watches.at(pos));
     }
 
     watch_subarray_const operator[](size_t at) const
@@ -128,17 +196,27 @@ struct watch_array
         return watch_subarray_const(watches[at]);
     }
 
-    void resize(const size_t new_size)
+    watch_subarray_const at(size_t pos) const
     {
-        watches.resize(new_size);
+        return watch_subarray_const(watches.at(pos));
     }
 
-    size_t memUsed() const
+    void resize(const size_t new_size)
     {
-        size_t mem = watches.capacity()*sizeof(vector<Watched>);
+        assert(smudged_list.empty());
+        watches.resize(new_size);
+        smudged.resize(new_size, false);
+    }
+
+    size_t mem_used() const
+    {
+        double mem = watches.capacity()*sizeof(vector<Watched TBB >);
         for(size_t i = 0; i < watches.size(); i++) {
-            mem += watches[i].capacity()*sizeof(Watched);
+            //1.2 is overhead
+            mem += (double)watches[i].capacity()*(double)sizeof(Watched)*1.2;
         }
+        mem += smudged.capacity()*sizeof(char);
+        mem += smudged_list.capacity()*sizeof(Lit);
         return mem;
     }
 
@@ -154,8 +232,8 @@ struct watch_array
 
     struct iterator
     {
-        vector<vector<Watched> >::iterator it;
-        explicit iterator(vector<vector<Watched> >::iterator _it) :
+        vector<vector<Watched TBB > >::iterator it;
+        explicit iterator(vector<vector<Watched TBB > >::iterator _it) :
             it(_it)
         {}
 
@@ -185,8 +263,8 @@ struct watch_array
 
     struct const_iterator
     {
-        vector<vector<Watched> >::const_iterator it;
-        explicit const_iterator(vector<vector<Watched> >::const_iterator _it) :
+        vector<vector<Watched TBB > >::const_iterator it;
+        explicit const_iterator(vector<vector<Watched TBB > >::const_iterator _it) :
             it(_it)
         {}
 
@@ -268,7 +346,8 @@ struct watch_array
     size_t mem_used_array() const
     {
         size_t mem = 0;
-        mem += watches.capacity()*sizeof(Watched);
+        mem += watches.capacity()*sizeof(vector<Watched>);
+        mem += sizeof(watch_array);
         return mem;
     }
 };

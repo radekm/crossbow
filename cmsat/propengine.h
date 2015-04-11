@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -34,10 +34,8 @@
 
 #include "avgcalc.h"
 #include "propby.h"
-#include "vec.h"
 #include "heap.h"
 #include "alg.h"
-#include "MersenneTwister.h"
 #include "clause.h"
 #include "boundedqueue.h"
 #include "cnf.h"
@@ -50,6 +48,7 @@ class SQLStats;
 
 //#define VERBOSE_DEBUG_FULLPROP
 //#define DEBUG_STAMPING
+//#define VERBOSE_DEBUG
 
 #ifdef VERBOSE_DEBUG
 #define VERBOSE_DEBUG_FULLPROP
@@ -67,34 +66,6 @@ enum PropResult {
     , PROP_TODO = 3
 };
 
-struct PolaritySorter
-{
-    PolaritySorter(const vector<VarData>& _varData) :
-        varData(_varData)
-    {};
-
-    bool operator()(const Lit lit1, const Lit lit2) {
-        const bool value1 = varData[lit1.var()].polarity ^ lit1.sign();
-        const bool value2 = varData[lit2.var()].polarity ^ lit2.sign();
-
-        //Strongly prefer TRUE value at the beginning
-        if (value1 == true && value2 == false)
-            return true;
-
-        if (value1 == false && value2 == true)
-            return false;
-
-        //Tie 2: last level
-        /*assert(pol1 == pol2);
-        if (pol1 == true) return varData[lit1.var()].level < varData[lit2.var()].level;
-        else return varData[lit1.var()].level > varData[lit2.var()].level;*/
-
-        return false;
-    }
-
-    const vector<VarData>& varData;
-};
-
 /**
 @brief The propagating and conflict generation class
 
@@ -107,7 +78,8 @@ public:
     // Constructor/Destructor:
     //
     PropEngine(
-        const SolverConf& _conf
+        const SolverConf* _conf
+        , bool* _needToInterrupt
     );
     ~PropEngine();
 
@@ -116,23 +88,26 @@ public:
     uint32_t nAssigns   () const;         ///<The current number of assigned literals.
 
     //Get state
-    uint32_t    getVerbosity() const;
-    uint32_t    getBinWatchSize(const bool alsoRed, const Lit lit) const;
     uint32_t    decisionLevel() const;      ///<Returns current decision level
-    vector<Lit> getUnitaries() const;       ///<Return the set of unitary clauses
-    uint32_t    getNumUnitaries() const;    ///<Return the set of unitary clauses
     size_t      getTrailSize() const;       ///<Return trail size (MUST be called at decision level 0)
     bool        getStoredPolarity(const Var var);
-    void        resetClauseDataStats(size_t clause_num);
+    size_t trail_size() const {
+        return trail.size();
+    }
+    bool propagate_occur();
+    PropStats propStats;
+    template<bool update_bogoprops = true>
+    void enqueue(const Lit p, const PropBy from = PropBy());
+    void new_decision_level();
+    bool update_polarity_and_activity = true;
 
 protected:
-    virtual void newVar(const bool bva, Var orig_outer);
-    void saveVarMem();
-    //Non-categorised functions
-    void     cancelZeroLight(); ///<Backtrack until level 0, without updating agility, etc.
-    template<class T> uint16_t calcGlue(const T& ps); ///<Calculates the glue of a clause
-    friend class SQLStats;
-    PropStats propStats;
+    virtual Lit find_good_blocked_lit(const Clause& c) const  = 0;
+    void new_var(const bool bva, const Var orig_outer) override;
+    void new_vars(const size_t n) override;
+    void save_on_var_memory();
+    template<class T> uint32_t calc_glue_using_seen2(const T& ps);
+    template<class T> uint32_t calc_glue_using_seen2_upper_bit_no_zero_lev(const T& ps);
 
     //Stats for conflicts
     ConflCausedBy lastConflictCausedBy;
@@ -144,8 +119,7 @@ protected:
     uint32_t            qhead;            ///< Head of queue (as index into the trail)
     Lit                 failBinLit;       ///< Used to store which watches[lit] we were looking through when conflict occured
 
-    void   enqueue (const Lit p, const PropBy from = PropBy());
-    void   newDecisionLevel();
+    template<bool update_bogoprops>
     PropBy propagateAnyOrder();
     PropBy propagateBinFirst(
         #ifdef STATS_NEEDED
@@ -173,30 +147,32 @@ protected:
         const Clause& c
         , const bool checkAttach = true
     );
-    virtual void detachTriClause(
-        const Lit lit1
-        , const Lit lit2
-        , const Lit lit3
-        , const bool red
+    virtual void detach_tri_clause(
+        Lit lit1
+        , Lit lit2
+        , Lit lit3
+        , bool red
+        , bool allow_empty_watch = false
     );
-    virtual void detachBinClause(
-        const Lit lit1
-        , const Lit lit2
-        , const bool red
+    virtual void detach_bin_clause(
+        Lit lit1
+        , Lit lit2
+        , bool red
+        , bool allow_empty_watch = false
     );
-    virtual void attachBinClause(
+    virtual void attach_bin_clause(
         const Lit lit1
         , const Lit lit2
         , const bool red
         , const bool checkUnassignedFirst = true
     );
-    virtual void attachTriClause(
+    virtual void attach_tri_clause(
         const Lit lit1
         , const Lit lit2
         , const Lit lit3
         , const bool red
     );
-    virtual void detachModifiedClause(
+    virtual void detach_modified_clause(
         const Lit lit1
         , const Lit lit2
         , const uint32_t origSize
@@ -204,8 +180,8 @@ protected:
     );
 
     // Debug & etc:
-    void     printAllClauses();
-    void     checkNoWrongAttach() const;
+    void     print_all_clauses();
+    void     check_wrong_attach() const;
     void     printWatchList(const Lit lit) const;
     bool     satisfied(const BinaryClause& bin);
     void     print_trail();
@@ -220,9 +196,10 @@ protected:
     );
     void updateWatch(watch_subarray ws, const vector<uint32_t>& outerToInter);
 
-    virtual size_t memUsed() const
+    size_t mem_used() const
     {
         size_t mem = 0;
+        mem += CNF::mem_used();
         mem += trail.capacity()*sizeof(Lit);
         mem += trail_lim.capacity()*sizeof(uint32_t);
         mem += toClear.capacity()*sizeof(Lit);
@@ -230,6 +207,11 @@ protected:
     }
 
 private:
+    bool propagate_tri_clause_occur(const Watched& ws);
+    bool propagate_binary_clause_occur(const Watched& ws);
+    bool propagate_long_clause_occur(const ClOffset offset);
+
+    template<bool update_bogoprops = true>
     bool propBinaryClause(
         watch_subarray_const::const_iterator i
         , const Lit p
@@ -243,16 +225,13 @@ private:
         , const Lit lit3
         , const bool red
     );
+    template<bool update_bogoprops = true>
     void propTriHelperAnyOrder(
         const Lit lit1
         , const Lit lit2
         , const Lit lit3
-        #ifdef STATS_NEEDED
         , const bool red
-        #endif
     );
-    void lazy_hyper_bin_resolve(Lit lit1, Lit lit2);
-    bool can_do_lazy_hyper_bin(Lit lit1, Lit lit2, Lit lit3);
     void update_glue(Clause& c);
 
     PropResult propTriClause (
@@ -260,6 +239,7 @@ private:
         , const Lit p
         , PropBy& confl
     );
+    template<bool update_bogoprops = true>
     bool propTriClauseAnyOrder(
         watch_subarray_const::const_iterator i
         , const Lit lit1
@@ -273,15 +253,12 @@ private:
         , const Lit p
         , PropBy& confl
     );
+    template<bool update_bogoprops>
     bool propNormalClauseAnyOrder(
         watch_subarray_const::const_iterator i
         , watch_subarray::iterator &j
         , const Lit p
         , PropBy& confl
-    );
-    void lazy_hyper_bin_resolve(
-        const Clause& c
-        , ClOffset offset
     );
 };
 
@@ -289,7 +266,7 @@ private:
 ///////////////////////////////////////
 // Implementation of inline methods:
 
-inline void PropEngine::newDecisionLevel()
+inline void PropEngine::new_decision_level()
 {
     trail_lim.push_back(trail.size());
     #ifdef VERBOSE_DEBUG
@@ -307,102 +284,6 @@ inline uint32_t PropEngine::nAssigns() const
     return trail.size();
 }
 
-/**
-@brief Enqueues&sets a new fact that has been found
-
-Call this when a fact has been found. Sets the value, enqueues it for
-propagation, sets its level, sets why it was propagated, saves the polarity,
-and does some logging if logging is enabled
-
-@p p the fact to enqueue
-@p from Why was it propagated (binary clause, tertiary clause, normal clause)
-*/
-inline void PropEngine::enqueue(const Lit p, const PropBy from)
-{
-    #ifdef DEBUG_ENQUEUE_LEVEL0
-    #ifndef VERBOSE_DEBUG
-    if (decisionLevel() == 0)
-    #endif //VERBOSE_DEBUG
-    cout << "enqueue var " << p.var()+1
-    << " to val " << !p.sign()
-    << " level: " << decisionLevel()
-    << " sublevel: " << trail.size()
-    << " by: " << from << endl;
-    #endif //DEBUG_ENQUEUE_LEVEL0
-
-    #ifdef ENQUEUE_DEBUG
-    assert(trail.size() <= nVarsReal());
-    assert(decisionLevel() == 0 || varData[p.var()].removed != Removed::elimed);
-    #endif
-
-    const Var v = p.var();
-    assert(value(v) == l_Undef);
-    if (!watches[(~p).toInt()].empty()) {
-        watches.prefetch((~p).toInt());
-    }
-
-    assigns[v] = boolToLBool(!p.sign());
-    #ifdef STATS_NEEDED_EXTRA
-    varData[v].stats.trailLevelHist.push(trail.size());
-    varData[v].stats.decLevelHist.push(decisionLevel());
-    #endif
-    varData[v].reason = from;
-    varData[v].level = decisionLevel();
-
-    trail.push_back(p);
-    propStats.propagations++;
-    propStats.bogoProps += 1;
-
-    if (p.sign()) {
-        #ifdef STATS_NEEDED_EXTRA
-        varData[v].stats.negPolarSet++;
-        #endif
-        propStats.varSetNeg++;
-    } else {
-        #ifdef STATS_NEEDED_EXTRA
-        varData[v].stats.posPolarSet++;
-        #endif
-        propStats.varSetPos++;
-    }
-
-    if (varData[v].polarity != !p.sign()) {
-        agility.update(true);
-        #ifdef STATS_NEEDED_EXTRA
-        varData[v].stats.flippedPolarity++;
-        #endif
-        propStats.varFlipped++;
-    } else {
-        agility.update(false);
-    }
-
-    varData[v].polarity = !p.sign();
-
-    #ifdef ANIMATE3D
-    std::cerr << "s " << v << " " << p.sign() << endl;
-    #endif
-}
-
-inline void PropEngine::cancelZeroLight()
-{
-    assert((int)decisionLevel() > 0);
-
-    for (int sublevel = trail.size()-1; sublevel >= (int)trail_lim[0]; sublevel--) {
-        Var var = trail[sublevel].var();
-        assigns[var] = l_Undef;
-    }
-    qhead = trail_lim[0];
-    trail.resize(trail_lim[0]);
-    trail_lim.clear();
-}
-
-inline uint32_t PropEngine::getNumUnitaries() const
-{
-    if (decisionLevel() > 0)
-        return trail_lim[0];
-    else
-        return trail.size();
-}
-
 inline size_t PropEngine::getTrailSize() const
 {
     assert(decisionLevel() == 0);
@@ -416,30 +297,45 @@ inline bool PropEngine::satisfied(const BinaryClause& bin)
             || (value(bin.getLit2()) == l_True));
 }
 
-/**
-@brief Calculates the glue of a clause
-
-Used to calculate the Glue of a new clause, or to update the glue of an
-existing clause. Only used if the glue-based activity heuristic is enabled,
-i.e. if we are in GLUCOSE mode (not MiniSat mode)
-*/
-template<class T>
-uint16_t PropEngine::calcGlue(const T& ps)
+template<class T> inline
+uint32_t PropEngine::calc_glue_using_seen2(const T& ps)
 {
     uint32_t nbLevels = 0;
-    typename T::const_iterator l, end;
-
-    for(l = ps.begin(), end = ps.end(); l != end; l++) {
-        int32_t lev = varData[l->var()].level;
-        if (!seen2[lev]) {
+    for(auto lit: ps) {
+        const uint32_t lev = varData[lit.var()].level;
+        if (lev != 0 && !seen2[lev]) {
             nbLevels++;
             seen2[lev] = 1;
         }
     }
 
-    for(l = ps.begin(), end = ps.end(); l != end; l++) {
-        int32_t lev = varData[l->var()].level;
+    for(auto lit: ps) {
+        uint32_t lev = varData[lit.var()].level;
         seen2[lev] = 0;
+    }
+    return nbLevels;
+}
+
+template<class T> inline
+uint32_t PropEngine::calc_glue_using_seen2_upper_bit_no_zero_lev(const T& ps)
+{
+    uint32_t nbLevels = 0;
+    typename T::const_iterator l, end;
+
+    for(const Lit lit: ps) {
+        const uint32_t lev = varData[lit.var()].level;
+        if (lev == 0) {
+            continue;
+        }
+        if (!(seen2[lev] & 2)) {
+            nbLevels++;
+            seen2[lev] |= 2;
+        }
+    }
+
+    for(const Lit lit: ps) {
+        const uint32_t lev = varData[lit.var()].level;
+        seen2[lev] &= 1;
     }
     return nbLevels;
 }

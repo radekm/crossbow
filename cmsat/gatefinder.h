@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,7 +24,6 @@
 
 #include "solvertypes.h"
 #include "cset.h"
-#include <boost/array.hpp>
 #include <set>
 #include "watcharray.h"
 #include <array>
@@ -35,73 +34,29 @@ class Solver;
 class Simplifier;
 using std::set;
 
-class NewGateData
-{
-    public:
-        NewGateData(const Lit _lit1, const Lit _lit2, const uint32_t _numLitRem, const uint32_t _numClRem) :
-            lit1(_lit1)
-            , lit2(_lit2)
-            , numLitRem(_numLitRem)
-            , numClRem(_numClRem)
-        {}
-        bool operator<(const NewGateData& n2) const
-        {
-            uint32_t value1 = numClRem*ANDGATEUSEFUL + numLitRem;
-            uint32_t value2 = n2.numClRem*ANDGATEUSEFUL + n2.numLitRem;
-            if (value1 != value2) return(value1 > value2);
-            if (lit1 != n2.lit1) return(lit1 > n2.lit1);
-            if (lit2 != n2.lit2) return(lit2 > n2.lit2);
-            return false;
-        }
-        bool operator==(const NewGateData& n2) const
-        {
-            return(lit1 == n2.lit1
-                && lit2 == n2.lit2
-                && numLitRem == n2.numLitRem
-                && numClRem == n2.numClRem);
-        }
-        Lit lit1;
-        Lit lit2;
-        uint32_t numLitRem;
-        uint32_t numClRem;
-};
-
 class OrGate {
     public:
-        OrGate(const Lit& _eqLit, Lit _lit1, Lit _lit2, const bool _red) :
+        OrGate(const Lit& _rhs, Lit _lit1, Lit _lit2, const bool _red) :
             lit1(_lit1)
             , lit2(_lit2)
-            , eqLit(_eqLit)
+            , rhs(_rhs)
             , red(_red)
         {
             if (lit1 > lit2)
                 std::swap(lit1, lit2);
         }
 
-        bool operator<(const OrGate& other) const
-        {
-            if (eqLit != other.eqLit) {
-                return (eqLit < other.eqLit);
-            }
-
-            if (lit1 != other.lit1) {
-                return (lit1 < other.lit1);
-            }
-
-            return (lit2 < other.lit2);
-        }
-
         bool operator==(const OrGate& other) const
         {
             return
-                eqLit == other.eqLit
+                rhs == other.rhs
                 && lit1 == other.lit1
                 && lit2 == other.lit2
                 ;
         }
         std::array<Lit, 2> getLits() const
         {
-            return std::array<Lit, 2>{{lit1, lit2}};
+            return std::array<Lit, 2>{lit1, lit2};
         }
 
         //LHS
@@ -109,10 +64,25 @@ class OrGate {
         Lit lit2;
 
         //RHS
-        Lit eqLit;
+        Lit rhs;
 
         //Data about gate
         bool red;
+};
+
+struct GateCompareForEq
+{
+    bool operator()(const OrGate& a, const OrGate& b) const
+    {
+        if (a.lit1 != b.lit1) {
+            return (a.lit1 < b.lit1);
+        }
+
+        if (a.lit2 != b.lit2) {
+            return (a.lit2 < b.lit2);
+        }
+        return (a.rhs < b.rhs);
+    }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const OrGate& gate)
@@ -120,7 +90,7 @@ inline std::ostream& operator<<(std::ostream& os, const OrGate& gate)
     os
     << " gate "
     << " lits: " << gate.lit1 << ", " << gate.lit2
-    << " eqLit: " << gate.eqLit
+    << " rhs: " << gate.rhs
     << " learnt " << gate.red
     ;
     return os;
@@ -130,14 +100,7 @@ class GateFinder
 {
 public:
     GateFinder(Simplifier *subsumer, Solver *control);
-
-    void newVar(const Var orig_outer);
-    void saveVarMem();
     bool doAll();
-
-    //Getter functions
-    void printGateStats() const;
-    void printDot(); ///<Print Graphviz DOT file describing the gates
 
     //Stats
     struct Stats
@@ -148,14 +111,13 @@ public:
             *this = tmp;
         }
 
-        double totalTime() const
+        double total_time() const
         {
             return findGateTime + orBasedTime + varReplaceTime
                 + andBasedTime + erTime;
         }
         Stats& operator+=(const Stats& other);
         void print(const size_t nVars) const;
-        void printShort() const;
 
         //Time
         double findGateTime = 0.0;
@@ -190,25 +152,31 @@ public:
         uint64_t numIrred = 0;
     };
 
-    const Stats& getStats() const;
+    const Stats& get_stats() const;
 
 private:
+    void print_graphviz_dot();
+
     //Setup
-    void clearIndexes();
     void link_in_gate(const OrGate& gate);
+    void add_gate_if_not_already_inside(Lit rhs, Lit lit1, Lit lit2);
+    void find_or_gates_in_sweep_mode(Lit lit);
+
+    //High-level functions
+    bool remove_clauses_with_all_or_gates();
+    bool shorten_with_all_or_gates();
 
     //Finding
-    void findOrGates();
-    void findOrGates(const bool redGatesToo);
+    void find_or_gates_and_update_stats();
+    void find_or_gates();
     void findOrGate(
-        const Lit eqLit
+        const Lit rhs
         , const Lit lit1
         , const Lit lit2
-        , const bool redGatesToo
-        , bool wasRed
     );
 
-    bool doAllOptimisationWithGates();
+    bool all_simplifications_with_gates();
+    vector<ClOffset> subs; //to reduce overhead of allocation
     bool shortenWithOrGate(const OrGate& gate);
     size_t findEqOrGates();
 
@@ -220,15 +188,15 @@ private:
         , uint32_t& reduction
     );
 
-    CL_ABST_TYPE  calc_sorted_occ_and_set_seen2(
+    cl_abst_type  calc_sorted_occ_and_set_seen2(
         const OrGate& gate
-        , uint16_t& maxSize
-        , uint16_t& minSize
+        , uint32_t& maxSize
+        , uint32_t& minSize
         , const bool only_irred
     );
     void set_seen2_and_abstraction(
         const Clause& cl
-        , CL_ABST_TYPE& abstraction
+        , cl_abst_type& abstraction
     );
     bool check_seen_and_gate_against_cl(
         const Clause& this_cl
@@ -240,7 +208,7 @@ private:
         , const OrGate& gate
         , const ClOffset this_cl_offset
     );
-    CL_ABST_TYPE calc_abst_and_set_seen(
+    cl_abst_type calc_abst_and_set_seen(
        const Clause& cl
         , const OrGate& gate
     );
@@ -248,15 +216,15 @@ private:
         const Watched& ws
         , const size_t minSize
         , const size_t maxSize
-        , const CL_ABST_TYPE abstraction
+        , const cl_abst_type abstraction
         , const OrGate& gate
         , const bool only_irred
     );
 
     ClOffset findAndGateOtherCl(
-        const vector<ClOffset>& sizeSortedOcc
+        const vector<ClOffset>& this_sizeSortedOcc
         , const Lit lit
-        , const CL_ABST_TYPE abst2
+        , const cl_abst_type abst2
         , const bool gate_is_red
         , const bool only_irred
     );
@@ -292,11 +260,9 @@ private:
 
     //Indexes, gate data
     vector<OrGate> orGates; //List of OR gates
-    vector<vector<uint32_t> > gateOcc; //LHS of every NON-LEARNT gate is in this occur list (a = b V c, so 'a' is LHS)
-    vector<vector<uint32_t> > gateOccEq; //RHS of every gate is in this occur list (a = b V c, so 'b' and 'c' are LHS)
 
     //For temporaries
-    vector<size_t> seen2Set; //Bits that have been set in seen2, and later need to be cleared
+    vector<uint32_t> seen2Set; //Bits that have been set in seen2, and later need to be cleared
     set<ClOffset> clToUnlink;
     struct TriToUnlink
     {
@@ -322,7 +288,7 @@ private:
     set<TriToUnlink> tri_to_unlink;
 
     //Graph
-    void printDot2(); ///<Print Graphviz DOT file describing the gates
+    void print_graphviz_dot2(); ///<Print Graphviz DOT file describing the gates
 
     //Stats
     Stats runStats;
@@ -341,9 +307,10 @@ private:
     Solver *solver;
     vector<uint16_t>& seen;
     vector<uint16_t>& seen2;
+    vector<Lit>& toClear;
 };
 
-inline const GateFinder::Stats& GateFinder::getStats() const
+inline const GateFinder::Stats& GateFinder::get_stats() const
 {
     return globalStats;
 }

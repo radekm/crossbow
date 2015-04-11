@@ -1,3 +1,24 @@
+/*
+ * CryptoMiniSat
+ *
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301  USA
+*/
+
 #ifndef __STAMP_H__
 #define __STAMP_H__
 
@@ -26,32 +47,15 @@ struct Timestamp
 
         end[STAMP_IRRED] = 0;
         end[STAMP_RED] = 0;
-
-        dominator[STAMP_IRRED] = lit_Undef;
-        dominator[STAMP_RED] = lit_Undef;
-
-        numDom[STAMP_IRRED] = 0;
-        numDom[STAMP_RED] = 0;
-    }
-
-    Timestamp& operator=(const Timestamp& other)
-    {
-        memmove(this, &other, sizeof(Timestamp));
-
-        return *this;
     }
 
     uint64_t start[2];
     uint64_t end[2];
-
-    Lit dominator[2];
-    uint32_t numDom[2];
 };
 
 class Stamp
 {
 public:
-    void remove_from_stamps(const Var var);
     bool stampBasedClRem(const vector<Lit>& lits) const;
     std::pair<size_t, size_t> stampBasedLitRem(
         vector<Lit>& lits
@@ -62,17 +66,20 @@ public:
         , const vector<Var>& interToOuter2
         , vector<uint16_t>& seen
     );
-    void updateDominators(const VarReplacer* replacer);
     void clearStamps();
-    void saveVarMem(const uint32_t newNumVars);
+    void save_on_var_memory(const uint32_t newNumVars);
 
     vector<Timestamp>   tstamp;
-    void newVar(const Var)
+    void new_var()
     {
         tstamp.push_back(Timestamp());
         tstamp.push_back(Timestamp());
     }
-    size_t memUsed() const
+    void new_vars(const size_t n)
+    {
+        tstamp.resize(tstamp.size() + 2*n, Timestamp());
+    }
+    size_t mem_used() const
     {
         return tstamp.capacity()*sizeof(Timestamp);
     }

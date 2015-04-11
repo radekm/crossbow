@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -33,8 +33,6 @@
 #include <fstream>
 
 #include "clause.h"
-#include "queue.h"
-#include "bitarray.h"
 #include "solvertypes.h"
 #include "heap.h"
 #include "touchlist.h"
@@ -45,7 +43,6 @@
 namespace CMSat {
 
 using std::vector;
-using std::list;
 using std::map;
 using std::pair;
 using std::priority_queue;
@@ -56,6 +53,7 @@ class Solver;
 class GateFinder;
 class XorFinderAbst;
 class SubsumeStrengthen;
+class BVA;
 
 struct BlockedClause {
     BlockedClause()
@@ -96,306 +94,93 @@ public:
     ~Simplifier();
 
     //Called from main
-    bool simplify();
-    void subsumeReds();
-    void newVar(const Var orig_outer);
-    void saveVarMem();
-    bool unEliminate(const Var var);
-    size_t memUsed() const;
-    size_t memUsedXor() const;
-    void printGateFinderStats() const;
+    bool simplify(const bool startup);
+    void new_var(const Var orig_outer);
+    void new_vars(const size_t n);
+    void save_on_var_memory();
+    bool uneliminate(const Var var);
+    size_t mem_used() const;
+    size_t mem_used_xor() const;
+    void print_gatefinder_stats() const;
+    void dump_blocked_clauses(std::ostream* outfile) const;
+    void clean_stamps_from_uneliminated_vars();
 
     //UnElimination
     void print_blocked_clauses_reverse() const;
-    void extendModel(SolutionExtender* extender);
+    void extend_model(SolutionExtender* extender);
+    uint32_t get_num_elimed_vars() const
+    {
+        return globalStats.numVarsElimed;
+    }
 
-    //Get-functions
     struct Stats
     {
-        Stats() :
-            numCalls(0)
-            //Time
-            , linkInTime(0)
-            , blockTime(0)
-            , asymmTime(0)
-            , varElimTime(0)
-            , finalCleanupTime(0)
+        void print(const size_t nVars) const;
+        void print_short(const Solver* solver, const bool print_var_elim = true) const;
+        Stats& operator+=(const Stats& other);
+        void clear();
+        double total_time() const;
 
-            //Startup stats
-            , origNumFreeVars(0)
-            , origNumMaxElimVars(0)
-            , origNumIrredLongClauses(0)
-            , origNumRedLongClauses(0)
-
-            //Each algo
-            , asymmSubs(0)
-            , subsumedByVE(0)
-
-            //Elimination
-            , numVarsElimed(0)
-            , varElimTimeOut(0)
-            , clauses_elimed_long(0)
-            , clauses_elimed_tri(0)
-            , clauses_elimed_bin(0)
-            , clauses_elimed_sumsize(0)
-            , longRedClRemThroughElim(0)
-            , triRedClRemThroughElim(0)
-            , binRedClRemThroughElim(0)
-            , numRedBinVarRemAdded(0)
-            , testedToElimVars(0)
-            , triedToElimVars(0)
-            , usedAgressiveCheckToELim(0)
-            , newClauses(0)
-
-            , zeroDepthAssings(0)
-        {
-        }
-
-        double totalTime() const
-        {
-            return linkInTime + blockTime + asymmTime
-                + varElimTime + finalCleanupTime;
-        }
-
-        void clear()
-        {
-            Stats stats;
-            *this = stats;
-        }
-
-        Stats& operator+=(const Stats& other)
-        {
-            numCalls += other.numCalls;
-
-            //Time
-            linkInTime += other.linkInTime;
-            blockTime += other.blockTime;
-            asymmTime += other.asymmTime;
-            varElimTime += other.varElimTime;
-            finalCleanupTime += other.finalCleanupTime;
-
-            //Startup stats
-            origNumFreeVars += other.origNumFreeVars;
-            origNumMaxElimVars += other.origNumMaxElimVars;
-            origNumIrredLongClauses += other.origNumIrredLongClauses;
-            origNumRedLongClauses += other.origNumRedLongClauses;
-
-            //Each algo
-            asymmSubs += other.asymmSubs;
-            subsumedByVE  += other.subsumedByVE;
-
-            //Elim
-            numVarsElimed += other.numVarsElimed;
-            varElimTimeOut += other.varElimTimeOut;
-            clauses_elimed_long += other.clauses_elimed_long;
-            clauses_elimed_tri += other.clauses_elimed_tri;
-            clauses_elimed_bin += other.clauses_elimed_bin;
-            clauses_elimed_sumsize += other.clauses_elimed_sumsize;
-            longRedClRemThroughElim += other.longRedClRemThroughElim;
-            triRedClRemThroughElim += other.triRedClRemThroughElim;
-            binRedClRemThroughElim += other.binRedClRemThroughElim;
-            numRedBinVarRemAdded += other.numRedBinVarRemAdded;
-            testedToElimVars += other.testedToElimVars;
-            triedToElimVars += other.triedToElimVars;
-            usedAgressiveCheckToELim += other.usedAgressiveCheckToELim;
-            newClauses += other.newClauses;
-
-            zeroDepthAssings += other.zeroDepthAssings;
-
-            return *this;
-        }
-
-        void printShort(const bool print_var_elim = true) const
-        {
-
-            cout
-            << "c [occur] " << linkInTime+finalCleanupTime << " is overhead"
-            << endl;
-
-            //About elimination
-            if (print_var_elim) {
-                cout
-                << "c [v-elim]"
-                << " elimed: " << numVarsElimed
-                << " / " << origNumMaxElimVars
-                << " / " << origNumFreeVars
-                //<< " cl-elim: " << (clauses_elimed_long+clauses_elimed_bin)
-                << " T: " << std::fixed << std::setprecision(2)
-                << varElimTime << " s"
-                << " T-out: " << (varElimTimeOut ? "Y" : "N")
-                << endl;
-
-                cout
-                << "c [v-elim]"
-                << " cl-new: " << newClauses
-                << " tried: " << triedToElimVars
-                << " tested: " << testedToElimVars
-                << " ("
-                << (double)usedAgressiveCheckToELim/(double)testedToElimVars*100.0
-                << " % agressive)"
-                << endl;
-
-                cout
-                << "c [v-elim]"
-                << " subs: "  << subsumedByVE
-                << " red-bin rem: " << binRedClRemThroughElim
-                << " red-tri rem: " << triRedClRemThroughElim
-                << " red-long rem: " << longRedClRemThroughElim
-                << " v-fix: " << std::setw(4) << zeroDepthAssings
-                << endl;
-            }
-
-            cout
-            << "c [simp] link-in T: " << linkInTime
-            << " cleanup T: " << finalCleanupTime
-            << endl;
-        }
-
-        void print(const size_t nVars) const
-        {
-            cout << "c -------- Simplifier STATS ----------" << endl;
-            printStatsLine("c time"
-                , totalTime()
-                , varElimTime/totalTime()*100.0
-                , "% var-elim"
-            );
-
-            printStatsLine("c timeouted"
-                , (double)varElimTimeOut/(double)numCalls*100.0
-                , "% called"
-            );
-
-            printStatsLine("c called"
-                ,  numCalls
-                , (double)totalTime()/(double)numCalls
-                , "s per call"
-            );
-
-            printStatsLine("c v-elimed"
-                , numVarsElimed
-                , (double)numVarsElimed/(double)nVars*100.0
-                , "% vars"
-            );
-
-            cout << "c"
-            << " v-elimed: " << numVarsElimed
-            << " / " << origNumMaxElimVars
-            << " / " << origNumFreeVars
-            << endl;
-
-            printStatsLine("c 0-depth assigns"
-                , zeroDepthAssings
-                , (double)zeroDepthAssings/(double)nVars*100.0
-                , "% vars"
-            );
-
-            printStatsLine("c cl-new"
-                , newClauses
-            );
-
-            printStatsLine("c tried to elim"
-                , triedToElimVars
-                , (double)usedAgressiveCheckToELim/(double)triedToElimVars*100.0
-                , "% agressively"
-            );
-
-            printStatsLine("c asymmSub"
-                , asymmSubs);
-
-            printStatsLine("c elim-bin-lt-cl"
-                , binRedClRemThroughElim);
-
-            printStatsLine("c elim-tri-lt-cl"
-                , triRedClRemThroughElim);
-
-            printStatsLine("c elim-long-lt-cl"
-                , longRedClRemThroughElim);
-
-            printStatsLine("c lt-bin added due to v-elim"
-                , numRedBinVarRemAdded);
-
-            printStatsLine("c cl-elim-bin"
-                , clauses_elimed_bin);
-
-            printStatsLine("c cl-elim-tri"
-                , clauses_elimed_tri);
-
-            printStatsLine("c cl-elim-long"
-                , clauses_elimed_long);
-
-            printStatsLine("c cl-elim-avg-s",
-                ((double)clauses_elimed_sumsize
-                /(double)(clauses_elimed_bin + clauses_elimed_tri + clauses_elimed_long))
-            );
-
-            printStatsLine("c v-elim-sub"
-                , subsumedByVE
-            );
-
-            cout << "c -------- Simplifier STATS END ----------" << endl;
-        }
-
-        uint64_t numCalls;
+        uint64_t numCalls = 0;
 
         //Time stats
-        double linkInTime;
-        double blockTime;
-        double asymmTime;
-        double varElimTime;
-        double finalCleanupTime;
+        double linkInTime = 0;
+        double blockTime = 0;
+        double varElimTime = 0;
+        double finalCleanupTime = 0;
 
         //Startup stats
-        uint64_t origNumFreeVars;
-        uint64_t origNumMaxElimVars;
-        uint64_t origNumIrredLongClauses;
-        uint64_t origNumRedLongClauses;
+        uint64_t origNumFreeVars = 0;
+        uint64_t origNumMaxElimVars = 0;
+        uint64_t origNumIrredLongClauses = 0;
+        uint64_t origNumRedLongClauses = 0;
 
         //Each algorithm
-        uint64_t asymmSubs;
-        uint64_t subsumedByVE;
+        uint64_t subsumedByVE = 0;
 
         //Stats for var-elim
-        int64_t numVarsElimed;
-        uint64_t varElimTimeOut;
-        uint64_t clauses_elimed_long;
-        uint64_t clauses_elimed_tri;
-        uint64_t clauses_elimed_bin;
-        uint64_t clauses_elimed_sumsize;
-        uint64_t longRedClRemThroughElim;
-        uint64_t triRedClRemThroughElim;
-        uint64_t binRedClRemThroughElim;
-        uint64_t numRedBinVarRemAdded;
-        uint64_t testedToElimVars;
-        uint64_t triedToElimVars;
-        uint64_t usedAgressiveCheckToELim;
-        uint64_t newClauses;
+        int64_t numVarsElimed = 0;
+        uint64_t varElimTimeOut = 0;
+        uint64_t clauses_elimed_long = 0;
+        uint64_t clauses_elimed_tri = 0;
+        uint64_t clauses_elimed_bin = 0;
+        uint64_t clauses_elimed_sumsize = 0;
+        uint64_t longRedClRemThroughElim = 0;
+        uint64_t triRedClRemThroughElim = 0;
+        uint64_t binRedClRemThroughElim = 0;
+        uint64_t numRedBinVarRemAdded = 0;
+        uint64_t testedToElimVars = 0;
+        uint64_t triedToElimVars = 0;
+        uint64_t usedAggressiveCheckToELim = 0;
+        uint64_t newClauses = 0;
 
         //General stat
-        uint64_t zeroDepthAssings;
+        uint64_t zeroDepthAssings = 0;
     };
 
-    const vector<BlockedClause>& getBlockedClauses() const;
-    //const GateFinder* getGateFinder() const;
-    const Stats& getStats() const;
+    const Stats& get_stats() const;
     const SubsumeStrengthen* getSubsumeStrengthen() const;
-    void checkElimedUnassignedAndStats() const;
-    void checkElimedUnassigned() const;
+    void check_elimed_vars_are_unassigned() const;
     bool getAnythingHasBeenBlocked() const;
     void freeXorMem();
 
 private:
-
     friend class SubsumeStrengthen;
     SubsumeStrengthen* subsumeStrengthen;
+    friend class BVA;
+    BVA* bva;
+    bool startup = false;
+    bool backward_subsume();
 
     //debug
+    void check_elimed_vars_are_unassignedAndStats() const;
     bool subsetReverse(const Clause& B) const;
-    void checkAllLinkedIn();
 
+    vector<Var> uneliminated_vars_since_last_solve; //since last solving, these variables have been uneliminated
     bool fill_occur();
+    bool fill_occur_and_print_stats();
     void finishUp(size_t origTrailSize);
     vector<ClOffset> clauses;
-    bool subsumeWithBinaries();
 
     //Persistent data
     Solver*  solver;              ///<The solver this simplifier is connected to
@@ -405,29 +190,20 @@ private:
 
     //Temporaries
     vector<Lit>     dummy;       ///<Used by merge()
-    vector<Lit>     finalLits;   ///<Used by addClauseInt()
+    vector<Lit>     gate_lits_of_elim_cls;
 
     //Limits
     uint64_t clause_lits_added;
     int64_t  strengthening_time_limit;              ///<Max. number self-subsuming resolution tries to do this run
-//     int64_t  numMaxTriSub;
     int64_t  subsumption_time_limit;              ///<Max. number backward-subsumption tries to do this run
     int64_t  norm_varelim_time_limit;
     int64_t  empty_varelim_time_limit;
     int64_t  varelim_num_limit;
-    int64_t  asymm_time_limit;
     int64_t  aggressive_elim_time_limit;
-    int64_t bounded_var_elim_time_limit;
     int64_t* limit_to_decrease;
 
-    //Propagation&handling of stuff
-    bool propagate();
-    bool propagate_long_clause(const ClOffset offset);
-    bool propagate_binary_clause(const Watched& ws);
-    bool propagate_tri_clause(const Watched& wCs);
-
     //Start-up
-    bool addFromSolver(
+    bool add_from_solver(
         vector<ClOffset>& toAdd
         , bool alsoOccur
         , bool irred
@@ -435,7 +211,7 @@ private:
     struct LinkInData
     {
         LinkInData()
-        {};
+        {}
 
         LinkInData(uint64_t _cl_linked, uint64_t _cl_not_linked) :
             cl_linked(_cl_linked)
@@ -454,22 +230,22 @@ private:
         , bool irred
         , bool alsoOccur
     );
-    void setLimits();
+    void set_limits();
 
     //Finish-up
     void remove_by_drup_recently_blocked_clauses(size_t origBlockedSize);
-    void addBackToSolver();
+    void add_back_to_solver();
     bool check_varelim_when_adding_back_cl(const Clause* cl) const;
-    void removeAllLongsFromWatches();
-    bool completeCleanClause(Clause& ps);
+    void remove_all_longs_from_watches();
+    bool complete_clean_clause(Clause& ps);
 
     //Clause update
-    lbool       cleanClause(ClOffset c);
-    void        unlinkClause(ClOffset cc, bool drup = true);
+    lbool       clean_clause(ClOffset c);
+    void        unlink_clause(ClOffset cc, bool drup = true, bool allow_empty_watch = false, bool only_set_is_removed = false);
     void        linkInClause(Clause& cl);
     bool        handleUpdatedClause(ClOffset c);
 
-    struct WatchSorter {
+    struct watch_sort_smallest_first {
         bool operator()(const Watched& first, const Watched& second)
         {
             //Anything but clause!
@@ -510,24 +286,52 @@ private:
     };
     void        order_vars_for_elim();
     Heap<VarOrderLt> varElimOrder;
-    uint32_t    numIrredBins(const Lit lit) const;
     //void        addRedBinaries(const Var var);
     size_t      rem_cls_from_watch_due_to_varelim(watch_subarray_const todo, const Lit lit);
-    void        add_clause_to_blck(Lit lit, const vector<Lit>& lits);
+    void        add_clause_to_blck(const Lit lit, const vector<Lit>& lits);
     void        set_var_as_eliminated(const Var var, const Lit lit);
     bool        can_eliminate_var(const Var var) const;
 
 
     TouchList   touched;
-    bool        maybeEliminate(const Var x);
+    vector<ClOffset> cl_to_free_later;
+    bool        maybe_eliminate(const Var x);
+    void        free_clauses_to_free();
+    void        try_to_subsume_with_new_bin_or_tri(const vector<Lit>& lits);
     void        create_dummy_blocked_clause(const Lit lit);
     int         test_elim_and_fill_resolvents(Var var);
+    void        mark_gate_in_poss_negs(Lit elim_lit, watch_subarray_const poss, watch_subarray_const negs);
+    void        mark_gate_parts(
+        Lit elim_lit
+        , watch_subarray_const a
+        , watch_subarray_const b
+        , vector<char>& a_mark
+        , vector<char>& b_mark
+    );
+    bool        find_gate(Lit elim_lit, watch_subarray_const a, watch_subarray_const b);
+    bool        skip_resolution_thanks_to_gate(const size_t at_poss, const size_t at_negs) const;
     void        print_var_eliminate_stat(Lit lit) const;
     bool        add_varelim_resolvent(vector<Lit>& finalLits, const ClauseStats& stats);
-    void        check_if_new_2_long_subsumes_3_long(const vector<Lit>& lits);
+    bool        check_if_new_2_long_subsumes_3_long_return_already_inside(const vector<Lit>& lits);
     void        update_varelim_complexity_heap(const Var var);
     void        print_var_elim_complexity_stats(const Var var) const;
-    vector<pair<vector<Lit>, ClauseStats> > resolvents;
+    struct Resolvent {
+        Resolvent(const vector<Lit>& _lits, const ClauseStats _stats) :
+            lits(_lits)
+            , stats(_stats)
+        {}
+        vector<Lit> lits;
+        ClauseStats stats;
+        bool operator<(const Resolvent& other) const
+        {
+            return lits.size() > other.lits.size();
+        }
+    };
+    vector<Resolvent> resolvents;
+    vector<char> poss_gate_parts;
+    vector<char> negs_gate_parts;
+    bool gate_found_elim;
+    bool gate_found_elim_pos;
 
     struct HeuristicData
     {
@@ -536,8 +340,8 @@ private:
             , tri(0)
             , longer(0)
             , lit(0)
-            , count(std::numeric_limits<uint32_t>::max()) //resolution count (if can be counted, otherwise MAX)
-        {};
+            , count(std::numeric_limits<uint32_t>::max())
+        {}
 
         uint32_t totalCls() const
         {
@@ -548,15 +352,17 @@ private:
         uint32_t tri;
         uint32_t longer;
         uint32_t lit;
-        uint32_t count;
+        uint32_t count; //resolution count (if can be counted, otherwise MAX)
     };
-    HeuristicData calcDataForHeuristic(const Lit lit);
+    HeuristicData calc_data_for_heuristic(const Lit lit);
     std::pair<int, int> strategyCalcVarElimScore(const Var var);
+    uint64_t time_spent_on_calc_otf_update;
+    uint64_t num_otf_update_until_now;
 
     //For empty resolvents
     enum class ResolvCount{count, set, unset};
-    bool checkEmptyResolvent(const Lit lit);
-    int checkEmptyResolventHelper(
+    bool check_empty_resolvent(const Lit lit);
+    int check_empty_resolvent_action(
         const Lit lit
         , ResolvCount action
         , int otherSize
@@ -577,7 +383,7 @@ private:
         const Watched qs
         , const Lit posLit
     );
-    bool reverse_vivification_of_dummy(
+    bool reverse_distillation_of_dummy(
         const Watched ps
         , const Watched qs
         , const Lit posLit
@@ -586,101 +392,13 @@ private:
        const Watched ps
         , const Watched qs
     );
-    bool agressiveCheck(
+    bool aggressiveCheck(
         const Lit lit
         , const Lit noPosLit
         , bool& retval
     );
-    bool        eliminateVars();
-    void        eliminate_empty_resolvent_vars();
-    bool        loopSubsumeVarelim();
-
-    /////////////
-    //Bounded Variable Addition
-    bool bva_verbosity = 0;
-    size_t bva_worked;
-    size_t bva_simp_size;
-    struct lit_pair{
-        lit_pair(const Lit a, const Lit b = lit_Undef) :
-            lit1(a)
-            , lit2(b)
-        {}
-
-        bool operator==(const lit_pair& other) const
-        {
-            return lit1 == other.lit1 && lit2 == other.lit2;
-        }
-
-        bool operator!=(const lit_pair& other) const
-        {
-            return !(*this == other);
-        }
-
-        Lit lit1;
-        Lit lit2;
-    };
-    struct PotentialClause {
-        PotentialClause(const lit_pair _lits, const OccurClause cl) :
-            lits(_lits)
-            , occur_cl(cl)
-        {}
-
-        bool operator<(const PotentialClause& other) const
-        {
-            if (lits == other.lits)
-                return false;
-
-            if (lits.lit1 != other.lits.lit1)
-                return lits.lit1 < other.lits.lit1;
-
-            return lits.lit2 < other.lits.lit2;
-        }
-
-        lit_pair lits;
-        OccurClause occur_cl;
-        string to_string(const Solver* solver) const;
-    };
-    bool bounded_var_addition();
-    size_t calc_watch_irred_size(const Lit lit) const;
-    vector<size_t> calc_watch_irred_sizes() const;
-    lit_pair most_occuring_lit_in_potential(size_t& num_occur);
-    lit_pair lit_diff_watches(const OccurClause& a, const OccurClause& b);
-    Lit least_occurring_except(const OccurClause& c);
-    bool inside(const vector<Lit>& lits, const Lit notin) const;
-    bool simplifies_system(const size_t num_occur) const;
-    int simplification_size(
-        const int m_lit_size
-        , const int m_cls_size
-    ) const;
-    void fill_potential(const Lit lit);
-    bool try_bva_on_lit(const Lit lit);
-    bool bva_simplify_system();
-    void update_touched_lits_in_bva();
-    bool add_longer_clause(const Lit lit, const OccurClause& cl);
-    void remove_duplicates_from_m_cls();
-    void remove_matching_clause(
-        const OccurClause& cl
-        , const lit_pair lit_replace
-    );
-    Clause* find_cl_for_bva(
-        const vector<Lit>& torem
-        , const bool red
-    ) const;
-    vector<PotentialClause> potential;
-    vector<lit_pair> m_lits;
-    vector<lit_pair> m_lits_this_cl;
-    vector<OccurClause> m_cls;
-    vector<size_t> watch_irred_sizes;
-    struct VarBVAOrder
-    {
-        VarBVAOrder(vector<size_t>& _watch_irred_sizes) :
-            watch_irred_sizes(_watch_irred_sizes)
-        {}
-
-        bool operator()(const uint32_t lit1_uint, const uint32_t lit2_uint) const;
-        vector<size_t>& watch_irred_sizes;
-    };
-    Heap<VarBVAOrder> var_bva_order;
+    bool eliminate_vars();
+    void eliminate_empty_resolvent_vars();
 
     /////////////////////
     //Helpers
@@ -691,7 +409,6 @@ private:
 
     /////////////////////
     //Blocked clause elimination
-    void asymmTE();
     bool anythingHasBeenBlocked;
     vector<BlockedClause> blockedClauses;
     map<Var, vector<size_t> > blk_var_to_cl;
@@ -710,12 +427,7 @@ private:
     Stats globalStats;
 };
 
-inline const vector<BlockedClause>& Simplifier::getBlockedClauses() const
-{
-    return blockedClauses;
-}
-
-inline const Simplifier::Stats& Simplifier::getStats() const
+inline const Simplifier::Stats& Simplifier::get_stats() const
 {
     return globalStats;
 }
@@ -745,11 +457,6 @@ inline const SubsumeStrengthen* Simplifier::getSubsumeStrengthen() const
 {
     return subsumeStrengthen;
 }
-
-/*inline const XorFinder* Simplifier::getXorFinder() const
-{
-    return xorFinder;
-}*/
 
 } //end namespace
 

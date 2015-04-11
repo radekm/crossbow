@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,8 +19,8 @@
  * MA 02110-1301  USA
 */
 
-#ifndef CLAUSEVIVIFIER_H
-#define CLAUSEVIVIFIER_H
+#ifndef __STRENGTHENER_H__
+#define __STRENGTHENER_H__
 
 #include <vector>
 #include "clause.h"
@@ -36,11 +36,11 @@ using std::vector;
 class Solver;
 class Clause;
 
-class ClauseVivifier {
+class Strengthener {
     public:
-        ClauseVivifier(Solver* solver);
-        bool vivify(bool alsoStrengthen);
-        bool strengthenImplicit();
+        Strengthener(Solver* solver);
+        bool strengthen(bool alsoStrengthen);
+        bool strengthen_implicit();
 
         struct Stats
         {
@@ -51,18 +51,8 @@ class ClauseVivifier {
             }
 
             Stats& operator+=(const Stats& other);
-            void printShort() const;
-            void print(const size_t nVars) const;
-
-            //Asymm
-            double timeNorm = 0.0;
-            uint64_t timeOut = 0;
-            uint64_t zeroDepthAssigns = 0;
-            uint64_t numClShorten = 0;
-            uint64_t numLitsRem = 0;
-            uint64_t checkedClauses = 0;
-            uint64_t potentialClauses = 0;
-            uint64_t numCalled = 0;
+            void print_short(const Solver* solver) const;
+            void print() const;
 
             struct CacheBased
             {
@@ -82,52 +72,8 @@ class ClauseVivifier {
                     *this = tmp;
                 }
 
-                void printShort(const string type) const
-                {
-                    cout << "c [vivif] cache-based "
-                    << std::setw(5) << type
-                    << "-- "
-                    << " cl tried " << std::setw(8) << triedCls
-                    << " cl-sh " << std::setw(5) << shrinked
-                    << " cl-rem " << std::setw(4) << numClSubsumed
-                    << " lit-rem " << std::setw(6) << numLitsRem
-                    << " T-out " << (ranOutOfTime ? "Y" : "N")
-                    << " T: " << std::setprecision(2) << cpu_time
-                    << endl;
-                }
-
-                void print() const
-                {
-                    printStatsLine("c time"
-                        , cpu_time
-                        , cpu_time/(double)numCalled
-                        , "s/call"
-                    );
-
-                    printStatsLine("c shrinked/tried/total"
-                        , shrinked
-                        , triedCls
-                        , totalCls
-                    );
-
-                    printStatsLine("c subsumed/tried/total"
-                        , numClSubsumed
-                        , triedCls
-                        , totalCls
-                    );
-
-                    printStatsLine("c lits-rem"
-                        , numLitsRem
-                        , (double)numLitsRem/(double)totalLits*100.0
-                        , "% of lits tried"
-                    );
-
-                    printStatsLine("c called "
-                        , numCalled
-                        , (double)ranOutOfTime/(double)numCalled*100.0
-                        , "% ran out of time"
-                    );
-                }
+                void print_short(const string type, const Solver* solver) const;
+                void print() const;
 
                 CacheBased& operator+=(const CacheBased& other)
                 {
@@ -149,11 +95,9 @@ class ClauseVivifier {
             CacheBased redCacheBased;
         };
 
-        const Stats& getStats() const;
+        const Stats& get_stats() const;
 
     private:
-
-
 
         //Vars for strengthen implicit
         struct StrImplicitData
@@ -185,17 +129,25 @@ class ClauseVivifier {
 
             void print(
                 const size_t trail_diff
-                , const double myTime
+                , const double time_used
                 , const int64_t timeAvailable
+                , const int64_t orig_time
+                , Solver* solver
             ) const;
         };
         StrImplicitData str_impl_data;
         // end
 
-        ClOffset testVivify(
-            ClOffset offset
-            , const bool red
-            , const uint32_t queueByBy
+        bool remove_or_shrink_clause(Clause& cl, ClOffset& offset);
+        void str_and_sub_cl_with_cache_for_all_lits(
+            bool alsoStrengthen
+            , Clause& cl
+        );
+        void dump_stats_for_shorten_all_cl_with_cache_stamp(
+            bool red
+            , bool alsoStrengthen
+            , double myTime
+            , double orig_time_available
         );
         void strengthen_bin_with_bin(
             const Lit lit
@@ -213,63 +165,23 @@ class ClauseVivifier {
         //Cache-based data
         struct CacheBasedData
         {
-            size_t remLitTimeStampTotal;
-            size_t remLitTimeStampTotalInv;
-            size_t subsumedStamp;
-            size_t remLitCache;
-            size_t remLitBinTri;
-            size_t subBinTri;
-            size_t subCache;
-
-            void clear()
-            {
-                remLitTimeStampTotal = 0;
-                remLitTimeStampTotalInv = 0;
-                subsumedStamp = 0;
-                remLitCache = 0;
-                remLitBinTri = 0;
-                subBinTri = 0;
-                subCache = 0;
-            }
-
-            size_t get_cl_subsumed() const
-            {
-                return subBinTri + subsumedStamp + subCache;
-            }
-
-            size_t get_lits_rem() const
-            {
-                return remLitBinTri + remLitCache
-                    + remLitTimeStampTotal + remLitTimeStampTotalInv;
-            }
-
-            void print() const
-            {
-                cout
-                << "c [cl-str] stamp-based"
-                << " lit-rem: " << remLitTimeStampTotal
-                << " inv-lit-rem: " << remLitTimeStampTotalInv
-                << " stamp-cl-rem: " << subsumedStamp
-                << endl;
-
-                cout
-                << "c [cl-str] bintri-based"
-                << " lit-rem: " << remLitBinTri
-                << " cl-sub: " << subBinTri
-                << endl;
-
-                cout
-                << "c [cl-str] cache-based"
-                << " lit-rem: " << remLitCache
-                << " cl-sub: " << subCache
-                << endl;
-            }
+            size_t remLitTimeStampTotal = 0;
+            size_t remLitTimeStampTotalInv = 0;
+            size_t subsumedStamp = 0;
+            size_t remLitCache = 0;
+            size_t remLitBinTri = 0;
+            size_t subBinTri = 0;
+            size_t subCache = 0;
+            void clear();
+            size_t get_cl_subsumed() const;
+            size_t get_lits_rem() const;
+            void print() const;
         };
         CacheBasedData cache_based_data;
         bool isSubsumed;
         size_t thisRemLitCache;
         size_t thisRemLitBinTri;
-        void vivify_clause_with_lit(
+        void str_and_sub_using_watch(
             Clause& cl
             , const Lit lit
             , const bool alsoStrengthen
@@ -283,13 +195,13 @@ class ClauseVivifier {
             , Watched* wit
             , const Clause& cl
         );
-        bool strenghten_clause_with_cache(const Lit lit);
+        bool str_and_sub_clause_with_cache(const Lit lit);
         void try_subsuming_by_stamping(const bool red);
         void remove_lits_through_stamping_red();
         void remove_lits_through_stamping_irred();
         Stats::CacheBased tmpStats;
-        bool needToFinish;
-        bool vivify_clause(
+        //bool needToFinish;
+        bool shorten_clause_with_cache_watch_stamp(
             ClOffset& offset
             , bool red
             , const bool alsoStrengthen
@@ -300,10 +212,7 @@ class ClauseVivifier {
             , const bool red
         ) const;
 
-        //Actual algorithms used
-        bool asymmClausesLongIrred();
-        bool vivifyClausesTriIrred();
-        bool vivifyClausesCache(
+        bool shorten_all_cl_with_cache_watch_stamp(
             vector<ClOffset>& clauses
             , bool red
             , bool alsoStrengthen
@@ -312,27 +221,23 @@ class ClauseVivifier {
 
         //Working set
         Solver* solver;
-
-        //For vivify
         vector<Lit> lits;
         vector<Lit> lits2;
-        vector<Lit> uselessLits;
-        uint64_t extraTime;
         vector<uint16_t>& seen;
         vector<uint16_t>& seen_subs;
 
         //Global status
         Stats runStats;
         Stats globalStats;
-        size_t numCalls;
+        size_t numCalls = 0;
 
 };
 
-inline const ClauseVivifier::Stats& ClauseVivifier::getStats() const
+inline const Strengthener::Stats& Strengthener::get_stats() const
 {
     return globalStats;
 }
 
 } //end namespace
 
-#endif //CLAUSEVIVIFIER_H
+#endif //CLAUSEDistiller_H

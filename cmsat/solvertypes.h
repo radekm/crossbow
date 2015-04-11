@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -33,6 +33,8 @@
 #include <string>
 #include <limits>
 #include "assert.h"
+#include "solverconf.h"
+#include "solvertypesmini.h"
 
 namespace CMSat {
 
@@ -41,37 +43,25 @@ using std::cout;
 using std::endl;
 using std::string;
 
-//Typedefs
-typedef uint32_t Var;
-static const Var var_Undef(std::numeric_limits<Var>::max()>>1);
-enum class Restart {
-    glue
-    , glue_agility
-    , geom
-    , agility
-    , never
-    , automatic
-};
-
 inline std::string restart_type_to_string(const Restart type)
 {
     switch(type) {
-        case Restart::glue:
+        case restart_type_glue:
             return "glue-based";
 
-        case Restart::glue_agility:
+        case restart_type_glue_agility:
             return "glue&agility based";
 
-        case Restart::geom:
+        case restart_type_geom:
             return "geometric";
 
-        case  Restart::agility:
+        case restart_type_agility:
             return "agility-based";
 
-        case Restart::never:
+        case restart_type_never:
             return "never restart";
 
-        case Restart::automatic:
+        case restart_type_automatic:
             return "automatic";
     }
 
@@ -85,7 +75,6 @@ enum class Removed : unsigned char {
     none
     , elimed
     , replaced
-    , queued_replacer //Only queued for removal. NOT actually removed
     , decomposed
 };
 
@@ -100,178 +89,12 @@ inline std::string removed_type_to_string(const Removed removed) {
         case Removed::replaced:
             return "variable replacement";
 
-        case Removed::queued_replacer:
-            return "queued for replacement (but not yet replaced)";
-
         case Removed::decomposed:
             return "decomposed into another component";
     }
 
     assert(false && "oops, one of the elim types has no string name");
     return "Oops, undefined!";
-}
-
-enum class PolarityMode {
-    pos
-    , neg
-    , rnd
-    , automatic
-};
-
-/**
-@brief A Literal, i.e. a variable with a sign
-*/
-class Lit
-{
-    uint32_t x;
-    explicit Lit(uint32_t i) : x(i) { };
-public:
-    Lit() : x(2*var_Undef) {}   // (lit_Undef)
-    explicit Lit(Var var, bool sign) :
-        x((2*var) | (uint32_t)sign)
-    {}
-
-    const uint32_t& toInt() const { // Guarantees small, positive integers suitable for array indexing.
-        return x;
-    }
-    Lit  operator~() const {
-        return Lit(x ^ 1);
-    }
-    Lit  operator^(const bool b) const {
-        return Lit(x ^ (uint32_t)b);
-    }
-    Lit& operator^=(const bool b) {
-        x ^= (uint32_t)b;
-        return *this;
-    }
-    bool sign() const {
-        return x & 1;
-    }
-    Var  var() const {
-        return x >> 1;
-    }
-    Lit  unsign() const {
-        return Lit(x & ~1);
-    }
-    bool operator==(const Lit& p) const {
-        return x == p.x;
-    }
-    bool operator!= (const Lit& p) const {
-        return x != p.x;
-    }
-    /**
-    @brief ONLY to be used for ordering such as: a, b, ~b, etc.
-    */
-    bool operator <  (const Lit& p) const {
-        return x < p.x;     // '<' guarantees that p, ~p are adjacent in the ordering.
-    }
-    bool operator >  (const Lit& p) const {
-        return x > p.x;
-    }
-    bool operator >=  (const Lit& p) const {
-        return x >= p.x;
-    }
-    static Lit toLit(uint32_t data)
-    {
-        return Lit(data);
-    }
-};
-
-static const Lit lit_Undef(var_Undef, false);  // Useful special constants.
-static const Lit lit_Error(var_Undef, true );  //
-
-inline std::ostream& operator<<(std::ostream& os, const Lit lit)
-{
-    if (lit == lit_Undef) {
-        os << "lit_Undef";
-    } else {
-        os << (lit.sign() ? "-" : "") << (lit.var() + 1);
-    }
-    return os;
-}
-
-inline std::ostream& operator<<(std::ostream& co, const std::vector<Lit>& lits)
-{
-    for (uint32_t i = 0; i < lits.size(); i++) {
-        co << lits[i];
-
-        if (i != lits.size()-1)
-            co << " ";
-    }
-
-    return co;
-}
-
-///Class that can hold: True, False, Undef
-class lbool
-{
-    char     value;
-    explicit lbool(const char v) : value(v) { }
-
-public:
-    lbool() :
-        value(0)
-    {
-    };
-
-    char getchar() const
-    {
-        return value;
-    }
-
-    bool isDef() const
-    {
-        return value;
-    }
-
-    bool getBool() const
-    {
-        return value == 1;
-    }
-
-    bool operator==(lbool b) const
-    {
-        return value == b.value;
-    }
-
-    bool operator!=(lbool b) const
-    {
-        return value != b.value;
-    }
-
-    lbool operator^(const char b) const
-    {
-        return b ? lbool(-value) : lbool(value);
-    }
-    //lbool operator ^ (const bool b) const { return b ? lbool(-value) : lbool(value); }
-
-    friend lbool toLbool(const char v);
-    friend lbool boolToLBool(const bool b);
-    friend class llbool;
-};
-inline lbool toLbool(const char   v)
-{
-    return lbool(v);
-}
-
-const lbool l_True  = toLbool( 1);
-const lbool l_False = toLbool(-1);
-const lbool l_Undef = toLbool( 0);
-
-inline lbool boolToLBool(const bool b)
-{
-    if (b)
-        return l_True;
-    else
-        return l_False;
-}
-
-inline std::ostream& operator<<(std::ostream& cout, const lbool val)
-{
-    if (val == l_True) cout << "l_True";
-    if (val == l_False) cout << "l_False";
-    if (val == l_Undef) cout << "l_Undef";
-    return cout;
 }
 
 class BinaryClause {
@@ -333,15 +156,18 @@ inline std::ostream& operator<<(std::ostream& os, const BinaryClause val)
 class AgilityData
 {
     public:
-        AgilityData(
+        void setup(
             const double _agilityG
             , const double agilityLimit
-        ) :
-            agilityG(_agilityG)
-            , agility(agilityLimit)
-        {
+        ) {
+            agilityG = _agilityG;
+            agility = agilityLimit;
             assert(agilityG < 1 && agilityG > 0);
         }
+
+        AgilityData() :
+            agilityG(-1)
+        {}
 
         void update(const bool flipped)
         {
@@ -357,15 +183,43 @@ class AgilityData
 
         void reset(const double agilityLimit)
         {
+            assert(agilityG > 0);
             agility = agilityLimit;
         }
 
     private:
-        const double agilityG;
+        double agilityG;
         double agility;
 };
 
-template<class T, class T2> void printStatsLine(
+inline double ratio_for_stat(double a, double b)
+{
+    if (b == 0)
+        return 0;
+    return a/b;
+}
+
+inline double stats_line_percent(double num, double total)
+{
+    if (total == 0) {
+        return 0;
+    } else {
+        return num/total*100.0;
+    }
+}
+
+inline void print_value_kilo_mega(const uint64_t value)
+{
+    if (value > 20*1000ULL*1000ULL) {
+        cout << " " << std::setw(4) << value/(1000ULL*1000ULL) << "M";
+    } else if (value > 20ULL*1000ULL) {
+        cout << " " << std::setw(4) << value/1000 << "K";
+    } else {
+        cout << " " << std::setw(5) << value;
+    }
+}
+
+template<class T, class T2> void print_stats_line(
     string left
     , T value
     , T2 value2
@@ -380,7 +234,7 @@ template<class T, class T2> void printStatsLine(
     << endl;
 }
 
-inline void printStatsLine(
+inline void print_stats_line(
     string left
     , uint64_t value
     , uint64_t value2
@@ -395,7 +249,7 @@ inline void printStatsLine(
     << endl;
 }
 
-template<class T, class T2> void printStatsLine(
+template<class T, class T2> void print_stats_line(
     string left
     , T value
     , string extra1
@@ -412,7 +266,7 @@ template<class T, class T2> void printStatsLine(
     << endl;
 }
 
-template<class T> void printStatsLine(
+template<class T> void print_stats_line(
     string left
     , T value
     , string extra = ""
@@ -433,7 +287,7 @@ struct AssignStats
         , sumAssignNeg(0)
         , sumFlippedPolar(0)
         , sumFlippedPolarByDecider(0)
-    {};
+    {}
 
     uint64_t sumAssignPos;
     uint64_t sumAssignNeg;
@@ -444,32 +298,6 @@ struct AssignStats
 
 struct PropStats
 {
-    PropStats() :
-        propagations(0)
-        , bogoProps(0)
-        , otfHyperTime(0)
-        , otfHyperPropCalled(0)
-        #ifdef STATS_NEEDED
-        , propsUnit(0)
-        , propsBinIrred(0)
-        , propsBinRed(0)
-        , propsTriIrred(0)
-        , propsTriRed(0)
-        , propsLongIrred(0)
-        , propsLongRed(0)
-
-        //LHBR
-        , triLHBR(0)
-        , longLHBR(0)
-        #endif
-
-        //Var setsing
-        , varSetPos(0)
-        , varSetNeg(0)
-        , varFlipped(0)
-    {
-    }
-
     void clear()
     {
         PropStats tmp;
@@ -491,15 +319,11 @@ struct PropStats
         propsLongIrred += other.propsLongIrred;
         propsLongRed += other.propsLongRed;
 
-        //LHBR
-        triLHBR += other.triLHBR;
-        longLHBR += other.longLHBR;
-        #endif
-
         //Var settings
         varSetPos += other.varSetPos;
         varSetNeg += other.varSetNeg;
         varFlipped += other.varFlipped;
+        #endif
 
         return *this;
     }
@@ -519,15 +343,11 @@ struct PropStats
         propsLongIrred -= other.propsLongIrred;
         propsLongRed -= other.propsLongRed;
 
-        //LHBR
-        triLHBR -= other.triLHBR;
-        longLHBR -= other.longLHBR;
-        #endif
-
         //Var settings
         varSetPos -= other.varSetPos;
         varSetNeg -= other.varSetNeg;
         varFlipped -= other.varFlipped;
+        #endif
 
         return *this;
     }
@@ -549,110 +369,95 @@ struct PropStats
     void print(const double cpu_time) const
     {
         cout << "c PROP stats" << endl;
-        printStatsLine("c Mbogo-props", (double)bogoProps/(1000.0*1000.0)
-            , (double)bogoProps/(cpu_time*1000.0*1000.0)
+        print_stats_line("c Mbogo-props", (double)bogoProps/(1000.0*1000.0)
+            , ratio_for_stat(bogoProps, cpu_time*1000.0*1000.0)
             , "/ sec"
         );
 
-        printStatsLine("c MHyper-props", (double)otfHyperTime/(1000.0*1000.0)
-            , (double)otfHyperTime/(cpu_time*1000.0*1000.0)
+        print_stats_line("c MHyper-props", (double)otfHyperTime/(1000.0*1000.0)
+            , ratio_for_stat(otfHyperTime, cpu_time*1000.0*1000.0)
             , "/ sec"
         );
 
-        printStatsLine("c Mprops", (double)propagations/(1000.0*1000.0)
-            , (double)propagations/(cpu_time*1000.0*1000.0)
+        print_stats_line("c Mprops", (double)propagations/(1000.0*1000.0)
+            , ratio_for_stat(propagations, cpu_time*1000.0*1000.0)
             , "/ sec"
         );
 
         #ifdef STATS_NEEDED
-        printStatsLine("c propsUnit", propsUnit
-            , 100.0*(double)propsUnit/(double)propagations
+        print_stats_line("c propsUnit", propsUnit
+            , stats_line_percent(propsUnit, propagations)
             , "% of propagations"
         );
 
-        printStatsLine("c propsBinIrred", propsBinIrred
-            , 100.0*(double)propsBinIrred/(double)propagations
+        print_stats_line("c propsBinIrred", propsBinIrred
+            , stats_line_percent(propsBinIrred, propagations)
             , "% of propagations"
         );
 
-        printStatsLine("c propsBinRed", propsBinRed
-            , 100.0*(double)propsBinRed/(double)propagations
+        print_stats_line("c propsBinRed", propsBinRed
+            , stats_line_percent(propsBinRed, propagations)
             , "% of propagations"
         );
 
-        printStatsLine("c propsTriIred", propsTriIrred
-            , 100.0*(double)propsTriIrred/(double)propagations
+        print_stats_line("c propsTriIred", propsTriIrred
+            , stats_line_percent(propsTriIrred, propagations)
             , "% of propagations"
         );
 
-        printStatsLine("c propsTriRed", propsTriRed
-            , 100.0*(double)propsTriRed/(double)propagations
+        print_stats_line("c propsTriRed", propsTriRed
+            , stats_line_percent(propsTriRed, propagations)
             , "% of propagations"
         );
 
-        printStatsLine("c propsLongIrred", propsLongIrred
-            , 100.0*(double)propsLongIrred/(double)propagations
+        print_stats_line("c propsLongIrred", propsLongIrred
+            , stats_line_percent(propsLongIrred, propagations)
             , "% of propagations"
         );
 
-        printStatsLine("c propsLongRed", propsLongRed
-            , 100.0*(double)propsLongRed/(double)propagations
+        print_stats_line("c propsLongRed", propsLongRed
+            , stats_line_percent(propsLongRed, propagations)
             , "% of propagations"
         );
 
-        printStatsLine("c LHBR", (triLHBR + longLHBR)
-            , 100.0*(double)(triLHBR + longLHBR)/(double)(
-                propsLongIrred + propsLongRed + propsTriIrred + propsTriRed)
-            , "% of long propagations"
+        print_stats_line("c varSetPos", varSetPos
+            , stats_line_percent(varSetPos, propagations)
+            , "% of propagations"
         );
 
-        printStatsLine("c LHBR only by 3-long", triLHBR
-            , 100.0*(double)triLHBR/(double)(triLHBR + longLHBR)
-            , "% of LHBR"
+        print_stats_line("c varSetNeg", varSetNeg
+            , stats_line_percent(varSetNeg, propagations)
+            , "% of propagations"
+        );
+
+        print_stats_line("c flipped", varFlipped
+            , stats_line_percent(varFlipped, propagations)
+            , "% of propagations"
         );
         #endif
 
-        printStatsLine("c varSetPos", varSetPos
-            , 100.0*(double)varSetPos/(double)propagations
-            , "% of propagations"
-        );
-
-        printStatsLine("c varSetNeg", varSetNeg
-            , 100.0*(double)varSetNeg/(double)propagations
-            , "% of propagations"
-        );
-
-        printStatsLine("c flipped", varFlipped
-            , 100.0*(double)varFlipped/(double)propagations
-            , "% of propagations"
-        );
-
     }
 
-    uint64_t propagations; ///<Number of propagations made
-    uint64_t bogoProps;    ///<An approximation of time
-    uint64_t otfHyperTime;
-    uint32_t otfHyperPropCalled;
+    uint64_t propagations = 0; ///<Number of propagations made
+    uint64_t bogoProps = 0;    ///<An approximation of time
+    uint64_t otfHyperTime = 0;
+    uint32_t otfHyperPropCalled = 0;
 
     #ifdef STATS_NEEDED
     //Stats for propagations
-    uint64_t propsUnit;
-    uint64_t propsBinIrred;
-    uint64_t propsBinRed;
-    uint64_t propsTriIrred;
-    uint64_t propsTriRed;
-    uint64_t propsLongIrred;
-    uint64_t propsLongRed;
-
-    //Lazy hyper-binary clause added
-    uint64_t triLHBR; //LHBR by 3-long clauses
-    uint64_t longLHBR; //LHBR by 3+-long clauses
-    #endif
+    uint64_t propsUnit = 0;
+    uint64_t propsBinIrred = 0;
+    uint64_t propsBinRed = 0;
+    uint64_t propsTriIrred = 0;
+    uint64_t propsTriRed = 0;
+    uint64_t propsLongIrred = 0;
+    uint64_t propsLongRed = 0;
 
     //Var settings
-    uint64_t varSetPos;
-    uint64_t varSetNeg;
-    uint64_t varFlipped;
+    uint64_t varSetPos = 0;
+    uint64_t varSetNeg = 0;
+    uint64_t varFlipped = 0;
+    #endif
 };
 
 enum class ConflCausedBy {
@@ -666,16 +471,6 @@ enum class ConflCausedBy {
 
 struct ConflStats
 {
-    ConflStats() :
-        conflsBinIrred(0)
-        , conflsBinRed(0)
-        , conflsTriIrred(0)
-        , conflsTriRed(0)
-        , conflsLongIrred(0)
-        , conflsLongRed(0)
-        , numConflicts(0)
-    {}
-
     void clear()
     {
         ConflStats tmp;
@@ -736,11 +531,11 @@ struct ConflStats
         }
     }
 
-    void printShort(double cpu_time) const
+    void print_short(double cpu_time) const
     {
         //Search stats
-        printStatsLine("c conflicts", numConflicts
-            , (double)numConflicts/cpu_time
+        print_stats_line("c conflicts", numConflicts
+            , ratio_for_stat(numConflicts, cpu_time)
             , "/ sec"
         );
     }
@@ -749,40 +544,40 @@ struct ConflStats
     {
         //Search stats
         cout << "c CONFLS stats" << endl;
-        printShort(cpu_time);
+        print_short(cpu_time);
 
-        printStatsLine("c conflsBinIrred", conflsBinIrred
-            , 100.0*(double)conflsBinIrred/(double)numConflicts
+        print_stats_line("c conflsBinIrred", conflsBinIrred
+            , stats_line_percent(conflsBinIrred, numConflicts)
             , "%"
         );
 
-        printStatsLine("c conflsBinRed", conflsBinRed
-            , 100.0*(double)conflsBinRed/(double)numConflicts
+        print_stats_line("c conflsBinRed", conflsBinRed
+            , stats_line_percent(conflsBinRed, numConflicts)
             , "%"
         );
 
-        printStatsLine("c conflsTriIrred", conflsTriIrred
-            , 100.0*(double)conflsTriIrred/(double)numConflicts
+        print_stats_line("c conflsTriIrred", conflsTriIrred
+            , stats_line_percent(conflsTriIrred, numConflicts)
             , "%"
         );
 
-        printStatsLine("c conflsTriIrred", conflsTriRed
-            , 100.0*(double)conflsTriRed/(double)numConflicts
+        print_stats_line("c conflsTriIrred", conflsTriRed
+            , stats_line_percent(conflsTriRed, numConflicts)
             , "%"
         );
 
-        printStatsLine("c conflsLongIrred" , conflsLongIrred
-            , 100.0*(double)conflsLongIrred/(double)numConflicts
+        print_stats_line("c conflsLongIrred" , conflsLongIrred
+            , stats_line_percent(conflsLongIrred, numConflicts)
             , "%"
         );
 
-        printStatsLine("c conflsLongRed", conflsLongRed
-            , 100.0*(double)conflsLongRed/(double)numConflicts
+        print_stats_line("c conflsLongRed", conflsLongRed
+            , stats_line_percent(conflsLongRed, numConflicts)
             , "%"
         );
 
         long diff = (long)numConflicts
-            - (long)(conflsBinIrred + conflsBinRed
+            - (long)(conflsBinIrred + (long)conflsBinRed
                 + (long)conflsTriIrred + (long)conflsTriRed
                 + (long)conflsLongIrred + (long)conflsLongRed
             );
@@ -802,15 +597,15 @@ struct ConflStats
         }
     }
 
-    uint64_t conflsBinIrred;
-    uint64_t conflsBinRed;
-    uint64_t conflsTriIrred;
-    uint64_t conflsTriRed;
-    uint64_t conflsLongIrred;
-    uint64_t conflsLongRed;
+    uint64_t conflsBinIrred = 0;
+    uint64_t conflsBinRed = 0;
+    uint64_t conflsTriIrred = 0;
+    uint64_t conflsTriRed = 0;
+    uint64_t conflsLongIrred = 0;
+    uint64_t conflsLongRed = 0;
 
     ///Number of conflicts
-    uint64_t  numConflicts;
+    uint64_t  numConflicts = 0;
 };
 
 inline void orderLits(
@@ -840,6 +635,14 @@ inline vector<Lit> sortLits(const vector<Lit>& lits)
     return tmp;
 }
 
+inline vector<Lit> vars_to_lits(const vector<Var>& vars)
+{
+    vector<Lit> ret;
+    for(Var var: vars) {
+        ret.push_back(Lit(var, false));
+    }
+    return ret;
+}
 
 } //end namespace
 

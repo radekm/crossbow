@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -28,6 +28,7 @@
 #include "varreplacer.h"
 #include "varupdatehelper.h"
 #include "time_mem.h"
+#include "sqlstats.h"
 
 using namespace CMSat;
 using std::cout;
@@ -39,41 +40,42 @@ void ImplCache::makeAllRed()
     for(vector<TransCache>::iterator
         it = implCache.begin(), end = implCache.end()
         ; it != end
-        ; it++
+        ; ++it
     ) {
         it->makeAllRed();
     }
 }
 
-size_t ImplCache::memUsed() const
+size_t ImplCache::mem_used() const
 {
-    size_t numBytes = 0;
+    double numBytes = 0;
     for(vector<TransCache>::const_iterator
         it = implCache.begin(), end = implCache.end()
         ; it != end
-        ; it++
+        ; ++it
     ) {
-        numBytes += it->lits.capacity()*sizeof(LitExtra);
+        //1.2 is overhead
+        numBytes += (double)it->lits.capacity()*(double)sizeof(LitExtra)*1.2;
     }
     numBytes += implCache.capacity()*sizeof(vector<TransCache>);
 
     return numBytes;
 }
 
-void ImplCache::printStats(const Solver* solver) const
+void ImplCache::print_stats(const Solver* solver) const
 {
     cout
     << "c --------- Implication Cache Stats Start ----------"
     << endl;
 
-    printStatsSort(solver);
+    print_statsSort(solver);
 
     cout
     << "c --------- Implication Cache Stats End   ----------"
     << endl;
 }
 
-void ImplCache::printStatsSort(const Solver* solver) const
+void ImplCache::print_statsSort(const Solver* solver) const
 {
     size_t numHasElems = 0;
     size_t totalElems = 0;
@@ -89,15 +91,15 @@ void ImplCache::printStatsSort(const Solver* solver) const
         }
     }
 
-    printStatsLine(
+    print_stats_line(
         "c lits having cache"
-        , (double)numHasElems/(double)activeLits * 100.0
+        , stats_line_percent(numHasElems, activeLits)
         , "% of decision lits"
     );
 
-    printStatsLine(
+    print_stats_line(
         "c num elems in cache/lit"
-        , (double)totalElems/(double)numHasElems
+        , stats_line_percent(totalElems, numHasElems)
         , "extralits"
     );
 }
@@ -123,7 +125,7 @@ bool ImplCache::clean(Solver* solver, bool* setSomething)
                 if (implCache[litOrig.toInt()].lits.empty())
                     continue;
 
-                const Lit lit = solver->varReplacer->getLitReplacedWith(litOrig);
+                const Lit lit = solver->varReplacer->get_lit_replaced_with(litOrig);
 
                 //Updated literal must be normal, otherwise, biig problems e.g
                 //implCache is not even large enough, etc.
@@ -176,7 +178,7 @@ bool ImplCache::clean(Solver* solver, bool* setSomething)
         Lit vertLit = Lit::toLit(wsLit);
         vector<LitExtra>::iterator it = trans->lits.begin();
         vector<LitExtra>::iterator it2 = it;
-        for (vector<LitExtra>::iterator end = trans->lits.end(); it != end; it++) {
+        for (vector<LitExtra>::iterator end = trans->lits.end(); it != end; ++it) {
             Lit lit = it->getLit();
             assert(lit.var() != vertLit.var());
 
@@ -185,10 +187,8 @@ bool ImplCache::clean(Solver* solver, bool* setSomething)
                 continue;
 
             //Update to its replaced version
-            if (solver->varData[lit.var()].removed == Removed::replaced
-                || solver->varData[lit.var()].removed == Removed::queued_replacer
-            ) {
-                lit = solver->varReplacer->getLitReplacedWith(lit);
+            if (solver->varData[lit.var()].removed == Removed::replaced) {
+                lit = solver->varReplacer->get_lit_replaced_with(lit);
 
                 //This would be tautological (and incorrect), so skip
                 if (lit.var() == vertLit.var())
@@ -223,8 +223,12 @@ bool ImplCache::clean(Solver* solver, bool* setSomething)
         //1) set irred right (above we might have it set later)
         //2) clear 'inside'
         //3) clear 'irred'
-        for (vector<LitExtra>::iterator it = trans->lits.begin(), end = trans->lits.end(); it != end; it++) {
-            Lit lit = it->getLit();
+        for (vector<LitExtra>::iterator
+            it2 = trans->lits.begin(), end2 = trans->lits.end()
+            ;it2 != end2
+            ; it2++
+        ) {
+            Lit lit = it2->getLit();
 
             //Clear 'inside'
             inside[lit.toInt()] = false;
@@ -234,25 +238,34 @@ bool ImplCache::clean(Solver* solver, bool* setSomething)
             irred[lit.toInt()] = false;
 
             //Set non-leartness correctly
-            *it = LitExtra(lit, nRed);
-            assert(solver->varData[it->getLit().var()].removed == Removed::none);
-            assert(solver->value(it->getLit()) == l_Undef);
+            *it2 = LitExtra(lit, nRed);
+            assert(solver->varData[it2->getLit().var()].removed == Removed::none);
+            assert(solver->value(it2->getLit()) == l_Undef);
         }
         numCleaned += origSize-trans->lits.size();
     }
 
-    size_t origTrailDepth = solver->trail.size();
-    solver->enqueueThese(toEnqueue);
+    size_t origTrailDepth = solver->trail_size();
+    solver->fully_enqueue_these(toEnqueue);
     if (setSomething) {
-        *setSomething = (solver->trail.size() != origTrailDepth);
+        *setSomething = (solver->trail_size() != origTrailDepth);
     }
 
+    const double time_used = cpuTime()-myTime;
     if (solver->conf.verbosity >= 1) {
-        cout << "c Cache cleaned."
+        cout << "c [cache] cleaned."
         << " Updated: " << std::setw(7) << numUpdated/1000 << " K"
         << " Cleaned: " << std::setw(7) << numCleaned/1000 << " K"
         << " Freed: " << std::setw(7) << numFreed/1000 << " K"
-        << " T: " << std::setprecision(2) << std::fixed  << (cpuTime()-myTime) << endl;
+        << solver->conf.print_times(time_used)
+        << endl;
+    }
+    if (solver->sqlStats) {
+        solver->sqlStats->time_passed_min(
+            solver
+            , "clean cache"
+            , time_used
+        );
     }
 
     return solver->okay();
@@ -292,7 +305,7 @@ bool ImplCache::addDelayedClauses(Solver* solver)
         for(vector<std::pair<vector<Lit>, bool> > ::const_iterator
             it = delayedClausesToAddXor.begin(), end = delayedClausesToAddXor.end()
             ; it != end
-            ; it++
+            ; ++it
         ) {
             bool OK = true;
             for(vector<Lit>::const_iterator
@@ -300,9 +313,7 @@ bool ImplCache::addDelayedClauses(Solver* solver)
                 ; it2 != end2
                 ; it2++
             ) {
-                if (solver->varData[it2->var()].removed != Removed::none
-                    && solver->varData[it2->var()].removed != Removed::queued_replacer
-                ) {
+                if (solver->varData[it2->var()].removed != Removed::none) {
                     //Var has been eliminated one way or another. Don't add this clause
                     OK = false;
                     break;
@@ -315,7 +326,7 @@ bool ImplCache::addDelayedClauses(Solver* solver)
                 continue;
 
             //Add the clause
-            solver->addXorClauseInt(it->first, it->second, true);
+            solver->add_xor_clause_inter(it->first, it->second, true);
 
             //Check if this caused UNSAT
             if  (!solver->ok)
@@ -326,14 +337,14 @@ bool ImplCache::addDelayedClauses(Solver* solver)
     for(vector<Lit>::const_iterator
         it = delayedClausesToAddNorm.begin(), end = delayedClausesToAddNorm.end()
         ; it != end
-        ; it++
+        ; ++it
     ) {
         //Build unit clause
         vector<Lit> tmp(1);
         tmp[0] = *it;
 
         //Add unit clause
-        solver->addClauseInt(tmp);
+        solver->add_clause_int(tmp);
 
         //Check if this caused UNSAT
         if  (!solver->ok)
@@ -351,7 +362,7 @@ bool ImplCache::tryBoth(Solver* solver)
 {
     assert(solver->ok);
     assert(solver->decisionLevel() == 0);
-    const size_t origTrailSize = solver->trail.size();
+    const size_t origTrailSize = solver->trail_size();
     runStats.clear();
     runStats.numCalls = 1;
 
@@ -362,10 +373,10 @@ bool ImplCache::tryBoth(Solver* solver)
 
         //If value is set or eliminated, skip
         if (solver->value(var) != l_Undef
-            || (solver->varData[var].removed != Removed::none
-                && solver->varData[var].removed != Removed::queued_replacer)
-           )
+            || solver->varData[var].removed != Removed::none
+        ) {
             continue;
+        }
 
         //Try to do it
         tryVar(solver, var);
@@ -376,12 +387,20 @@ bool ImplCache::tryBoth(Solver* solver)
     }
 
 end:
-    runStats.zeroDepthAssigns = solver->trail.size() - origTrailSize;
-    runStats.cpu_time = cpuTime() - myTime;
+    const double time_used = cpuTime() - myTime;
+    runStats.zeroDepthAssigns = solver->trail_size() - origTrailSize;
+    runStats.cpu_time = time_used;
     if (solver->conf.verbosity >= 1) {
-        runStats.printShort();
+        runStats.print_short(solver);
     }
     globalStats += runStats;
+    if (solver->sqlStats) {
+        solver->sqlStats->time_passed_min(
+            solver
+            , "cache extractboth"
+            , time_used
+        );
+    }
 
     return solver->ok;
 }
@@ -410,14 +429,12 @@ void ImplCache::tryVar(
     for (vector<LitExtra>::const_iterator
         it = cache1.begin(), end = cache1.end()
         ; it != end
-        ; it++
+        ; ++it
     ) {
         const Var var2 = it->getLit().var();
 
         //A variable that has been really eliminated, skip
-        if (solver->varData[var2].removed != Removed::none
-            && solver->varData[var2].removed != Removed::queued_replacer
-        ) {
+        if (solver->varData[var2].removed != Removed::none) {
             continue;
         }
 
@@ -429,7 +446,7 @@ void ImplCache::tryVar(
     for (watch_subarray::const_iterator
         it = ws1.begin(), end = ws1.end()
         ; it != end
-        ; it++
+        ; ++it
     ) {
         if (!it->isBinary())
             continue;
@@ -451,7 +468,7 @@ void ImplCache::tryVar(
     for (vector<LitExtra>::const_iterator
         it = cache2.begin(), end = cache2.end()
         ; it != end
-        ; it++
+        ; ++it
     ) {
         assert(it->getLit().var() != var);
         const Var var2 = it->getLit().var();
@@ -461,16 +478,16 @@ void ImplCache::tryVar(
             continue;
 
         //If var has been removed, skip
-        if (solver->varData[var2].removed != Removed::none
-            && solver->varData[var2].removed != Removed::queued_replacer
-        ) continue;
+        if (solver->varData[var2].removed != Removed::none) {
+            continue;
+        }
 
         handleNewData(val, var, it->getLit());
     }
 
     //Try to see if we propagate the same or opposite from the other end
     //Using binary clauses
-    for (watch_subarray::const_iterator it = ws2.begin(), end = ws2.end(); it != end; it++) {
+    for (watch_subarray::const_iterator it = ws2.begin(), end = ws2.end(); it != end; ++it) {
         if (!it->isBinary())
             continue;
 
@@ -486,12 +503,12 @@ void ImplCache::tryVar(
     }
 
     //Clear 'seen' and 'val'
-    for (vector<LitExtra>::const_iterator it = cache1.begin(), end = cache1.end(); it != end; it++) {
+    for (vector<LitExtra>::const_iterator it = cache1.begin(), end = cache1.end(); it != end; ++it) {
         seen[it->getLit().var()] = false;
         val[it->getLit().var()] = false;
     }
 
-    for (watch_subarray::const_iterator it = ws1.begin(), end = ws1.end(); it != end; it++) {
+    for (watch_subarray::const_iterator it = ws1.begin(), end = ws1.end(); it != end; ++it) {
         if (!it->isBinary())
             continue;
 
@@ -635,6 +652,29 @@ void ImplCache::updateVars(
     for(size_t i = 0; i < implCache.size(); i++) {
         implCache[i].updateVars(outerToInter, newMaxVar);
     }
+}
+
+ImplCache::TryBothStats& ImplCache::TryBothStats::operator+=(const TryBothStats& other)
+{
+    numCalls += other.numCalls;
+    cpu_time += other.cpu_time;
+    zeroDepthAssigns += other.zeroDepthAssigns;
+    varReplaced += other.varReplaced;
+    bProp += other.bProp;
+    bXProp += other.bXProp;
+
+    return *this;
+}
+
+void ImplCache::TryBothStats::print_short(Solver* solver) const
+{
+    cout
+    << "c [bcache] "
+    //<< " set: " << bProp
+    << " 0-depth ass: " << zeroDepthAssigns
+    << " BXprop: " << bXProp
+    << solver->conf.print_times(cpu_time)
+    << endl;
 }
 
 

@@ -1,108 +1,203 @@
-/*
- * CryptoMiniSat
- *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
- * MA 02110-1301  USA
-*/
+/******************************************
+Copyright (c) 2014, Mate Soos
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+***********************************************/
 
 #ifndef SOLVERCONF_H
 #define SOLVERCONF_H
 
-#include <fstream>
-#include "solvertypes.h"
-#include "constants.h"
-#include "clause.h"
+#include <string>
+#include <cstdlib>
+#if defined(_MSC_VER) || __cplusplus>=201103L || defined(__GXX_EXPERIMENTAL_CXX0X__)
+    #include <cstdint>
+#else
+    #include <stdint.h>
+#endif
 
 namespace CMSat {
+
+enum ClauseCleaningTypes {
+    clean_glue_based = 0
+    , clean_size_based = 1
+    , clean_sum_activity_based = 2
+    #ifdef STATS_NEEDED
+    , clean_sum_prop_confl_based = 3
+    , clean_sum_confl_depth_based = 4
+    #endif
+    , clean_none = 5
+};
+
+enum PolarityMode {
+    polarmode_pos
+    , polarmode_neg
+    , polarmode_rnd
+    , polarmode_automatic
+};
+
+enum Restart {
+    restart_type_glue
+    , restart_type_glue_agility
+    , restart_type_geom
+    , restart_type_agility
+    , restart_type_never
+    , restart_type_automatic
+};
+
+inline std::string getNameOfCleanType(ClauseCleaningTypes clauseCleaningType)
+{
+    switch(clauseCleaningType) {
+        case clean_glue_based :
+            return "glue";
+
+        case clean_size_based:
+            return "size";
+
+        case clean_sum_activity_based:
+            return "activity";
+
+        #ifdef STATS_NEEDED
+        case clean_sum_prop_confl_based:
+            return "prconf";
+
+        case clean_sum_confl_depth_based:
+            return "confdep";
+        #endif
+
+        default:
+            std::exit(-1);
+            //assert(false && "Unknown clause cleaning type?");
+    };
+
+    return "";
+}
+
+enum ElimStrategy {
+    elimstrategy_heuristic
+    , elimstrategy_calculate_exactly
+};
+
+inline std::string getNameOfElimStrategy(ElimStrategy strategy)
+{
+    switch(strategy)
+    {
+        case elimstrategy_heuristic:
+            return "heuristic";
+
+        case elimstrategy_calculate_exactly:
+            return "calculate";
+
+        default:
+            std::exit(-1);
+            //assert(false);
+
+        return "";
+    }
+}
 
 class SolverConf
 {
     public:
         SolverConf();
+        std::string print_times(
+            const double time_used
+            , const bool time_out
+            , const double time_remain
+        ) const;
+        std::string print_times(
+            const double time_used
+            , const bool time_out
+        ) const;
+        std::string print_times(
+            const double time_used
+        ) const;
 
         //Variable activities
-        uint32_t  var_inc_start;
-        uint32_t  var_inc_multiplier;
-        uint32_t  var_inc_divider;
-        uint32_t  var_inc_variability;
-        /**
-         * The frequency with which the decision heuristic tries to choose
-         * a random variable.
-         * This is really strange. If the number of variables set is large
-         * , then the random chance is in fact _far_ lower than this value.
-         * This is because the algorithm tries to set one variable randomly,
-         * but if that variable is already set, then it _silently_ fails
-         * , and moves on (doing non-random flip)!
-        **/
-        double    random_var_freq;
-        /**
-         * Controls which polarity the decision heuristic chooses.
-        **/
+        double  var_inc_start;
+        double  var_decay_start;
+        double  var_decay_max;
+        double random_var_freq;
         PolarityMode polarity_mode;
+        int do_calc_polarity_first_time;
+        int do_calc_polarity_every_time;
 
         //Clause cleaning
-        ClauseCleaningTypes clauseCleaningType;
+        unsigned  max_temporary_learnt_clauses;
+        unsigned protect_clause_if_imrpoved_glue_below_this_glue_for_one_turn;
+        double    clean_confl_multiplier;
+        double    clean_prop_multiplier;
         int       doPreClauseCleanPropAndConfl;
-        uint32_t  preClauseCleanLimit;
-        uint32_t  preCleanMinConflTime;
+        unsigned  long long preClauseCleanLimit;
         int       doClearStatEveryClauseCleaning;
-        double    ratioRemoveClauses; ///< Remove this ratio of clauses at every database reduction round
-        uint64_t    numCleanBetweenSimplify; ///<Number of cleaning operations between simplify operations
-        uint64_t    startClean;
+        double    ratio_keep_clauses[10]; ///< Remove this ratio of clauses at every database reduction round
+        unsigned  startClean;
         double    increaseClean;
         double    maxNumRedsRatio; ///<Number of red clauses must not be more than red*maxNumRedsRatio
         double    clauseDecayActivity;
-        uint64_t min_time_in_db_before_eligible_for_cleaning;
-        size_t   lock_per_dbclean;
+        unsigned  min_time_in_db_before_eligible_for_cleaning;
+        size_t   lock_uip_per_dbclean;
+        double   multiplier_perf_values_after_cl_clean;
+        unsigned glue_must_keep_clause_if_below_or_eq;
 
         //For restarting
-        uint64_t    restart_first;      ///<The initial restart limit.                                                                (default 100)
+        unsigned    restart_first;      ///<The initial restart limit.                                                                (default 100)
         double    restart_inc;        ///<The factor with which the restart limit is multiplied in each restart.                    (default 1.5)
-        uint64_t    burstSearchLen;
+        unsigned   burst_search_len;
         Restart  restartType;   ///<If set, the solver will always choose the given restart strategy
-        int       optimiseUnsat;
+        int       do_blocking_restart;
+        unsigned blocking_restart_trail_hist_length;
+        double   blocking_restart_multip;
+        double   local_glue_multiplier;
+        unsigned  shortTermHistorySize; ///< Rolling avg. glue window size
 
         //Clause minimisation
         int doRecursiveMinim;
         int doMinimRedMore;  ///<Perform learnt clause minimisation using watchists' binary and tertiary clauses? ("strong minimization" in PrecoSat)
         int doAlwaysFMinim; ///< Always try to minimise clause with cache&gates
-        uint64_t moreMinimLimit;
+        unsigned max_glue_more_minim;
+        unsigned max_size_more_minim;
+        unsigned more_red_minim_limit_cache;
+        unsigned more_red_minim_limit_binary;
+        int extra_bump_var_activities_based_on_glue;
 
         //Verbosity
         int  verbosity;  ///<Verbosity level. 0=silent, 1=some progress report, 2=lots of report, 3 = all report       (default 2) preferentiality is turned off (i.e. picked randomly between [0, all])
         int  doPrintGateDot; ///< Print DOT file of gates
         int  doPrintConflDot; ///< Print DOT file for each conflict
-        int  printFullStats;
+        int  print_all_stats;
         int  verbStats;
-        uint32_t  doPrintLongestTrail;
+        unsigned  doPrintLongestTrail;
         int  doPrintBestRedClauses;
+        int do_print_times; ///Print times during verbose output
 
         //Limits
         double   maxTime;
-        uint64_t   maxConfl;
+        long maxConfl;
 
         //Agility
         double    agilityG; ///See paper by Armin Biere on agilities
         double    agilityLimit; ///The agility below which the agility is considered too low
-        uint64_t  agilityViolationLimit;
+        unsigned  agilityViolationLimit;
 
         //Glues
-        int       updateGlues;
-        uint32_t  shortTermHistorySize; ///< Rolling avg. glue window size
+        int       update_glues_on_prop;
+        int       update_glues_on_analyze;
 
         //OTF stuff
         int       otfHyperbin;
@@ -112,42 +207,71 @@ class SolverConf
 
         //SQL
         int       doSQL;
-        uint64_t    dumpTopNVars; //Only dump information about the "top" N active variables
-        int       dump_tree_variance_stats;
-        uint64_t    dumpClauseDistribPer;
-        uint64_t    dumpClauseDistribMaxSize;
-        uint64_t    dumpClauseDistribMaxGlue;
-        uint64_t    preparedDumpSizeScatter;
-        uint64_t    preparedDumpSizeVarData;
-        string    sqlServer;
-        string    sqlUser;
-        string    sqlPass;
-        string    sqlDatabase;
+        int       whichSQL;
+        bool      dump_individual_search_time;
+        std::string sqlite_filename;
+        #ifdef STATS_NEEDED_EXTRA
+        unsigned    dumpClauseDistribPer;
+        unsigned    dumpClauseDistribMaxSize;
+        unsigned    dumpClauseDistribMaxGlue;
+        unsigned    preparedDumpSizeScatter;
+        unsigned    preparedDumpSizeVarData;
+        #endif
+        std::string    sqlServer;
+        std::string    sqlUser;
+        std::string    sqlPass;
+        std::string    sqlDatabase;
 
         //Var-elim
         int      doVarElim;          ///<Perform variable elimination
+        unsigned varelim_cutoff_too_many_clauses;
+        int      do_empty_varelim;
+        long long empty_varelim_time_limitM;
+        long long varelim_time_limitM;
         int      updateVarElimComplexityOTF;
-        int      varelimStrategy; ///<Guess varelim order, or calculate?
+        unsigned updateVarElimComplexityOTF_limitvars;
+        int      updateVarElimComplexityOTF_limitavg;
+        ElimStrategy  var_elim_strategy; ///<Guess varelim order, or calculate?
         int      varElimCostEstimateStrategy;
         double    varElimRatioPerIter;
-        int      do_bounded_variable_addition;
+        int      skip_some_bve_resolvents;
+        int velim_resolvent_too_large; //-1 == no limit
+
+        //Subs, str limits for simplifier
+        long long subsumption_time_limitM;
+        long long strengthening_time_limitM;
+        long long aggressive_elim_time_limitM;
+
+        //BVA
+        int      do_bva;
+        unsigned bva_limit_per_call;
+        int      bva_also_twolit_diff;
+        long     bva_extra_lit_and_red_start;
+        long long bva_time_limitM;
 
         //Probing
         int      doProbe;
-        double   probeMultiplier; //Increase failed lit time by this multiplier
+        int      doIntreeProbe;
+        unsigned long long   probe_bogoprops_time_limitM;
+        unsigned long long   intree_time_limitM;
+        unsigned long long intree_scc_varreplace_time_limitM;
         int      doBothProp;
         int      doTransRed;   ///<Should carry out transitive reduction
         int      doStamp;
         int      doCache;
-        uint64_t   cacheUpdateCutoff;
-        uint64_t   maxCacheSizeMB;
+        unsigned   cacheUpdateCutoff;
+        unsigned   maxCacheSizeMB;
+        unsigned long long otf_hyper_time_limitM;
+        double  otf_hyper_ratio_limit;
+        double single_probe_time_limit_perc;
 
         //XORs
         int      doFindXors;
         int      maxXorToFind;
         int      useCacheWhenFindingXors;
         int      doEchelonizeXOR;
-        uint64_t  maxXORMatrix;
+        unsigned long long  maxXORMatrix;
+        long long xor_finder_time_limitM;
 
         //Var-replacement
         int doFindAndReplaceEqLits;
@@ -155,64 +279,69 @@ class SolverConf
         double sccFindPercent;
 
         //Propagation & searching
-        int      doLHBR; ///<Do lazy hyper-binary resolution
         int      propBinFirst;
-        uint32_t  dominPickFreq;
-        uint32_t  flipPolarFreq;
+        unsigned  dominPickFreq;
 
-        //Simplifier
-        int      simplify_at_startup;
+        //Iterative Alo Scheduling
+        int      simplify_at_startup; //simplify at 1st startup (only)
+        int      simplify_at_every_startup; //always simplify at startup, not only at 1st startup
         int      regularly_simplify_problem;
+        int      full_simplify_at_startup;
+        int      never_stop_search;
+
+        //Simplification
         int      perform_occur_based_simp;
-        int      doSubsume1;         ///<Perform self-subsuming resolution
-        int      doAsymmTE; ///< Do Asymtotic blocked clause elimination
+        int      do_strengthen_with_occur;         ///<Perform self-subsuming resolution
         unsigned maxRedLinkInSize;
-        uint64_t maxOccurIrredMB;
-        uint64_t maxOccurRedMB;
-        uint64_t maxOccurRedLitLinkedM;
+        unsigned maxOccurIrredMB;
+        unsigned maxOccurRedMB;
+        unsigned long long maxOccurRedLitLinkedM;
+        double   subsume_gothrough_multip;
 
+        //Distillation
+        int      do_distill_clauses;
+        unsigned long long distill_long_irred_cls_time_limitM;
+        long watch_cache_stamp_based_str_time_limitM;
+        long long distill_time_limitM;
 
-        //Optimisations to do
+        //Memory savings
         int       doRenumberVars;
         int       doSaveMem;
 
         //Component handling
         int       doFindComps;
         int       doCompHandler;
-        uint64_t    handlerFromSimpNum;
-        uint64_t    compVarLimit;
-        uint64_t  compFindLimitMega;
+        unsigned  handlerFromSimpNum;
+        size_t    compVarLimit;
+        unsigned long long  comp_find_time_limitM;
 
 
+        //Misc Optimisations
         int      doExtBinSubs;
-
-        int      doClausVivif;      ///<Perform asymmetric branching at the beginning of the solving
         int      doSortWatched;      ///<Sort watchlists according to size&type: binary, tertiary, normal (>3-long), xor clauses
         int      doStrSubImplicit;
+        long long  subsume_implicit_time_limitM;
+        long long  strengthen_implicit_time_limitM;
+        int      doCalcReach; ///<Calculate reachability, and influence variable decisions with that
 
         //Gates
         int      doGateFind; ///< Find OR gates
-        uint64_t    maxGateSize;
         unsigned maxGateBasedClReduceSize;
-
-
-        int      doCalcReach; ///<Calculate reachability, and influence variable decisions with that
-
-
         int      doShortenWithOrGates; ///<Shorten clauses with or gates during subsumption
         int      doRemClWithAndGates; ///<Remove clauses using and gates during subsumption
         int      doFindEqLitsWithGates; ///<Find equivalent literals using gates during subsumption
-        int      doMixXorAndGates; ///<Try to gain knowledge by mixing XORs and gates
+        long long gatefinder_time_limitM;
+        long long shorten_with_gates_time_limitM;
+        long long remove_cl_with_gates_time_limitM;
 
         //interrupting & dumping
-        bool      needResultFile;     ///<If set to TRUE, result will be written to a file
-        std::string resultFilename;    ///<Write result to this file. Only active if "needResultFile" is set to TRUE
-        std::string redDumpFname;    ///<Dump sorted redundant clauses to this file. Only active if "needToDumpReds" is set to TRUE
-        std::string irredDumpFname;       ///<Dump irred original problem CNF to this file. Only active if "needToDumpOrig" is set to TRUE
-        uint32_t  maxDumpRedsSize; ///<When dumping the redundant clauses, this is the maximum clause size that should be dumped
-
-        int printAllRestarts;
-        uint32_t origSeed;
+        double orig_global_timeout_multiplier;
+        double global_timeout_multiplier;
+        double global_timeout_multiplier_multiplier;
+        unsigned  maxDumpRedsSize; ///<When dumping the redundant clauses, this is the maximum clause size that should be dumped
+        unsigned origSeed;
+        unsigned long long sync_every_confl;
+        double clean_after_perc_zero_depth_assigns;
 };
 
 } //end namespace

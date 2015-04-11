@@ -1,29 +1,34 @@
+/*
+ * CryptoMiniSat
+ *
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301  USA
+*/
+
 #include "stamp.h"
 #include "varreplacer.h"
 #include "varupdatehelper.h"
 
 using namespace CMSat;
 
-void Stamp::saveVarMem(const uint32_t newNumVars)
+void Stamp::save_on_var_memory(const uint32_t newNumVars)
 {
     tstamp.resize(newNumVars*2);
     tstamp.shrink_to_fit();
-
-    for(Timestamp& t: tstamp) {
-        Lit lit = t.dominator[STAMP_RED];
-        if (lit != lit_Undef
-            && lit.var() >= newNumVars
-        ) {
-            t.dominator[STAMP_RED] = lit_Undef;
-        }
-
-        lit = t.dominator[STAMP_IRRED];
-        if (lit != lit_Undef
-            && lit.var() >= newNumVars
-        ) {
-            t.dominator[STAMP_IRRED] = lit_Undef;
-        }
-    }
 }
 
 bool Stamp::stampBasedClRem(
@@ -70,15 +75,6 @@ void Stamp::updateVars(
     , const vector<Var>& interToOuter2
     , vector<uint16_t>& seen
 ) {
-    //Update both dominators
-    for(size_t i = 0; i < tstamp.size(); i++) {
-        for(size_t i2 = 0; i2 < 2; i2++) {
-            if (tstamp[i].dominator[i2] != lit_Undef)
-                tstamp[i].dominator[i2]
-                    = getUpdatedLit(tstamp[i].dominator[i2], outerToInter);
-        }
-    }
-
     //Update the stamp. Stamp can be very large, so update by swapping
     updateBySwap(tstamp, seen, interToOuter2);
 }
@@ -89,9 +85,15 @@ std::pair<size_t, size_t> Stamp::stampBasedLitRem(
 ) const {
     size_t remLitTimeStamp = 0;
     StampSorter sorter(tstamp, stampType, true);
+
+    #ifdef DEBUG_STAMPING
+    cout << "Ori clause: " << lits << endl;
+    #endif
+
     std::sort(lits.begin(), lits.end(), sorter);
 
     #ifdef DEBUG_STAMPING
+    cout << "sorted clause: " << lits << endl;
     cout << "Timestamps: ";
     for(size_t i = 0; i < lits.size(); i++) {
         cout
@@ -99,7 +101,6 @@ std::pair<size_t, size_t> Stamp::stampBasedLitRem(
         << "," << tstamp[lits[i].toInt()].end[stampType];
     }
     cout << endl;
-    cout << "Ori clause: " << lits << endl;
     #endif
 
     assert(!lits.empty());
@@ -178,50 +179,12 @@ std::pair<size_t, size_t> Stamp::stampBasedLitRem(
     return std::make_pair(remLitTimeStamp, remLitTimeStampInv);
 }
 
-void Stamp::remove_from_stamps(const Var var)
-{
-    int types[] = {STAMP_IRRED, STAMP_RED};
-    for(int i = 0; i < 2; i++) {
-        tstamp[Lit(var, false).toInt()].dominator[types[i]] = lit_Undef;
-        tstamp[Lit(var, true).toInt()].dominator[types[i]] = lit_Undef;
-    }
-    for(size_t i = 0; i < tstamp.size(); i++) {
-        for(int i2 = 0; i2 < 2; i2++) {
-            if (tstamp[i].dominator[types[i2]].var() == var) {
-                tstamp[i].dominator[types[i2]] = lit_Undef;
-            }
-        }
-    }
-}
-
-void Stamp::updateDominators(const VarReplacer* replacer)
-{
-    for(size_t l = 0; l < tstamp.size(); l++) {
-        Lit lit = Lit::toLit(l);
-        lit = replacer->getLitReplacedWith(lit);
-
-        //Variable probably eliminated, decomposed, etc. Skip.
-        if (lit.toInt() >= tstamp.size())
-            continue;
-
-        //Update tstamp to that of the replaced var
-        tstamp[l] = tstamp[lit.toInt()];
-
-        for(size_t i2 = 0; i2 < 2; i2++) {
-            Lit& dom = tstamp[l].dominator[i2];
-            if (dom != lit_Undef) {
-                dom = replacer->getLitReplacedWith(dom);
-            }
-        }
-    }
-}
-
 void Stamp::clearStamps()
 {
     for(vector<Timestamp>::iterator
         it = tstamp.begin(), end = tstamp.end()
         ; it != end
-        ; it++
+        ; ++it
     ) {
         *it = Timestamp();
     }

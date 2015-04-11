@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -26,7 +26,6 @@
 #include "constants.h"
 #include "cloffset.h"
 #include <stdlib.h>
-#include "vec.h"
 #include <map>
 #include <vector>
 
@@ -64,7 +63,7 @@ class ClauseAllocator {
         );
         Clause* Clause_new(Clause& c);
 
-        ClOffset getOffset(const Clause* ptr) const;
+        ClOffset get_offset(const Clause* ptr) const;
 
         /**
         @brief Returns the pointer of a clause given its offset
@@ -73,7 +72,7 @@ class ClauseAllocator {
         returning the thus created pointer. Used a LOT in propagation, thus this
         is very important to be fast (therefore, it is an inlined method)
         */
-        inline Clause* getPointer(const uint32_t offset) const
+        inline Clause* ptr(const uint32_t offset) const
         {
             return (Clause*)(dataStart + offset);
         }
@@ -86,7 +85,7 @@ class ClauseAllocator {
             , const bool force = false
         );
 
-        size_t memUsed() const;
+        size_t mem_used() const;
 
     private:
         void updateAllOffsetsAndPointers(

@@ -1,5 +1,31 @@
-#include "solver.h"
+/*
+ * CryptoMiniSat
+ *
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301  USA
+*/
+
+#ifndef __SUBSUMESTRENGTHEN_H__
+#define __SUBSUMESTRENGTHEN_H__
+
 #include "cloffset.h"
+#include "solvertypesmini.h"
+#include "clabstraction.h"
+#include "clause.h"
 #include <vector>
 using std::vector;
 
@@ -7,34 +33,29 @@ namespace CMSat {
 
 class Simplifier;
 class GateFinder;
+class Solver;
 
 class SubsumeStrengthen
 {
 public:
     SubsumeStrengthen(Simplifier* simplifier, Solver* solver);
-    size_t memUsed() const;
-    void performSubsumption();
-    bool performStrengthening();
-    uint32_t subsume0(ClOffset offset);
+    size_t mem_used() const;
+
+    void backward_subsumption_long_with_long();
+    bool backward_strengthen_long_with_long();
+
+    //Called from simplifier at resolvent-adding of var-elim
+    uint32_t subsume_and_unlink_and_markirred(const ClOffset offset);
+
     //bool subsumeWithTris();
 
     struct Sub0Ret {
-        Sub0Ret() :
-            subsumedIrred(false)
-            , numSubsumed(0)
-        {};
-
-        bool subsumedIrred;
+        bool subsumedIrred = 0;
         ClauseStats stats;
-        uint32_t numSubsumed;
+        uint32_t numSubsumed = 0;
     };
 
     struct Sub1Ret {
-        Sub1Ret() :
-            sub(0)
-            , str(0)
-        {};
-
         Sub1Ret& operator+=(const Sub1Ret& other)
         {
             sub += other.sub;
@@ -43,87 +64,45 @@ public:
             return *this;
         }
 
-        size_t sub;
-        size_t str;
+        size_t sub = 0;
+        size_t str = 0;
     };
 
+    //Called from simplifier at resolvent-adding of var-elim
     template<class T>
-    Sub0Ret subsume0AndUnlink(
+    Sub0Ret subsume_and_unlink(
         const ClOffset offset
         , const T& ps
-        , const CL_ABST_TYPE abs
+        , const cl_abst_type abs
         , const bool removeImplicit = false
     );
 
     struct Stats
     {
-        Stats() :
-            subsumedBySub(0)
-            , subsumedByStr(0)
-            , litsRemStrengthen(0)
+        Stats& operator+=(const Stats& other);
+        void print_short(const Solver* solver) const;
+        void print() const;
 
-            , subsumeTime(0)
-            , strengthenTime(0)
-        {}
+        uint64_t subsumedBySub = 0;
+        uint64_t subsumedByStr = 0;
+        uint64_t litsRemStrengthen = 0;
 
-        Stats& operator+=(const Stats& other)
-        {
-            subsumedBySub += other.subsumedBySub;
-            subsumedByStr += other.subsumedByStr;
-            litsRemStrengthen += other.litsRemStrengthen;
-
-            subsumeTime += other.subsumeTime;
-            strengthenTime += other.strengthenTime;
-
-            return *this;
-        }
-
-        void printShort() const
-        {
-            //STRENGTH + SUBSUME
-            cout << "c [subs] long"
-            << " subBySub: " << subsumedBySub
-            << " subByStr: " << subsumedByStr
-            << " lits-rem-str: " << litsRemStrengthen
-            << " T: " << std::fixed << std::setprecision(2)
-            << (subsumeTime+strengthenTime)
-            << " s"
-            << endl;
-        }
-
-        void print() const
-        {
-            cout << "c -------- SubsumeStrengthen STATS ----------" << endl;
-            printStatsLine("c cl-subs"
-                , subsumedBySub + subsumedByStr
-                , " Clauses"
-            );
-            printStatsLine("c cl-str rem lit"
-                , litsRemStrengthen
-                , " Lits"
-            );
-            printStatsLine("c cl-sub T"
-                , subsumeTime
-                , " s"
-            );
-            printStatsLine("c cl-str T"
-                , strengthenTime
-                , " s"
-            );
-            cout << "c -------- SubsumeStrengthen STATS END ----------" << endl;
-        }
-
-        uint64_t subsumedBySub;
-        uint64_t subsumedByStr;
-        uint64_t litsRemStrengthen;
-
-        double subsumeTime;
-        double strengthenTime;
+        double subsumeTime = 0.0;
+        double strengthenTime = 0.0;
     };
 
     void finishedRun();
-    const Stats& getStats() const;
+    const Stats& get_stats() const;
     const Stats& getRunStats() const;
+
+    template<class T>
+    void find_subsumed(
+        const ClOffset offset
+        , const T& ps
+        , const cl_abst_type abs
+        , vector<ClOffset>& out_subsumed
+        , const bool removeImplicit = false
+    );
 
 private:
     Stats globalstats;
@@ -132,17 +111,8 @@ private:
     Simplifier* simplifier;
     Solver* solver;
 
-    void strengthen(ClOffset c, const Lit toRemoveLit);
-    friend class GateFinder;
+    void remove_literal(ClOffset c, const Lit toRemoveLit);
 
-    template<class T>
-    void findSubsumed0(
-        const ClOffset offset
-        , const T& ps
-        , const CL_ABST_TYPE abs
-        , vector<ClOffset>& out_subsumed
-        , const bool removeImplicit = false
-    );
     template<class T>
     size_t find_smallest_watchlist_for_clause(const T& ps) const;
 
@@ -150,7 +120,7 @@ private:
     void findStrengthened(
         const ClOffset offset
         , const T& ps
-        , const CL_ABST_TYPE abs
+        , const cl_abst_type abs
         , vector<ClOffset>& out_subsumed
         , vector<Lit>& out_lits
     );
@@ -159,7 +129,7 @@ private:
     void fillSubs(
         const ClOffset offset
         , const T& ps
-        , CL_ABST_TYPE abs
+        , cl_abst_type abs
         , vector<ClOffset>& out_subsumed
         , vector<Lit>& out_lits
         , const Lit lit
@@ -170,8 +140,8 @@ private:
 
     template<class T1, class T2>
     Lit subset1(const T1& A, const T2& B);
-    bool subsetAbst(const CL_ABST_TYPE A, const CL_ABST_TYPE B);
-    Sub1Ret subsume1(ClOffset offset);
+    bool subsetAbst(const cl_abst_type A, const cl_abst_type B);
+    Sub1Ret strengthen_subsume_and_unlink_and_markirred(ClOffset offset);
 
     vector<ClOffset> subs;
     vector<Lit> subsLits;
@@ -182,9 +152,11 @@ inline const SubsumeStrengthen::Stats& SubsumeStrengthen::getRunStats() const
     return runStats;
 }
 
-inline const SubsumeStrengthen::Stats& SubsumeStrengthen::getStats() const
+inline const SubsumeStrengthen::Stats& SubsumeStrengthen::get_stats() const
 {
     return globalstats;
 }
 
 } //end namespace
+
+#endif //__SUBSUMESTRENGTHEN_H__

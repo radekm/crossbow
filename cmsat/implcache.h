@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -35,7 +35,7 @@ class Solver;
 
 class LitExtra {
 public:
-    LitExtra() {};
+    LitExtra() {}
 
     LitExtra(const Lit l, const bool onlyNLBin)
     {
@@ -82,7 +82,7 @@ class TransCache {
 public:
     TransCache()
         //conflictLastUpdated(std::numeric_limits<uint64_t>::max())
-    {};
+    {}
 
     bool merge(
         const vector<LitExtra>& otherLits
@@ -127,11 +127,11 @@ inline std::ostream& operator<<(std::ostream& os, const TransCache& tc)
 
 class ImplCache  {
 public:
-    void printStats(const Solver* solver) const;
-    void printStatsSort(const Solver* solver) const;
-    size_t memUsed() const;
+    void print_stats(const Solver* solver) const;
+    void print_statsSort(const Solver* solver) const;
+    size_t mem_used() const;
     void makeAllRed();
-    void saveVarMems(uint32_t newNumVars)
+    void save_on_var_memorys(uint32_t newNumVars)
     {
         implCache.resize(newNumVars*2);
         implCache.shrink_to_fit();
@@ -169,10 +169,15 @@ public:
         return implCache[at];
     }
 
-    void newVar(const Var)
+    void new_var()
     {
         implCache.push_back(TransCache());
         implCache.push_back(TransCache());
+    }
+
+    void new_vars(const size_t n)
+    {
+        implCache.resize(implCache.size()+2*n);
     }
 
     size_t size() const
@@ -192,56 +197,26 @@ public:
 
     struct TryBothStats
     {
-        TryBothStats() :
-            numCalls(0)
-            , cpu_time(0)
-            , zeroDepthAssigns(0)
-            , varReplaced(0)
-            , bProp(0)
-            , bXProp(0)
-        {}
-
         void clear()
         {
             TryBothStats tmp;
             *this = tmp;
         }
 
-        TryBothStats& operator+=(const TryBothStats& other)
-        {
-            numCalls += other.numCalls;
-            cpu_time += other.cpu_time;
-            zeroDepthAssigns += other.zeroDepthAssigns;
-            varReplaced += other.varReplaced;
-            bProp += other.bProp;
-            bXProp += other.bXProp;
+        TryBothStats& operator+=(const TryBothStats& other);
+        void print_short(Solver* solver) const;
 
-            return *this;
-        }
-
-        void printShort() const
-        {
-            cout
-            << "c [bcache] "
-            //<< " set: " << bProp
-            << " 0-depth ass: " << zeroDepthAssigns
-            //<< " BXProp: " << bXProp
-            << " BXprop: " << bXProp
-            << " T: " << cpu_time
-            << endl;
-        }
-
-        uint64_t numCalls;
-        double cpu_time;
-        uint64_t zeroDepthAssigns;
-        uint64_t varReplaced;
-        uint64_t bProp;
-        uint64_t bXProp;
+        uint64_t numCalls = 0;
+        double cpu_time = 0;
+        uint64_t zeroDepthAssigns = 0;
+        uint64_t varReplaced = 0;
+        uint64_t bProp = 0;
+        uint64_t bXProp = 0;
     };
 
     TryBothStats runStats;
     TryBothStats globalStats;
-    const TryBothStats& getStats() const
+    const TryBothStats& get_stats() const
     {
         return globalStats;
     }
@@ -257,7 +232,7 @@ public:
         for(vector<TransCache>::iterator
             it = implCache.begin(), end = implCache.end()
             ; it != end
-            ; it++
+            ; ++it
         ) {
             it->lits.clear();
         }
@@ -282,7 +257,12 @@ private:
 namespace std
 {
     template <>
-    inline void swap (CMSat::TransCache& m1, CMSat::TransCache& m2) noexcept (true)
+    inline void swap (CMSat::TransCache& m1, CMSat::TransCache& m2)
+    #ifdef _MSC_VER
+    throw()
+    #else
+    noexcept (true)
+    #endif
     {
          m1.lits.swap(m2.lits);
     }

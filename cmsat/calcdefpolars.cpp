@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -23,6 +23,7 @@
 #include "assert.h"
 #include "time_mem.h"
 #include "solver.h"
+#include "sqlstats.h"
 #include "clauseallocator.h"
 
 using namespace CMSat;
@@ -34,37 +35,37 @@ CalcDefPolars::CalcDefPolars(Solver* _solver) :
 {
 }
 
-/**
-@brief Tally votes for a default TRUE or FALSE value for the variable using the Jeroslow-Wang method
-
-@p votes[inout] Votes are tallied at this place for each variable
-@p cs The clause to tally votes for
-*/
-void CalcDefPolars::tallyVotes(const vector<ClOffset>& cs)
+void CalcDefPolars::add_vote(const Lit lit, const double value)
 {
-    for (vector<ClOffset>::const_iterator
-        it = cs.begin(), end = it + cs.size()
-        ; it != end
-        ; it++
-    ) {
-        const Clause& cl = *solver->clAllocator.getPointer(*it);
+    if (lit.sign()) {
+        votes[lit.var()] -= value;
+    } else {
+        votes[lit.var()] += value;
+    }
+}
+
+void CalcDefPolars::tally_clause_votes(const vector<ClOffset>& cs)
+{
+    for (const ClOffset offset: cs) {
+        const Clause& cl = *solver->cl_alloc.ptr(offset);
 
         //Only count irred
         if (cl.red())
             continue;
 
-        double divider;
-        if (cl.size() > 63) divider = 0.0;
-        else divider = 1.0/(double)((uint64_t)1<<(cl.size()-1));
+        if (cl.size() > 63)
+            continue;
 
-        for (const Lit *it2 = cl.begin(), *end2 = cl.end(); it2 != end2; it2++) {
-            if (it2->sign()) votes[it2->var()] += divider;
-            else votes[it2->var()] -= divider;
+        double divider = 1.0/(double)((uint64_t)1<<(cl.size()-1));
+
+        for (const Lit lit: cl) {
+            add_vote(lit, divider);
+
         }
     }
 }
 
-void CalcDefPolars::tallyVotesBinTri(const watch_array& watches)
+void CalcDefPolars::tally_implicit_votes(const watch_array& watches)
 {
     size_t wsLit = 0;
     for (watch_array::const_iterator
@@ -85,79 +86,75 @@ void CalcDefPolars::tallyVotesBinTri(const watch_array& watches)
                 && lit < it2->lit2()
                 && !it2->red()
             ) {
-
-                if (lit.sign()) votes[lit.var()] += 0.5;
-                else votes[lit.var()] -= 0.5;
-
-                Lit lit2 = it2->lit2();
-                if (lit2.sign()) votes[lit2.var()] += 0.5;
-                else votes[lit2.var()] -= 0.5;
+                add_vote(lit, 0.5);
+                add_vote(it2->lit2(), 0.5);
             }
 
             //Only count TRI-s once
             if (it2->isTri()
                 && lit < it2->lit2()
                 && it2->lit2() < it2->lit3()
-                && it2->red()
+                && !it2->red()
             ) {
-                if (lit.sign()) votes[lit.var()] += 0.3;
-                else votes[lit.var()] -= 0.3;
-
-                Lit lit2 = it2->lit2();
-                if (lit2.sign()) votes[lit2.var()] += 0.3;
-                else votes[lit2.var()] -= 0.3;
-
-                Lit lit3 = it2->lit3();
-                if (lit3.sign()) votes[lit3.var()] += 0.3;
-                else votes[lit3.var()] -= 0.3;
+                add_vote(lit, 0.33);
+                add_vote(it2->lit2(), 0.33);
+                add_vote(it2->lit3(), 0.33);
             }
         }
     }
 }
 
-/**
-@brief Tallies votes for a TRUE/FALSE default polarity using Jeroslow-Wang
-
-Voting is only used if polarity_mode is "PolarityMode::automatic". This is the default.
-Uses the tallyVotes() functions to tally the votes
-*/
-const vector<char> CalcDefPolars::calculate()
+const vector<unsigned char> CalcDefPolars::calculate()
 {
     assert(solver->decisionLevel() == 0);
 
     //Setup
     votes.clear();
     votes.resize(solver->nVars(), 0.0);
-    vector<char> ret(solver->nVars(), 0);
+    vector<unsigned char> ret_polar(solver->nVars(), 0);
     const double myTime = cpuTime();
 
     //Tally votes
-    tallyVotes(solver->longIrredCls);
-    tallyVotesBinTri(solver->watches);
+    tally_clause_votes(solver->longIrredCls);
+    tally_implicit_votes(solver->watches);
 
     //Set polarity according to tally
-    uint32_t posPolars = 0;
-    uint32_t undecidedPolars = 0;
-    size_t i = 0;
-    for (vector<double>::iterator it = votes.begin(), end = votes.end(); it != end; it++, i++) {
-        ret[i] = (*it >= 0.0);
-        posPolars += (*it < 0.0);
-        undecidedPolars += (*it == 0.0);
+    size_t pos_polars = 0;
+    size_t neg_polars = 0;
+    size_t undecided_polars = 0;
+    for (size_t i = 0; i < votes.size(); i++) {
+        if (votes[i] > 0) {
+            ret_polar[i] = true;
+            pos_polars ++;
+        } else {
+            if (votes[i] == 0) {
+                undecided_polars ++;
+            } else {
+                neg_polars++;
+            }
+            ret_polar[i] = false;
+        }
     }
 
     //Print results
-    if (solver->conf.verbosity >= 3) {
-        #ifdef USE_OPENMP
-        #pragma omp critical
-        #endif
-
-        cout << "c Calc default polars - "
-        << " T: " << std::fixed << std::setprecision(2) << (cpuTime() - myTime) << " s"
-        << " pos: " << std::setw(7) << posPolars
-        << " undec: " << std::setw(7) << undecidedPolars
-        << " neg: " << std::setw(7) << solver->nVars()-  undecidedPolars - posPolars
+    const double time_used = cpuTime() - myTime;
+    if (solver->conf.verbosity >= 2) {
+        cout
+        << "c [polar] default polars - "
+        << " pos: " << std::setw(7) << pos_polars
+        << " neg: " << std::setw(7) << neg_polars
+        << " undec: " << std::setw(7) << undecided_polars
+        << solver->conf.print_times(time_used)
         << std:: endl;
     }
 
-    return ret;
+    if (solver->sqlStats) {
+        solver->sqlStats->time_passed_min(
+            solver
+            , "calcpolar"
+            , time_used
+        );
+    }
+
+    return ret_polar;
 }

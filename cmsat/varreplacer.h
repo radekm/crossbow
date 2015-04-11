@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,11 +24,11 @@
 
 #include <map>
 #include <vector>
+#include <utility>
 
 #include "constants.h"
 #include "solvertypes.h"
 #include "clause.h"
-#include "vec.h"
 #include "watcharray.h"
 
 namespace CMSat {
@@ -38,18 +38,7 @@ namespace CMSat {
 using std::map;
 using std::vector;
 class Solver;
-
-class LaterAddBinXor
-{
-    public:
-        LaterAddBinXor(const Lit _lit1, const Lit _lit2) :
-            lit1(_lit1)
-            , lit2(_lit2)
-        {}
-
-        Lit lit1;
-        Lit lit2;
-};
+class SCCFinder;
 
 /**
 @brief Replaces variables with their anti/equivalents
@@ -59,38 +48,30 @@ class VarReplacer
     public:
         VarReplacer(Solver* solver);
         ~VarReplacer();
-        void newVar(Var orig_outer);
-        void saveVarMem();
-        bool performReplace();
-        bool replace(
-            Var lit1
-            , Var lit2
-            , const bool xorEqualFalse
-            , bool addLaterAsTwoBins
-        );
+        void new_var(const Var orig_outer);
+        void new_vars(const size_t n);
+        void save_on_var_memory();
+        bool replace_if_enough_is_found(const size_t limit = 0, uint64_t* bogoprops = NULL);
         void print_equivalent_literals(std::ostream *os) const;
-        size_t get_num_bin_clauses() const;
         void print_some_stats(const double global_cpu_time) const;
+        const SCCFinder* get_scc_finder() const;
 
-        void extendModel();
-        void extendModel(const Var var);
+        void extend_model();
+        void extend_model(const Var var);
 
-        Lit getLitReplacedWith(Lit lit) const;
-        Var getVarReplacedWith(const Var var) const;
-        Var getVarReplacedWith(const Lit lit) const;
-        bool isReplaced(const Var var) const;
-        bool isReplaced(const Lit lit) const;
-        bool replacingVar(const Var var) const;
-        bool addLaterAddBinXor();
+        Var get_var_replaced_with(const Var var) const;
+        Var get_var_replaced_with(const Lit lit) const;
+        Lit get_lit_replaced_with(Lit lit) const;
+        Lit get_lit_replaced_with_outer(Lit lit) const;
+
+        vector<Var> get_vars_replacing(Var var) const;
         void updateVars(
             const vector<uint32_t>& outerToInter
             , const vector<uint32_t>& interToOuter
         );
 
         //Stats
-        size_t getNumReplacedVars() const;
-        size_t getNumLastReplacedVars() const;
-        size_t getNewToReplaceVars() const;
+        size_t get_num_replaced_vars() const;
         struct Stats
         {
             void clear()
@@ -101,7 +82,7 @@ class VarReplacer
 
             Stats& operator+=(const Stats& other);
             void print(const size_t nVars) const;
-            void printShort() const;
+            void print_short(const Solver* solver) const;
 
             uint64_t numCalls = 0;
             double cpu_time = 0;
@@ -112,17 +93,49 @@ class VarReplacer
             uint64_t removedTriClauses = 0;
             uint64_t removedLongClauses = 0;
             uint64_t removedLongLits = 0;
+            uint64_t bogoprops = 0;
         };
-        const Stats& getStats() const;
-        size_t memUsed() const;
+        const Stats& get_stats() const;
+        size_t mem_used() const;
+        vector<std::pair<Lit, Lit> > get_all_binary_xors_outer() const;
 
     private:
         Solver* solver;
+        SCCFinder* scc_finder;
+        vector<Clause*> delayed_attach_or_free;
+
+        void check_no_replaced_var_set() const;
+        vector<Lit> fast_inter_replace_lookup;
+        void build_fast_inter_replace_lookup();
+        void destroy_fast_inter_replace_lookup();
+        Lit get_lit_replaced_with_fast(const Lit lit) const {
+            return fast_inter_replace_lookup[lit.var()] ^ lit.sign();
+        }
+        Var get_var_replaced_with_fast(const Var var) const {
+            return fast_inter_replace_lookup[var].var();
+        }
+
+        vector<Lit> ps_tmp;
+        bool perform_replace();
+        bool add_xor_as_bins(const BinaryXor& bin_xor);
+        bool replace(
+            Var lit1
+            , Var lit2
+            , bool xor_is_true
+        );
+
+        bool isReplaced(const Var var) const;
+        bool isReplaced(const Lit lit) const;
+        bool isReplaced_fast(const Var var) const;
+        bool isReplaced_fast(const Lit lit) const;
+
         size_t getNumTrees() const;
         void set_sub_var_during_solution_extension(Var var, Var sub_var);
         void checkUnsetSanity();
 
         bool replace_set(vector<ClOffset>& cs);
+        void attach_delayed_attach();
+        void update_all_vardata_activities();
         void update_vardata_and_activities(
             const Var orig
             , const Var replaced
@@ -146,7 +159,7 @@ class VarReplacer
         );
 
         //Temporary used in replaceImplicit
-        vector<BinaryClause> delayedAttach;
+        vector<BinaryClause> delayed_attach_bin;
         bool replaceImplicit();
         struct ImplicitTmpStats
         {
@@ -214,17 +227,12 @@ class VarReplacer
         );
         void updateStatsFromImplStats();
 
-        bool handleUpdatedClause(
-            Clause& c
-            , const Lit origLit1
-            , const Lit origLit2
-        );
+        bool handleUpdatedClause(Clause& c, const Lit origLit1, const Lit origLit2);
 
          //While replacing the implicit clauses we cannot enqeue
         vector<Lit> delayedEnqueue;
         bool update_table_and_reversetable(const Lit lit1, const Lit lit2);
         void setAllThatPointsHereTo(const Var var, const Lit lit);
-        vector<LaterAddBinXor> laterAddBinXor;
 
         //Mapping tables
         vector<Lit> table; ///<Stores which variables have been replaced by which literals. Index by: table[VAR]
@@ -232,35 +240,30 @@ class VarReplacer
 
         //Stats
         void printReplaceStats() const;
-        uint64_t replacedVars; ///<Num vars replaced during var-replacement
-        uint64_t lastReplacedVars;
+        uint64_t replacedVars = 0; ///<Num vars replaced during var-replacement
+        uint64_t lastReplacedVars = 0;
         Stats runStats;
         Stats globalStats;
 };
 
-inline size_t VarReplacer::getNumReplacedVars() const
+inline size_t VarReplacer::get_num_replaced_vars() const
 {
     return replacedVars;
 }
 
-inline size_t VarReplacer::getNumLastReplacedVars() const
-{
-    return lastReplacedVars;
-}
-
-inline size_t VarReplacer::getNewToReplaceVars() const
-{
-    return replacedVars-lastReplacedVars;
-}
-
 inline bool VarReplacer::isReplaced(const Var var) const
 {
-    return getVarReplacedWith(var) != var;
+    return get_var_replaced_with(var) != var;
 }
 
-inline Var VarReplacer::getVarReplacedWith(const Lit lit) const
+inline bool VarReplacer::isReplaced_fast(const Var var) const
 {
-    return getVarReplacedWith(lit.var());
+    return get_var_replaced_with_fast(var) != var;
+}
+
+inline Var VarReplacer::get_var_replaced_with(const Lit lit) const
+{
+    return get_var_replaced_with(lit.var());
 }
 
 inline bool VarReplacer::isReplaced(const Lit lit) const
@@ -268,9 +271,9 @@ inline bool VarReplacer::isReplaced(const Lit lit) const
     return isReplaced(lit.var());
 }
 
-inline bool VarReplacer::replacingVar(const Var var) const
+inline bool VarReplacer::isReplaced_fast(const Lit lit) const
 {
-    return (reverseTable.find(var) != reverseTable.end());
+    return isReplaced_fast(lit.var());
 }
 
 inline size_t VarReplacer::getNumTrees() const
@@ -278,9 +281,14 @@ inline size_t VarReplacer::getNumTrees() const
     return reverseTable.size();
 }
 
-inline const VarReplacer::Stats& VarReplacer::getStats() const
+inline const VarReplacer::Stats& VarReplacer::get_stats() const
 {
     return globalStats;
+}
+
+inline const SCCFinder* VarReplacer::get_scc_finder() const
+{
+    return scc_finder;
 }
 
 } //end namespace

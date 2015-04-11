@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -35,8 +35,9 @@ CompleteDetachReatacher::CompleteDetachReatacher(Solver* _solver) :
 /**
 @brief Completely detach all non-binary clauses
 */
-void CompleteDetachReatacher::detachNonBinsNonTris()
+void CompleteDetachReatacher::detach_nonbins_nontris()
 {
+    assert(!solver->drup->something_delayed());
     ClausesStay stay;
 
     for (watch_array::iterator
@@ -95,9 +96,6 @@ CompleteDetachReatacher::ClausesStay CompleteDetachReatacher::clearWatchNotBinNo
     return stay;
 }
 
-/**
-@brief Completely attach all clauses
-*/
 bool CompleteDetachReatacher::reattachLongs(bool removeStatsFirst)
 {
     if (solver->conf.verbosity >= 6) {
@@ -106,9 +104,8 @@ bool CompleteDetachReatacher::reattachLongs(bool removeStatsFirst)
 
     cleanAndAttachClauses(solver->longIrredCls, removeStatsFirst);
     cleanAndAttachClauses(solver->longRedCls, removeStatsFirst);
-
-    //Treat implicits
     solver->clauseCleaner->clean_implicit_clauses();
+    assert(!solver->drup->something_delayed());
 
     if (solver->ok) {
         solver->ok = (solver->propagate().isNULL());
@@ -129,7 +126,8 @@ void CompleteDetachReatacher::cleanAndAttachClauses(
     vector<ClOffset>::iterator i = cs.begin();
     vector<ClOffset>::iterator j = i;
     for (vector<ClOffset>::iterator end = cs.end(); i != end; i++) {
-        Clause* cl = solver->clAllocator.getPointer(*i);
+        assert(!solver->drup->something_delayed());
+        Clause* cl = solver->cl_alloc.ptr(*i);
 
         //Handle stat removal if need be
         if (removeStatsFirst) {
@@ -140,11 +138,11 @@ void CompleteDetachReatacher::cleanAndAttachClauses(
             }
         }
 
-        if (cleanClause(cl)) {
+        if (clean_clause(cl)) {
             solver->attachClause(*cl);
             *j++ = *i;
         } else {
-            solver->clAllocator.clauseFree(*i);
+            solver->cl_alloc.clauseFree(*i);
         }
     }
     cs.resize(cs.size() - (i-j));
@@ -153,7 +151,7 @@ void CompleteDetachReatacher::cleanAndAttachClauses(
 /**
 @brief Not only cleans a clause from false literals, but if clause is satisfied, it reports it
 */
-bool CompleteDetachReatacher::cleanClause(Clause* cl)
+bool CompleteDetachReatacher::clean_clause(Clause* cl)
 {
     Clause& ps = *cl;
     (*solver->drup) << deldelay << ps << fin;
@@ -169,11 +167,7 @@ bool CompleteDetachReatacher::cleanClause(Clause* cl)
     Lit *j = i;
     for (Lit *end = ps.end(); i != end; i++) {
         if (solver->value(*i) == l_True) {
-
-            //Drup
-            if (i != j) {
-                (*solver->drup) << findelay;
-            }
+            (*solver->drup) << findelay;
             return false;
         }
         if (solver->value(*i) == l_Undef) {
@@ -185,6 +179,8 @@ bool CompleteDetachReatacher::cleanClause(Clause* cl)
     //Drup
     if (i != j) {
         (*solver->drup) << *cl << fin << findelay;
+    } else {
+        solver->drup->forget_delay();
     }
 
     switch (ps.size()) {
@@ -200,12 +196,12 @@ bool CompleteDetachReatacher::cleanClause(Clause* cl)
             return false;
 
         case 2: {
-            solver->attachBinClause(ps[0], ps[1], ps.red());
+            solver->attach_bin_clause(ps[0], ps[1], ps.red());
             return false;
         }
 
         case 3: {
-            solver->attachTriClause(ps[0], ps[1], ps[2], ps.red());
+            solver->attach_tri_clause(ps[0], ps[1], ps[2], ps.red());
             return false;
         }
 

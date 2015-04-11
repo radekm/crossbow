@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -48,10 +48,10 @@ public:
             *this = Stats();
         }
         Stats operator+=(const Stats& other);
-        void printShort() const;
+        void print_short(const Solver* solver) const;
         void print() const;
 
-        double time_used;
+        double time_used = 0.0;
         uint64_t numCalled = 0;
         uint64_t time_out = 0;
         uint64_t remBins = 0;
@@ -60,7 +60,7 @@ public:
         uint64_t cacheTriRem = 0;
         uint64_t numWatchesLooked = 0;
     };
-    Stats getStats() const;
+    Stats get_stats() const;
 
 private:
     Solver* solver;

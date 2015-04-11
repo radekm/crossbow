@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,7 +25,9 @@
 #include "solver.h"
 #include "watchalgos.h"
 #include "clauseallocator.h"
+#include "sqlstats.h"
 
+#include <cmath>
 #include <iomanip>
 using std::cout;
 using std::endl;
@@ -53,7 +55,6 @@ void SubsumeImplicit::try_subsume_tri(
     //Subsumed by bin
     if (lastLit2 == i->lit2()
         && lastLit3 == lit_Undef
-        && lastLit2 == i->lit2()
     ) {
         if (lastRed && !i->red()) {
             assert(lastBin->isBinary());
@@ -90,7 +91,9 @@ void SubsumeImplicit::try_subsume_tri(
     tmplits.push_back(i->lit3());
 
     //Subsumed by stamp
-    if (doStamp && !remove) {
+    if (doStamp && !remove
+        && (solver->conf.otfHyperbin || !solver->drup->enabled())
+    ) {
         timeAvailable -= 15;
         remove = solver->stamp.stampBasedClRem(tmplits);
         runStats.stampTriRem += remove;
@@ -99,12 +102,13 @@ void SubsumeImplicit::try_subsume_tri(
     //Subsumed by cache
     if (!remove
         && solver->conf.doCache
+        && (solver->conf.otfHyperbin || !solver->drup->enabled())
     ) {
-        for(size_t i = 0; i < tmplits.size() && !remove; i++) {
+        for(size_t at = 0; at < tmplits.size() && !remove; at++) {
             timeAvailable -= solver->implCache[lit.toInt()].lits.size();
             for (vector<LitExtra>::const_iterator
-                it2 = solver->implCache[tmplits[i].toInt()].lits.begin()
-                , end2 = solver->implCache[tmplits[i].toInt()].lits.end()
+                it2 = solver->implCache[tmplits[at].toInt()].lits.begin()
+                , end2 = solver->implCache[tmplits[at].toInt()].lits.end()
                 ; it2 != end2
                 ; it2++
             ) {
@@ -178,14 +182,17 @@ void SubsumeImplicit::subsume_implicit(const bool check_stats)
 {
     assert(solver->okay());
     const double myTime = cpuTime();
-    timeAvailable = 1900LL*1000LL*1000LL;
+    const uint64_t orig_timeAvailable =
+        1000LL*1000LL*solver->conf.subsume_implicit_time_limitM
+        *solver->conf.global_timeout_multiplier;
+    timeAvailable = orig_timeAvailable;
     const bool doStamp = solver->conf.doStamp;
     runStats.clear();
 
     //Randomize starting point
     const size_t rnd_start = solver->mtrand.randInt(solver->watches.size()-1);
     size_t numDone = 0;
-    for (;numDone < solver->watches.size() && timeAvailable > 0
+    for (;numDone < solver->watches.size() && timeAvailable > 0 && !solver->must_interrupt_asap()
          ;numDone++
     ) {
         const size_t at = (rnd_start + numDone)  % solver->watches.size();
@@ -197,10 +204,12 @@ void SubsumeImplicit::subsume_implicit(const bool check_stats)
         if (ws.size() < 2)
             continue;
 
-        timeAvailable -= ws.size()*std::ceil(std::log((double)ws.size())) + 20;
-        std::sort(ws.begin(), ws.end(), WatchSorter());
+        if (ws.size() > 1) {
+            timeAvailable -= ws.size()*std::ceil(std::log((double)ws.size())) + 20;
+            std::sort(ws.begin(), ws.end(), WatchSorter());
+        }
         /*cout << "---> Before" << endl;
-        printWatchlist(ws, lit);*/
+        print_watch_list(ws, lit);*/
 
         Watched* i = ws.begin();
         Watched* j = i;
@@ -232,15 +241,30 @@ void SubsumeImplicit::subsume_implicit(const bool check_stats)
         }
         ws.shrink(i-j);
     }
-    if (check_stats) {
-        solver->checkStats();
+
+    const double time_used = cpuTime() - myTime;
+    const bool time_out = (timeAvailable <= 0);
+    const double time_remain = (double)timeAvailable/(double)orig_timeAvailable;
+    runStats.numCalled++;
+    runStats.time_used += time_used;
+    runStats.time_out += time_out;
+    if (solver->conf.verbosity >= 1) {
+        runStats.print_short(solver);
+    }
+    if (solver->sqlStats) {
+        solver->sqlStats->time_passed(
+            solver
+            , "subsume implicit"
+            , time_used
+            , time_out
+            , time_remain
+        );
     }
 
-    runStats.numCalled++;
-    runStats.time_used += cpuTime() - myTime;
-    runStats.time_out += (timeAvailable <= 0);
-    if (solver->conf.verbosity >= 1) {
-        runStats.printShort();
+    if (check_stats) {
+        #ifdef DEBUG_IMPLICIT_STATS
+        solver->check_stats();
+        #endif
     }
 
     globalStats += runStats;
@@ -260,48 +284,44 @@ SubsumeImplicit::Stats SubsumeImplicit::Stats::operator+=(const SubsumeImplicit:
     return *this;
 }
 
-void SubsumeImplicit::Stats::printShort() const
+void SubsumeImplicit::Stats::print_short(const Solver* solver) const
 {
     cout
     << "c [impl sub]"
     << " bin: " << remBins
     << " tri: " << remTris
     << " (stamp: " << stampTriRem << ", cache: " << cacheTriRem << ")"
-
-    << " T: " << std::fixed << std::setprecision(2)
-    << time_used
-    << " T-out: " << (time_out ? "Y" : "N")
+    << solver->conf.print_times(time_used, time_out)
     << " w-visit: " << numWatchesLooked
     << endl;
 }
 
 void SubsumeImplicit::Stats::print() const
 {
-    //Asymm
     cout << "c -------- IMPLICIT SUB STATS --------" << endl;
-    printStatsLine("c time"
+    print_stats_line("c time"
         , time_used
         , time_used/(double)numCalled
         , "per call"
     );
 
-    printStatsLine("c timed out"
+    print_stats_line("c timed out"
         , time_out
-        , (double)time_out/(double)numCalled*100.0
+        , stats_line_percent(time_out, numCalled)
         , "% of calls"
     );
 
-    printStatsLine("c rem bins"
+    print_stats_line("c rem bins"
         , remBins
     );
 
-    printStatsLine("c rem tris"
+    print_stats_line("c rem tris"
         , remTris
     );
     cout << "c -------- IMPLICIT SUB STATS END --------" << endl;
 }
 
-SubsumeImplicit::Stats SubsumeImplicit::getStats() const
+SubsumeImplicit::Stats SubsumeImplicit::get_stats() const
 {
     return globalStats;
 }

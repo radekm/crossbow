@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,6 +22,7 @@
 #include "clausecleaner.h"
 #include "clauseallocator.h"
 #include "solver.h"
+#include "solvertypesmini.h"
 
 using namespace CMSat;
 
@@ -147,6 +148,7 @@ void ClauseCleaner::clean_implicit_watchlist(
             *j++ = *i;
             continue;
         }
+        assert(!solver->drup->something_delayed());
 
         if (i->isBinary()) {
             clean_binary_implicit(*i, j, lit);
@@ -161,13 +163,21 @@ void ClauseCleaner::clean_implicit_watchlist(
 
 void ClauseCleaner::clean_implicit_clauses()
 {
+    assert(!solver->drup->something_delayed());
     assert(solver->decisionLevel() == 0);
     impl_data = ImplicitData();
     size_t wsLit = 0;
+    size_t wsLit2 = 2;
     for (size_t end = solver->watches.size()
         ; wsLit != end
-        ; wsLit++
+        ; wsLit++, wsLit2++
     ) {
+        if (wsLit2 < end
+            && !solver->watches[Lit::toLit(wsLit2).toInt()].empty()
+        ) {
+            solver->watches.prefetch(Lit::toLit(wsLit2).toInt());
+        }
+
         const Lit lit = Lit::toLit(wsLit);
         watch_subarray ws = solver->watches[lit.toInt()];
         if (ws.empty())
@@ -178,14 +188,15 @@ void ClauseCleaner::clean_implicit_clauses()
     impl_data.update_solver_stats(solver);
 
     #ifdef DEBUG_IMPLICIT_STATS
-    solver->checkImplicitStats();
+    solver->check_implicit_stats();
     #endif
 }
 
-void ClauseCleaner::cleanClauses(vector<ClOffset>& cs)
+void ClauseCleaner::clean_clauses(vector<ClOffset>& cs)
 {
+    assert(!solver->drup->something_delayed());
     assert(solver->decisionLevel() == 0);
-    assert(solver->qhead == solver->trail.size());
+    assert(solver->prop_at_head());
 
     #ifdef VERBOSE_DEBUG
     cout << "Cleaning  clauses" << endl;
@@ -193,33 +204,31 @@ void ClauseCleaner::cleanClauses(vector<ClOffset>& cs)
 
     vector<ClOffset>::iterator s, ss, end;
     size_t at = 0;
-    for (s = ss = cs.begin(), end = cs.end();  s != end; s++, at++) {
+    for (s = ss = cs.begin(), end = cs.end();  s != end; ++s, ++at) {
         if (at + 1 < cs.size()) {
-            Clause* cl = solver->clAllocator.getPointer(cs[at+1]);
-            __builtin_prefetch(cl);
+            Clause* pre_cl = solver->cl_alloc.ptr(cs[at+1]);
+            __builtin_prefetch(pre_cl);
         }
-        if (cleanClause(*s)) {
-            solver->clAllocator.clauseFree(*s);
+
+        Clause& cl = *solver->cl_alloc.ptr(*s);
+        if (clean_clause(cl)) {
+            solver->cl_alloc.clauseFree(*s);
         } else {
             *ss++ = *s;
         }
     }
     cs.resize(cs.size() - (s-ss));
-
-    #ifdef VERBOSE_DEBUG
-    cout << "cleanClauses(Clause) useful ?? Removed: " << s-ss << endl;
-    #endif
 }
 
-inline bool ClauseCleaner::cleanClause(ClOffset offset)
+inline bool ClauseCleaner::clean_clause(Clause& cl)
 {
-    Clause& cl = *solver->clAllocator.getPointer(offset);
+    assert(!solver->drup->something_delayed());
     assert(cl.size() > 3);
     const uint32_t origSize = cl.size();
 
     (*solver->drup) << deldelay << cl << fin;
-    Lit origLit1 = cl[0];
-    Lit origLit2 = cl[1];
+    const Lit origLit1 = cl[0];
+    const Lit origLit2 = cl[1];
 
     Lit *i, *j, *end;
     uint32_t num = 0;
@@ -231,7 +240,7 @@ inline bool ClauseCleaner::cleanClause(ClOffset offset)
         }
 
         if (val == l_True) {
-            solver->detachModifiedClause(origLit1, origLit2, origSize, &cl);
+            solver->detach_modified_clause(origLit1, origLit2, origSize, &cl);
             (*solver->drup) << findelay;
             return true;
         }
@@ -239,23 +248,28 @@ inline bool ClauseCleaner::cleanClause(ClOffset offset)
     if (i != j) {
         cl.shrink(i-j);
         (*solver->drup) << cl << fin << findelay;
+    } else {
+        solver->drup->forget_delay();
     }
 
     assert(cl.size() > 1);
     if (i != j) {
         if (cl.size() == 2) {
-            solver->detachModifiedClause(origLit1, origLit2, origSize, &cl);
-            solver->attachBinClause(cl[0], cl[1], cl.red());
+            solver->detach_modified_clause(origLit1, origLit2, origSize, &cl);
+            solver->attach_bin_clause(cl[0], cl[1], cl.red());
             return true;
         } else if (cl.size() == 3) {
-            solver->detachModifiedClause(origLit1, origLit2, origSize, &cl);
-            solver->attachTriClause(cl[0], cl[1], cl[2], cl.red());
+            solver->detach_modified_clause(origLit1, origLit2, origSize, &cl);
+            solver->attach_tri_clause(cl[0], cl[1], cl[2], cl.red());
             return true;
         } else {
-            if (cl.red())
+            if (cl.red()) {
                 solver->litStats.redLits -= i-j;
-            else
+            } else {
                 solver->litStats.irredLits -= i-j;
+            }
+            assert(solver->value(cl[0]) == l_Undef);
+            assert(solver->value(cl[1]) == l_Undef);
         }
     }
 
@@ -275,7 +289,7 @@ void ClauseCleaner::ImplicitData::update_solver_stats(Solver* solver)
     for(const BinaryClause& bincl: toAttach) {
         assert(solver->value(bincl.getLit1()) == l_Undef);
         assert(solver->value(bincl.getLit2()) == l_Undef);
-        solver->attachBinClause(bincl.getLit1(), bincl.getLit2(), bincl.isRed());
+        solver->attach_bin_clause(bincl.getLit1(), bincl.getLit2(), bincl.isRed());
     }
 
     assert(remNonLBin % 2 == 0);
@@ -288,12 +302,12 @@ void ClauseCleaner::ImplicitData::update_solver_stats(Solver* solver)
     solver->binTri.redTris -= remLTri/3;
 }
 
-void ClauseCleaner::removeAndCleanAll()
+void ClauseCleaner::remove_and_clean_all()
 {
     double myTime = cpuTime();
     clean_implicit_clauses();
-    cleanClauses(solver->longIrredCls);
-    cleanClauses(solver->longRedCls);
+    clean_clauses(solver->longIrredCls);
+    clean_clauses(solver->longRedCls);
 
     #ifndef NDEBUG
     //Once we have cleaned the watchlists

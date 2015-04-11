@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -28,7 +28,6 @@
 
 #include "solvertypes.h"
 #include "clause.h"
-#include "bitarray.h"
 
 namespace CMSat {
 
@@ -40,23 +39,6 @@ class Solver;
 
 //#define DEBUG_REMOVE_USELESS_BIN
 
-/**
-@brief Responsible for doing failed var searching and related algorithms
-
-Performs in seach():
-1) Failed lit searching
-2) Searching for lits that have been propagated by both "var" and "~var"
-3) 2-long Xor clauses that have been found because when propagating "var" and
-   "~var", they have been produced by normal xor-clauses shortening to this xor
-   clause
-4) If var1 propagates var2 and ~var1 propagates ~var2, then var=var2, and this
-   is a 2-long XOR clause, this 2-long xor is added
-5) Hyper-binary resolution
-
-Perfoms in asymmBranch(): asymmetric branching, heuristically. Best paper
-on this is 'Vivifying Propositional Clausal Formulae', though we do it much
-more heuristically
-*/
 class Prober {
     public:
         Prober(Solver* _solver);
@@ -65,33 +47,6 @@ class Prober {
 
         struct Stats
         {
-            Stats() :
-                //Time
-                cpu_time(0)
-                , timeAllocated(0)
-                , numCalls(0)
-
-                //Probe stats
-                , numFailed(0)
-                , numProbed(0)
-                , numLoopIters(0)
-                , numVarProbed(0)
-                , numVisited(0)
-                , zeroDepthAssigns(0)
-
-                //Bins
-                , addedBin(0)
-                , removedIrredBin(0)
-                , removedRedBin(0)
-
-                //Compare against
-                , origNumFreeVars(0)
-                , origNumBins(0)
-
-                //bothProp
-                , bothSameAdded(0)
-            {}
-
             void clear()
             {
                 Stats tmp;
@@ -135,85 +90,84 @@ class Prober {
             void print(const size_t nVars) const
             {
                 cout << "c -------- PROBE STATS ----------" << endl;
-                printStatsLine("c probe time"
+                print_stats_line("c probe time"
                     , cpu_time
-                    , (double)timeAllocated/(cpu_time*1000.0*1000.0)
+                    , ratio_for_stat(timeAllocated, cpu_time*1000.0*1000.0)
                     , "(Mega BP+HP)/s"
                 );
 
-                printStatsLine("c called"
+                print_stats_line("c called"
                     , numCalls
-                    , cpu_time/(double)numCalls
+                    , ratio_for_stat(cpu_time, numCalls)
                     , "s/call"
                 );
 
-                printStatsLine("c unused Mega BP+HP"
+                print_stats_line("c unused Mega BP+HP"
                     , (double)(timeAllocated - (propStats.bogoProps + propStats.otfHyperTime))/(1000.0*1000.0)
-                    , (cpu_time/(double)(propStats.bogoProps + propStats.otfHyperTime))*(double)(timeAllocated - (propStats.bogoProps + propStats.otfHyperTime))
+                    , ratio_for_stat(cpu_time, propStats.bogoProps + propStats.otfHyperTime)*(double)(timeAllocated - (propStats.bogoProps + propStats.otfHyperTime))
                     , "est. secs"
                 );
 
-                printStatsLine("c 0-depth-assigns"
+                print_stats_line("c 0-depth-assigns"
                     , zeroDepthAssigns
-                    , (double)zeroDepthAssigns/(double)nVars*100.0
+                    , stats_line_percent(zeroDepthAssigns, nVars)
                     , "% vars");
 
-                printStatsLine("c bothsame"
+                print_stats_line("c bothsame"
                     , bothSameAdded
-                    , (double)bothSameAdded/(double)numVisited*100.0
+                    , stats_line_percent(bothSameAdded, numVisited)
                     , "% visited"
                 );
 
-                printStatsLine("c probed"
+                print_stats_line("c probed"
                     , numProbed
-                    , (double)numProbed/cpu_time
+                    , ratio_for_stat(numProbed, cpu_time)
                     , "probe/sec"
                 );
 
-                printStatsLine("c loop iters"
+                print_stats_line("c loop iters"
                     , numLoopIters
-                    , (double)numVarProbed/(double)numLoopIters*100.0
+                    , stats_line_percent(numVarProbed, numLoopIters)
                     , "% var probed"
                 );
 
-                printStatsLine("c failed"
+                print_stats_line("c failed"
                     , numFailed
-                    , 100.0*(double)numFailed
-                    /(double)numProbed
+                    , stats_line_percent(numFailed, numProbed)
                     , "% of probes"
                 );
 
-                printStatsLine("c visited"
+                print_stats_line("c visited"
                     , (double)numVisited/(1000.0*1000.0)
                     , "M lits"
-                    , (100.0*(double)numVisited/(double)(origNumFreeVars*2))
+                    , stats_line_percent(numVisited, origNumFreeVars*2)
                     , "% of available lits"
                 );
 
-//                 printStatsLine("c probe failed"
+//                 print_stats_line("c probe failed"
 //                     , numFailed
 //                     , (double)numFailed/(double)nVars*100.0
 //                     , "% vars");
 
-                printStatsLine("c bin add"
+                print_stats_line("c bin add"
                     , addedBin
-                    , (double)addedBin/(double)origNumBins*100.0
+                    , stats_line_percent(addedBin, origNumBins)
                     , "% of bins"
                 );
 
-                printStatsLine("c irred bin rem"
+                print_stats_line("c irred bin rem"
                     , removedIrredBin
-                    , (double)removedIrredBin/(double)origNumBins*100.0
+                    , stats_line_percent(removedIrredBin, origNumBins)
                     , "% of bins"
                 );
 
-                printStatsLine("c red bin rem"
+                print_stats_line("c red bin rem"
                     , removedRedBin
-                    , (double)removedRedBin/(double)origNumBins*100.0
+                    , stats_line_percent(removedRedBin, origNumBins)
                     , "% of bins"
                 );
 
-                printStatsLine("c time"
+                print_stats_line("c time"
                     , cpu_time
                     , "s");
 
@@ -222,154 +176,77 @@ class Prober {
                 cout << "c -------- PROBE STATS END ----------" << endl;
             }
 
-            void printShort() const
-            {
-                cout
-                << "c [probe]"
-                << " 0-depth assigns: " << zeroDepthAssigns
-                << " bsame: " << bothSameAdded
-                << " Flit: " << numFailed
-
-                // x2 because it's LITERAL visit
-                << " Visited: " << numVisited << "/" << (origNumFreeVars*2)
-                << "(" << std::setprecision(1)
-                << (100.0*(double)numVisited/(double)(origNumFreeVars*2))
-                << "%)"
-                << endl;
-
-                cout
-                << "c [probe]"
-                << " probed: " << numProbed
-                << "(" << std::setprecision(1)
-                // x2 because it's LITERAL probed
-                << (100.0*(double)numProbed/(double)(origNumFreeVars*2))
-                << "%)"
-
-                << " hyperBin:" << addedBin
-                << " transR-Irred:" << removedIrredBin
-                << " transR-Red:" << removedRedBin
-                << endl;
-
-                cout
-                << "c [probe]"
-                << " BP: " << std::fixed << std::setprecision(1)
-                << (double)(propStats.bogoProps)/1000000.0  << "M"
-                << " HP: " << std::fixed << std::setprecision(1)
-                << (double)(propStats.otfHyperTime)/1000000.0  << "M"
-
-                << " T: " << std::fixed << std::setprecision(2)
-                << cpu_time
-                << endl;
-            }
+            void print_short(const Solver* solver, const bool time_out, const double time_remain) const;
 
             //Time
-            double cpu_time;
-            uint64_t timeAllocated;
-            uint64_t numCalls;
+            double cpu_time = 0;
+            uint64_t timeAllocated = 0;
+            uint64_t numCalls = 0;
 
             //Probe stats
-            uint64_t numFailed;
-            uint64_t numProbed;
-            uint64_t numLoopIters;
-            uint64_t numVarProbed;
-            uint64_t numVisited;
-            uint64_t zeroDepthAssigns;
+            uint64_t numFailed = 0;
+            uint64_t numProbed = 0;
+            uint64_t numLoopIters = 0;
+            uint64_t numVarProbed = 0;
+            uint64_t numVisited = 0;
+            uint64_t zeroDepthAssigns = 0;
 
             //Propagation stats
             PropStats propStats;
             ConflStats conflStats;
 
             //Binary clause
-            uint64_t addedBin;
-            uint64_t removedIrredBin;
-            uint64_t removedRedBin;
+            uint64_t addedBin = 0;
+            uint64_t removedIrredBin = 0;
+            uint64_t removedRedBin = 0;
 
             //Compare against
-            uint64_t origNumFreeVars;
-            uint64_t origNumBins;
+            uint64_t origNumFreeVars = 0;
+            uint64_t origNumBins = 0;
 
             //Bothprop
-            uint64_t bothSameAdded;
+            uint64_t bothSameAdded = 0;
         };
 
-        const Stats& getStats() const;
-        size_t memUsed() const;
+        const Stats& get_stats() const;
+        size_t mem_used() const;
 
     private:
         //Main
-        bool tryThis(const Lit lit, const bool first);
+        bool try_this(const Lit lit, const bool first, const uint64_t orig_num_props_to_do);
         vector<char> visitedAlready;
         Solver* solver; ///<The solver we are updating&working with
         void checkOTFRatio();
-
-        //2-long xor-finding
-        /**
-        @brief used to find 2-long xor by shortening longer xors to this size
-
-        -# We propagate "var" and record all xors that become 2-long
-        -# We propagate "~var" and record all xors that become 2-long
-        -# if (1) and (2) have something in common, we add it as a variable
-        replacement instruction
-
-        We must be able to order these 2-long xors, so that we can search
-        for matching couples fast. This class is used for that
-        */
-        class TwoLongXor
-        {
-        public:
-            bool operator==(const TwoLongXor& other) const
-            {
-                if (var[0] == other.var[0]
-                    && var[1] == other.var[1]
-                    && inverted == other.inverted)
-                    return true;
-                return false;
-            }
-            bool operator<(const TwoLongXor& other) const
-            {
-                if (var[0] < other.var[0]) return true;
-                if (var[0] > other.var[0]) return false;
-
-                if (var[1] < other.var[1]) return true;
-                if (var[1] > other.var[1]) return false;
-
-                if (inverted < other.inverted) return true;
-                if (inverted > other.inverted) return false;
-
-                return false;
-            }
-
-            Var var[2];
-            bool inverted;
-        };
-
-        //For cancidate selection
-        struct TwoSignVar
-        {
-            size_t minOfPolarities;
-            size_t var;
-
-            //Sort them according to largest firest
-            bool operator<(const TwoSignVar& other) const
-            {
-                return minOfPolarities > other.minOfPolarities;
-            }
-        };
-        //vector<TwoSignVar> candidates;
-        void sortAndResetCandidates();
+        uint64_t limit_used() const;
+        void reset_stats_and_state();
+        uint64_t calc_numpropstodo();
+        void clean_clauses_before_probe();
+        uint64_t update_numpropstodo_based_on_prev_performance(uint64_t numPropsTodo);
+        void clean_clauses_after_probe();
+        void check_if_must_disable_otf_hyperbin_and_tred(const uint64_t numPropsTodo);
+        void check_if_must_disable_cache_update();
+        vector<Var> randomize_possible_choices();
+        vector<size_t> create_fast_random_lookup(const vector<Var>& poss_choice);
+        Lit update_lit_for_dominator(
+            Lit lit
+            , vector<Var>& poss_choice
+            , const vector<size_t>& fast_rnd_lookup
+        );
+        void update_and_print_stats(const double myTime, const uint64_t numPropsTodo);
+        bool check_timeout_due_to_hyperbin();
 
         //For bothprop
         vector<uint32_t> propagatedBitSet;
         vector<bool> propagated; ///<These lits have been propagated by propagating the lit picked
         vector<bool> propValue; ///<The value (0 or 1) of the lits propagated set in "propagated"
         vector<Lit> toEnqueue;
-        vector<Lit> tmp;
-        void clearUpBeforeFirstSet();
+        vector<Lit> tmp_lits;
+        void clear_up_before_first_set();
 
-        void updateCache(Lit thisLit, Lit lit, size_t numElemsSet);
-        void checkAndSetBothProp(Var var, bool first);
-        void addRestOfLitsToCache(Lit lit);
-        void handleFailedLit(Lit lit, Lit failed);
+        void update_cache(Lit thisLit, Lit lit, size_t numElemsSet);
+        void check_and_set_both_prop(Var var, bool first);
+        void add_rest_of_lits_to_cache(Lit lit);
+        void handle_failed_lit(Lit lit, Lit failed);
 
         //For hyper-bin resolution
         #ifdef DEBUG_REMOVE_USELESS_BIN
@@ -400,7 +277,7 @@ class Prober {
 
 };
 
-inline const Prober::Stats& Prober::getStats() const
+inline const Prober::Stats& Prober::get_stats() const
 {
     return globalStats;
 }

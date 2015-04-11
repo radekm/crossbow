@@ -21,7 +21,6 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #define Alg_h
 
 #include <iostream>
-#include "vec.h"
 #include "solvertypes.h"
 #include "watched.h"
 #include "constants.h"
@@ -34,7 +33,7 @@ static inline void remove(V& ts, const T& t)
     uint32_t j = 0;
     for (; j < ts.size() && ts[j] != t; j++);
     assert(j < ts.size());
-    for (; j < (uint16_t)(ts.size()-1); j++) ts[j] = ts[j+1];
+    for (; j < (uint32_t)(ts.size()-1); j++) ts[j] = ts[j+1];
     ts.resize(ts.size() -1);
 }
 

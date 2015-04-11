@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,10 +24,17 @@
 
 #include "propengine.h"
 #include "solvertypes.h"
+
+#ifdef STATS_NEEDED_EXTRA
 #include <boost/multi_array.hpp>
+#endif
+
 #include "time_mem.h"
 #include "avgcalc.h"
 #include "hyperengine.h"
+#include "MersenneTwister.h"
+#include "minisat_rnd.h"
+
 namespace CMSat {
 
 class Solver;
@@ -55,23 +62,18 @@ struct VariableVariance
 class Searcher : public HyperEngine
 {
     public:
-        Searcher(const SolverConf& _conf, Solver* solver);
+        Searcher(const SolverConf* _conf, Solver* solver, bool* _needToInterrupt);
         virtual ~Searcher();
 
         //History
         struct Hist {
             //About the search
             AvgCalc<uint32_t>   branchDepthHist;     ///< Avg branch depth in current restart
-            AvgCalc<uint32_t>   branchDepthHistLT;
-
             AvgCalc<uint32_t>   branchDepthDeltaHist;
-            AvgCalc<uint32_t>   branchDepthDeltaHistLT;
 
             bqueue<uint32_t>   trailDepthHist;
-            AvgCalc<uint32_t>   trailDepthHistLT;
-
+            bqueue<uint32_t>   trailDepthHistLonger;
             AvgCalc<uint32_t>   trailDepthDeltaHist;
-            AvgCalc<uint32_t>   trailDepthDeltaHistLT;
 
             //About the confl generated
             bqueue<uint32_t>    glueHist;            ///< Set of last decision levels in (glue of) conflict clauses
@@ -92,7 +94,7 @@ class Searcher : public HyperEngine
             AvgCalc<size_t>     watchListSizeTraversed;
             #endif
 
-            size_t memUsed() const
+            size_t mem_used() const
             {
                 uint64_t used = sizeof(Hist);
                 used += sizeof(AvgCalc<uint32_t>)*16;
@@ -126,10 +128,11 @@ class Searcher : public HyperEngine
                 #endif
             }
 
-            void setSize(const size_t shortTermHistorySize)
+            void setSize(const size_t shortTermHistorySize, const size_t blocking_trail_hist_size)
             {
                 glueHist.clearAndResize(shortTermHistorySize);
                 trailDepthHist.clearAndResize(shortTermHistorySize);
+                trailDepthHistLonger.clearAndResize(blocking_trail_hist_size);
             }
 
             void print() const
@@ -149,19 +152,15 @@ class Searcher : public HyperEngine
 
                 << " branchd"
                 << " " << std::right << branchDepthHist.avgPrint(1, 5)
-                << "/" << std::left  << branchDepthHistLT.avgPrint(1, 5)
                 << " branchdd"
 
                 << " " << std::right << branchDepthDeltaHist.avgPrint(1, 4)
-                << "/" << std::left << branchDepthDeltaHistLT.avgPrint(1, 4)
 
                 << " traild"
                 << " " << std::right << trailDepthHist.getLongtTerm().avgPrint(0, 7)
-                << "/" << std::left << trailDepthHistLT.avgPrint(0, 7)
 
                 << " traildd"
                 << " " << std::right << trailDepthDeltaHist.avgPrint(0, 5)
-                << "/" << std::left << trailDepthDeltaHistLT.avgPrint(0, 5)
                 ;
 
                 cout << std::right;
@@ -175,7 +174,6 @@ class Searcher : public HyperEngine
             uint64_t maxConfls = std::numeric_limits<uint64_t>::max()
         );
         void finish_up_solve(lbool status);
-        void print_solution_varreplace_status() const;
         void setup_restart_print();
         void reduce_db_if_needed();
         void clean_clauses_if_needed();
@@ -186,9 +184,12 @@ class Searcher : public HyperEngine
         uint64_t max_conflicts_geometric;
         uint64_t max_conflicts;
         uint64_t loop_num;
+        MiniSatRnd mtrand; ///< random number generator
 
-        vector<lbool> solution;     ///<Filled only if solve() returned l_True
+
+        vector<lbool>  model;
         vector<Lit>   conflict;     ///<If problem is unsatisfiable (possibly under assumptions), this vector represent the final conflict clause expressed in the assumptions.
+        template<bool update_bogoprops = true>
         PropBy propagate(
             #ifdef STATS_NEEDED
             AvgCalc<size_t>* watchListSizeTraversed = NULL
@@ -203,74 +204,26 @@ class Searcher : public HyperEngine
         void     print_restart_stat();
         void     print_iteration_solving_stats();
         void     printRestartHeader() const;
-        void     printRestartStats() const;
+        void     print_restart_stat_line() const;
         void     printBaseStats() const;
-        void     printClauseStats() const;
+        void     print_clause_stats() const;
         uint64_t sumConflicts() const;
         uint64_t sumRestarts() const;
         const Hist& getHistory() const;
 
-        void     setNeedToInterrupt();
-
         struct Stats
         {
-            Stats() :
-                // Stats
-                numRestarts(0)
-
-                //Decisions
-                , decisions(0)
-                , decisionsAssump(0)
-                , decisionsRand(0)
-                , decisionFlippedPolar(0)
-
-                //Conflict generation
-                , litsRedNonMin(0)
-                , litsRedFinal(0)
-                , recMinCl(0)
-                , recMinLitRem(0)
-                , furtherShrinkAttempt(0)
-                , binTriShrinkedClause(0)
-                , cacheShrinkedClause(0)
-                , furtherShrinkedSuccess(0)
-                , stampShrinkAttempt(0)
-                , stampShrinkCl(0)
-                , stampShrinkLit(0)
-                , moreMinimLitsStart(0)
-                , moreMinimLitsEnd(0)
-                , recMinimCost(0)
-
-                //Red stats
-                , learntUnits(0)
-                , learntBins(0)
-                , learntTris(0)
-                , learntLongs(0)
-                , otfSubsumed(0)
-                , otfSubsumedImplicit(0)
-                , otfSubsumedLong(0)
-                , otfSubsumedRed(0)
-                , otfSubsumedLitsGained(0)
-
-                //Hyper-bin & transitive reduction
-                , advancedPropCalled(0)
-                , hyperBinAdded(0)
-                , transReduRemIrred(0)
-                , transReduRemRed(0)
-
-                //Time
-                , cpu_time(0)
-
-            {};
-
             void clear()
             {
-                Stats stats;
-                *this = stats;
+                Stats tmp;
+                *this = tmp;
             }
 
             Stats& operator+=(const Stats& other)
             {
                 numRestarts += other.numRestarts;
+                blocked_restart += other.blocked_restart;
+                blocked_restart_same += other.blocked_restart_same;
 
                 //Decisions
                 decisions += other.decisions;
@@ -327,6 +280,8 @@ class Searcher : public HyperEngine
             Stats& operator-=(const Stats& other)
             {
                 numRestarts -= other.numRestarts;
+                blocked_restart -= other.blocked_restart;
+                blocked_restart_same -= other.blocked_restart_same;
 
                 //Decisions
                 decisions -= other.decisions;
@@ -388,36 +343,42 @@ class Searcher : public HyperEngine
 
             void printCommon() const
             {
-                printStatsLine("c restarts"
+                print_stats_line("c restarts"
                     , numRestarts
                     , (double)conflStats.numConflicts/(double)numRestarts
                     , "confls per restart"
 
                 );
-                printStatsLine("c time", cpu_time);
-                printStatsLine("c decisions", decisions
-                    , (double)decisionsRand*100.0/(double)decisions
+                print_stats_line("c blocked restarts"
+                    , blocked_restart
+                    , (double)blocked_restart/(double)numRestarts
+                    , "per normal restart"
+
+                );
+                print_stats_line("c time", cpu_time);
+                print_stats_line("c decisions", decisions
+                    , stats_line_percent(decisionsRand, decisions)
                     , "% random"
                 );
 
-                printStatsLine("c decisions/conflicts"
+                print_stats_line("c decisions/conflicts"
                     , (double)decisions/(double)conflStats.numConflicts
                 );
             }
 
-            void printShort() const
+            void print_short() const
             {
                 //Restarts stats
                 printCommon();
-                conflStats.printShort(cpu_time);
+                conflStats.print_short(cpu_time);
 
-                printStatsLine("c conf lits non-minim"
+                print_stats_line("c conf lits non-minim"
                     , litsRedNonMin
                     , (double)litsRedNonMin/(double)conflStats.numConflicts
                     , "lit/confl"
                 );
 
-                printStatsLine("c conf lits final"
+                print_stats_line("c conf lits final"
                     , (double)litsRedFinal/(double)conflStats.numConflicts
                 );
             }
@@ -431,178 +392,182 @@ class Searcher : public HyperEngine
                     == conflsBin + conflsTri + conflsLongIrred + conflsLongRed);*/
 
                 cout << "c LEARNT stats" << endl;
-                printStatsLine("c units learnt"
+                print_stats_line("c units learnt"
                     , learntUnits
-                    , (double)learntUnits/(double)conflStats.numConflicts*100.0
+                    , stats_line_percent(learntUnits, conflStats.numConflicts)
                     , "% of conflicts");
 
-                printStatsLine("c bins learnt"
+                print_stats_line("c bins learnt"
                     , learntBins
-                    , (double)learntBins/(double)conflStats.numConflicts*100.0
+                    , stats_line_percent(learntBins, conflStats.numConflicts)
                     , "% of conflicts");
 
-                printStatsLine("c tris learnt"
+                print_stats_line("c tris learnt"
                     , learntTris
-                    , (double)learntTris/(double)conflStats.numConflicts*100.0
+                    , stats_line_percent(learntTris, conflStats.numConflicts)
                     , "% of conflicts");
 
-                printStatsLine("c long learnt"
+                print_stats_line("c long learnt"
                     , learntLongs
-                    , (double)learntLongs/(double)conflStats.numConflicts*100.0
+                    , stats_line_percent(learntLongs, conflStats.numConflicts)
                     , "% of conflicts"
                 );
 
-                printStatsLine("c otf-subs"
+                print_stats_line("c otf-subs"
                     , otfSubsumed
-                    , (double)otfSubsumed/(double)conflStats.numConflicts
+                    , ratio_for_stat(otfSubsumed, conflStats.numConflicts)
                     , "/conflict"
                 );
 
-                printStatsLine("c otf-subs implicit"
+                print_stats_line("c otf-subs implicit"
                     , otfSubsumedImplicit
-                    , (double)otfSubsumedImplicit/(double)otfSubsumed*100.0
+                    , stats_line_percent(otfSubsumedImplicit, otfSubsumed)
                     , "%"
                 );
 
-                printStatsLine("c otf-subs long"
+                print_stats_line("c otf-subs long"
                     , otfSubsumedLong
-                    , (double)otfSubsumedLong/(double)otfSubsumed*100.0
+                    , stats_line_percent(otfSubsumedLong, otfSubsumed)
                     , "%"
                 );
 
-                printStatsLine("c otf-subs learnt"
+                print_stats_line("c otf-subs learnt"
                     , otfSubsumedRed
-                    , (double)otfSubsumedRed/(double)otfSubsumed*100.0
+                    , stats_line_percent(otfSubsumedRed, otfSubsumed)
                     , "% otf subsumptions"
                 );
 
-                printStatsLine("c otf-subs lits gained"
+                print_stats_line("c otf-subs lits gained"
                     , otfSubsumedLitsGained
-                    , (double)otfSubsumedLitsGained/(double)otfSubsumed
+                    , ratio_for_stat(otfSubsumedLitsGained, otfSubsumed)
                     , "lits/otf subsume"
                 );
 
                 cout << "c SEAMLESS HYPERBIN&TRANS-RED stats" << endl;
-                printStatsLine("c advProp called"
+                print_stats_line("c advProp called"
                     , advancedPropCalled
                 );
-                printStatsLine("c hyper-bin add bin"
+                print_stats_line("c hyper-bin add bin"
                     , hyperBinAdded
-                    , (double)hyperBinAdded/(double)advancedPropCalled
+                    , ratio_for_stat(hyperBinAdded, advancedPropCalled)
                     , "bin/call"
                 );
-                printStatsLine("c trans-red rem irred bin"
+                print_stats_line("c trans-red rem irred bin"
                     , transReduRemIrred
-                    , (double)transReduRemIrred/(double)advancedPropCalled
+                    , ratio_for_stat(transReduRemIrred, advancedPropCalled)
                     , "bin/call"
                 );
-                printStatsLine("c trans-red rem red bin"
+                print_stats_line("c trans-red rem red bin"
                     , transReduRemRed
-                    , (double)transReduRemRed/(double)advancedPropCalled
+                    , ratio_for_stat(transReduRemRed, advancedPropCalled)
                     , "bin/call"
                 );
 
                 cout << "c CONFL LITS stats" << endl;
-                printStatsLine("c orig "
+                print_stats_line("c orig "
                     , litsRedNonMin
-                    , (double)litsRedNonMin/(double)conflStats.numConflicts
+                    , ratio_for_stat(litsRedNonMin, conflStats.numConflicts)
                     , "lit/confl"
                 );
 
-                printStatsLine("c rec-min effective"
+                print_stats_line("c rec-min effective"
                     , recMinCl
-                    , (double)recMinCl/(double)conflStats.numConflicts*100.0
+                    , stats_line_percent(recMinCl, conflStats.numConflicts)
                     , "% attempt successful"
                 );
 
-                printStatsLine("c rec-min lits"
+                print_stats_line("c rec-min lits"
                     , recMinLitRem
-                    , (double)recMinLitRem/(double)litsRedNonMin*100.0
+                    , stats_line_percent(recMinLitRem, litsRedNonMin)
                     , "% less overall"
                 );
 
-                printStatsLine("c further-min call%"
-                    , (double)furtherShrinkAttempt/(double)conflStats.numConflicts*100.0
-                    , (double)furtherShrinkedSuccess/(double)furtherShrinkAttempt*100.0
+                print_stats_line("c further-min call%"
+                    , stats_line_percent(furtherShrinkAttempt, conflStats.numConflicts)
+                    , stats_line_percent(furtherShrinkedSuccess, furtherShrinkAttempt)
                     , "% attempt successful"
                 );
 
-                printStatsLine("c bintri-min lits"
+                print_stats_line("c bintri-min lits"
                     , binTriShrinkedClause
-                    , (double)binTriShrinkedClause/(double)litsRedNonMin*100.0
+                    , stats_line_percent(binTriShrinkedClause, litsRedNonMin)
                     , "% less overall"
                 );
 
-                printStatsLine("c cache-min lits"
+                print_stats_line("c cache-min lits"
                     , cacheShrinkedClause
-                    , (double)cacheShrinkedClause/(double)litsRedNonMin*100.0
+                    , stats_line_percent(cacheShrinkedClause, litsRedNonMin)
                     , "% less overall"
                 );
 
-                printStatsLine("c stamp-min call%"
-                    , (double)stampShrinkAttempt/(double)conflStats.numConflicts*100.0
-                    , (double)stampShrinkCl/(double)stampShrinkAttempt*100.0
+                print_stats_line("c stamp-min call%"
+                    , stats_line_percent(stampShrinkAttempt, conflStats.numConflicts)
+                    , stats_line_percent(stampShrinkCl, stampShrinkAttempt)
                     , "% attempt successful"
                 );
 
-                printStatsLine("c stamp-min lits"
+                print_stats_line("c stamp-min lits"
                     , stampShrinkLit
-                    , (double)stampShrinkLit/(double)litsRedNonMin*100.0
+                    , stats_line_percent(stampShrinkLit, litsRedNonMin)
                     , "% less overall"
                 );
 
-                printStatsLine("c final avg"
-                    , (double)litsRedFinal/(double)conflStats.numConflicts
+                print_stats_line("c final avg"
+                    , ratio_for_stat(litsRedFinal, conflStats.numConflicts)
                 );
 
                 //General stats
-                //printStatsLine("c Memory used", (double)mem_used / 1048576.0, " MB");
+                //print_stats_line("c Memory used", (double)mem_used / 1048576.0, " MB");
                 #if !defined(_MSC_VER) && defined(RUSAGE_THREAD)
-                printStatsLine("c single-thread CPU time", cpu_time, " s");
+                print_stats_line("c single-thread CPU time", cpu_time, " s");
                 #else
-                printStatsLine("c all-threads sum CPU time", cpu_time, " s");
+                print_stats_line("c all-threads sum CPU time", cpu_time, " s");
                 #endif
             }
 
-            uint64_t  numRestarts;      ///<Num restarts
+            //Restart stats
+            uint64_t blocked_restart = 0;
+            uint64_t blocked_restart_same = 0;
+            uint64_t numRestarts = 0;
 
             //Decisions
-            uint64_t  decisions;        ///<Number of decisions made
-            uint64_t  decisionsAssump;
-            uint64_t  decisionsRand;    ///<Numer of random decisions made
-            uint64_t  decisionFlippedPolar; ///<While deciding, we flipped polarity
+            uint64_t  decisions = 0;
+            uint64_t  decisionsAssump = 0;
+            uint64_t  decisionsRand = 0;
+            uint64_t  decisionFlippedPolar = 0;
 
-            uint64_t litsRedNonMin;
-            uint64_t litsRedFinal;
-            uint64_t recMinCl;
-            uint64_t recMinLitRem;
-            uint64_t furtherShrinkAttempt;
-            uint64_t binTriShrinkedClause;
-            uint64_t cacheShrinkedClause;
-            uint64_t furtherShrinkedSuccess;
-            uint64_t stampShrinkAttempt;
-            uint64_t stampShrinkCl;
-            uint64_t stampShrinkLit;
-            uint64_t moreMinimLitsStart;
-            uint64_t moreMinimLitsEnd;
-            uint64_t recMinimCost;
+            //Clause shrinking
+            uint64_t litsRedNonMin = 0;
+            uint64_t litsRedFinal = 0;
+            uint64_t recMinCl = 0;
+            uint64_t recMinLitRem = 0;
+            uint64_t furtherShrinkAttempt = 0;
+            uint64_t binTriShrinkedClause = 0;
+            uint64_t cacheShrinkedClause = 0;
+            uint64_t furtherShrinkedSuccess = 0;
+            uint64_t stampShrinkAttempt = 0;
+            uint64_t stampShrinkCl = 0;
+            uint64_t stampShrinkLit = 0;
+            uint64_t moreMinimLitsStart = 0;
+            uint64_t moreMinimLitsEnd = 0;
+            uint64_t recMinimCost = 0;
 
-            //Red stats
-            uint64_t learntUnits;
-            uint64_t learntBins;
-            uint64_t learntTris;
-            uint64_t learntLongs;
-            uint64_t otfSubsumed;
-            uint64_t otfSubsumedImplicit;
-            uint64_t otfSubsumedLong;
-            uint64_t otfSubsumedRed;
-            uint64_t otfSubsumedLitsGained;
+            //Learnt clause stats
+            uint64_t learntUnits = 0;
+            uint64_t learntBins = 0;
+            uint64_t learntTris = 0;
+            uint64_t learntLongs = 0;
+            uint64_t otfSubsumed = 0;
+            uint64_t otfSubsumedImplicit = 0;
+            uint64_t otfSubsumedLong = 0;
+            uint64_t otfSubsumedRed = 0;
+            uint64_t otfSubsumedLitsGained = 0;
 
             //Hyper-bin & transitive reduction
-            uint64_t advancedPropCalled;
-            uint64_t hyperBinAdded;
-            uint64_t transReduRemIrred;
-            uint64_t transReduRemRed;
+            uint64_t advancedPropCalled = 0;
+            uint64_t hyperBinAdded = 0;
+            uint64_t transReduRemIrred = 0;
+            uint64_t transReduRemRed = 0;
 
             //Resolution Stats
             ResolutionTypes<uint64_t> resolvs;
@@ -611,34 +576,62 @@ class Searcher : public HyperEngine
             ConflStats conflStats;
 
             //Time
-            double cpu_time;
+            double cpu_time = 0.0;
         };
 
+        size_t hyper_bin_res_all(const bool check_for_set_values = true);
+        std::pair<size_t, size_t> remove_useless_bins(bool except_marked = false);
+        bool var_inside_assumptions(const Var var) const
+        {
+            if (assumptionsSet.empty()) {
+                return false;
+            }
+
+            assert(var < assumptionsSet.size());
+            return assumptionsSet[var];
+        }
+        template<bool also_insert_varorder = true>
+        void cancelUntil(uint32_t level); ///<Backtrack until a certain level.
+
     protected:
-        virtual void newVar(bool bva, Var orig_outer);
-        void saveVarMem();
+        void new_var(const bool bva, const Var orig_outer) override;
+        void new_vars(const size_t n) override;
+        void save_on_var_memory();
         void updateVars(
             const vector<uint32_t>& outerToInter
             , const vector<uint32_t>& interToOuter
         );
-        void renumber_assumptions(const vector<Var>& outerToInter);
-        vector<char> assumptionsSet;
-        vector<Lit> assumptions; ///< Current set of assumptions provided to solve by the user.
 
-        friend class CalcDefPolars;
-        friend class VarReplacer;
-        void filterOrderHeap();
+        struct AssumptionPair {
+            AssumptionPair(const Lit _inter, const Lit _outer):
+                lit_inter(_inter)
+                , lit_orig_outside(_outer)
+            {
+            }
+
+            Lit lit_inter;
+            Lit lit_orig_outside; //not outer, but outside(!)
+
+            bool operator<(const AssumptionPair& other) const
+            {
+                //Yes, we need reverse in terms of inverseness
+                return ~lit_inter < ~other.lit_inter;
+            }
+        };
+        void renumber_assumptions(const vector<Var>& outerToInter);
+        void fill_assumptions_set_from(const vector<AssumptionPair>& fill_from);
+        void unfill_assumptions_set_from(const vector<AssumptionPair>& unfill_from);
+        vector<char> assumptionsSet; //Needed so checking is fast -- we cannot eliminate / component-handle such vars
+        vector<AssumptionPair> assumptions; ///< Current set of assumptions provided to solve by the user.
+        void update_assump_conflict_to_orig_outside(vector<Lit>& out_conflict);
+
+        void add_in_partial_solving_stats();
 
         //For connection with Solver
         void  resetStats();
-        void  addInPartialSolvingStat();
-
-        //For hyper-bin and transitive reduction
-        size_t hyperBinResAll();
-        std::pair<size_t, size_t> removeUselessBins();
 
         Hist hist;
-        #ifdef STATS_NEEDED
+        #ifdef STATS_NEEDED_EXTRA
         vector<uint32_t>    clauseSizeDistrib;
         vector<uint32_t>    clauseGlueDistrib;
         boost::multi_array<uint32_t, 2> sizeAndGlue;
@@ -647,8 +640,6 @@ class Searcher : public HyperEngine
         /////////////////
         //Settings
         Solver*   solver;          ///< Thread control class
-        MTRand           mtrand;           ///< random number generator
-        bool             needToInterrupt;  ///<If set to TRUE, interrupt cleanly ASAP
 
         //Stats printing
         void printAgilityStats();
@@ -658,7 +649,7 @@ class Searcher : public HyperEngine
         /// Search for a given number of conflicts.
         bool last_decision_ended_in_conflict;
         lbool search();
-        lbool burstSearch();
+        lbool burst_search();
         bool  handle_conflict(PropBy confl);// Handles the conflict clause
         void  update_history_stats(size_t backtrack_level, size_t glue);
         void  attach_and_enqueue_learnt_clause(Clause* cl);
@@ -668,9 +659,8 @@ class Searcher : public HyperEngine
         void  add_otf_subsume_implicit_clause();
         Clause* handle_last_confl_otf_subsumption(Clause* cl, const size_t glue);
         lbool new_decision();  // Handles the case when decision must be made
-        void  checkNeedRestart();     // Helper function to decide if we need to restart during search
-        Restart decide_restart_type() const;
-        Lit   pickBranchLit();                             // Return the next decision variable.
+        void  check_need_restart();     // Helper function to decide if we need to restart during search
+        Lit   pickBranchLit();
         lbool otf_hyper_prop_first_dec_level(bool& must_continue);
         void  hyper_bin_update_cache(vector<Lit>& to_enqueue_toplevel);
 
@@ -678,8 +668,7 @@ class Searcher : public HyperEngine
         // Conflicting
         struct SearchParams
         {
-            SearchParams() :
-                rest_type(Restart::never)
+            SearchParams()
             {
                 clear();
             }
@@ -697,29 +686,28 @@ class Searcher : public HyperEngine
             uint64_t conflictsDoneThisRestart;
             uint64_t conflictsToDo;
             uint64_t numAgilityNeedRestart;
-            Restart rest_type;
+            Restart rest_type = restart_type_never;
         };
         SearchParams params;
-        void     cancelUntil      (uint32_t level);                        ///<Backtrack until a certain level.
         vector<Lit> learnt_clause;
         Clause* analyze_conflict(
             PropBy confl //The conflict that we are investigating
             , uint32_t& out_btlevel      //backtrack level
             , uint32_t &glue         //glue of the learnt clause
-            , bool fromProber = false
         );
+        void update_clause_glue_from_analysis(Clause* cl);
         void minimize_learnt_clause();
-        void mimimize_learnt_clause_based_on_cache();
+        void mimimize_learnt_clause_more_maybe();
         void print_fully_minimized_learnt_clause() const;
         size_t find_backtrack_level_of_learnt();
-        void bump_var_activities_based_on_last_decision_level(size_t glue);
+        void bump_var_activities_based_on_last_decision_level(const uint32_t glue);
         Clause* otf_subsume_last_resolved_clause(Clause* last_resolved_long_cl);
-        void print_debug_resolution_data(PropBy confl);
-        Clause* create_learnt_clause(PropBy confl, bool fromProber);
+        void print_debug_resolution_data(const PropBy confl);
+        Clause* create_learnt_clause(PropBy confl);
         int pathC;
         ResolutionTypes<uint16_t> resolutions;
 
-        vector<std::pair<Lit, size_t> > lastDecisionLevel; //for glue-based extra var activity bumping
+        vector<std::pair<Lit, uint32_t> > lastDecisionLevel; //for glue-based extra var activity bumping
 
         //OTF subsumption
         vector<ClOffset> otf_subsuming_long_cls;
@@ -733,14 +721,13 @@ class Searcher : public HyperEngine
         Clause* add_literals_from_confl_to_learnt(
             const PropBy confl
             , const Lit p
-            , bool fromProber
         );
         void debug_print_resolving_clause(const PropBy confl) const;
         size_t tmp_learnt_clause_size;
-        CL_ABST_TYPE tmp_learnt_clause_abst;
+        cl_abst_type tmp_learnt_clause_abst;
 
-        void add_lit_to_learnt(Lit lit, bool fromProber);
-        void analyzeFinal(const Lit p, vector<Lit>& out_conflict);
+        void add_lit_to_learnt(Lit lit);
+        void analyze_final_confl_with_assumptions(const Lit p, vector<Lit>& out_conflict);
 
         //////////////
         // Conflict minimisation
@@ -774,48 +761,40 @@ class Searcher : public HyperEngine
 
         /////////////////
         // Variable activity
-        vector<uint32_t> activities;
-        uint32_t var_inc;
+        vector<double> activities;
+        double var_inc;
         void              insertVarOrder(const Var x);  ///< Insert a variable in heap
-        void  genRandomVarActMultDiv();
+
+
+        uint64_t more_red_minim_limit_binary_actual;
+        uint64_t more_red_minim_limit_cache_actual;
+        const Stats& get_stats() const;
+        size_t mem_used() const;
+
+    private:
+        bool blocked_restart = false;
+        void check_blocking_restart();
+        bool must_consolidate_mem = false;
+        void print_solution_varreplace_status() const;
+        void dump_search_sql(const double myTime);
+        uint32_t num_search_called = 0;
+        void reset_reason_levels_of_vars_to_zero();
+        void rearrange_clauses_watches();
+        Lit find_good_blocked_lit(const Clause& c) const override;
 
         ////////////
         // Transitive on-the-fly self-subsuming resolution
-        void   minimiseRedFurther(vector<Lit>& cl);
-        void   stampBasedRedMinim(vector<Lit>& cl);
-        const Stats& getStats() const;
-        size_t memUsed() const;
+        void   minimise_redundant_more(vector<Lit>& cl);
+        void   binary_based_more_minim(vector<Lit>& cl);
+        void   cache_based_more_minim(vector<Lit>& cl);
+        void   stamp_based_more_minim(vector<Lit>& cl);
 
-    private:
         //For printint longest decision trail
         vector<Lit> longest_dec_trail;
         size_t last_confl_longest_dec_trail_printed = 0;
         void handle_longest_decision_trail();
 
-        struct ActPolarBackup
-        {
-            ActPolarBackup() :
-                saved(0)
-            {}
-
-            vector<uint32_t> activity;
-            vector<bool>     polarity;
-            uint32_t         var_inc;
-            bool             saved;
-
-            size_t memUsed() const
-            {
-                size_t mem = 0;
-                mem += activity.capacity()*sizeof(uint32_t);
-                mem += polarity.capacity();
-                mem += sizeof(ActPolarBackup);
-
-                return mem;
-            }
-        };
-        ActPolarBackup act_polar_backup;
-        void backup_activities_and_polarities();
-        void restore_activities_and_polarities();
+        void calculate_and_set_polars();
         void restore_order_heap();
 
         //Variable activities
@@ -832,15 +811,15 @@ class Searcher : public HyperEngine
         ///Decay all variables with the specified factor. Implemented by increasing the 'bump' value instead.
         void     varDecayActivity ();
         ///Increase a variable with the current 'bump' value.
-        void     varBumpActivity  (Var v);
+        void     bump_var_activitiy  (Var v);
         struct VarOrderLt { ///Order variables according to their activities
-            const vector<uint32_t>&  activities;
-            bool operator () (const uint32_t x, const uint32_t y) const
+            const vector<double>&  activities;
+            bool operator () (const Var x, const Var y) const
             {
                 return activities[x] > activities[y];
             }
 
-            VarOrderLt(const vector<uint32_t>& _activities) :
+            VarOrderLt(const vector<double>& _activities) :
                 activities(_activities)
             {}
         };
@@ -857,10 +836,9 @@ class Searcher : public HyperEngine
 
 
         //SQL
-        friend class SQLStats;
         vector<Var> calcVarsToDump() const;
         #ifdef STATS_NEEDED
-        void printRestartSQL();
+        void dump_restart_sql();
         void printVarStatsSQL();
         void printClauseDistribSQL();
         PropStats lastSQLPropStats;
@@ -871,6 +849,10 @@ class Searcher : public HyperEngine
             , double& avgTrailLevelVar
         );
         #endif
+
+
+        //Other
+        void print_solution_type(const lbool status) const;
 
         //Picking polarity when doing decision
         bool     pickPolarity(const Var var);
@@ -884,67 +866,17 @@ class Searcher : public HyperEngine
 
         double   startTime; ///<When solve() was started
         Stats    stats;
-        size_t   origTrailSize;
-        uint32_t var_inc_multiplier;
-        uint32_t var_inc_divider;
+        double   var_decay;
 };
-
-inline void Searcher::varDecayActivity()
-{
-    var_inc *= var_inc_multiplier;
-    var_inc /= var_inc_divider;
-}
-inline void Searcher::varBumpActivity(Var var)
-{
-    activities[var] += var_inc;
-    if ( (activities[var]) > ((0x1U) << 24)
-        || var_inc > ((0x1U) << 24)
-    ) {
-        // Rescale:
-        for (vector<uint32_t>::iterator
-            it = activities.begin()
-            , end = activities.end()
-            ; it != end
-            ; it++
-        ) {
-            *it >>= 14;
-        }
-
-        //Reset var_inc
-        var_inc >>= 14;
-
-        //If var_inc is smaller than var_inc_start then this MUST be corrected
-        //otherwise the 'varDecayActivity' may not decay anything in fact
-        if (var_inc < conf.var_inc_start) {
-            /*cout
-            << "WHAAAAAAAAAAAAAT!!!? var_inc < conf.var_inc_start ! "
-            << var_inc
-            << ", "
-            << conf.var_inc_start
-            << endl;*/
-
-            var_inc = conf.var_inc_start;
-        }
-    }
-
-    // Update order_heap with respect to new activity:
-    if (order_heap.inHeap(var))
-        order_heap.decrease(var);
-}
 
 inline uint32_t Searcher::abstractLevel(const Var x) const
 {
-    return ((uint32_t)1) << (varData[x].level % 32);
+    return ((uint32_t)1) << (varData[x].level & 31);
 }
 
-inline const Searcher::Stats& Searcher::getStats() const
+inline const Searcher::Stats& Searcher::get_stats() const
 {
     return stats;
-}
-
-inline void Searcher::addInPartialSolvingStat()
-{
-    stats.cpu_time = cpuTime() - startTime;
 }
 
 inline const Searcher::Hist& Searcher::getHistory() const
@@ -952,10 +884,98 @@ inline const Searcher::Hist& Searcher::getHistory() const
     return hist;
 }
 
-inline void Searcher::filterOrderHeap()
+inline void Searcher::add_in_partial_solving_stats()
 {
-    order_heap.filter(VarFilter(this, solver));
+    stats.cpu_time = cpuTime() - startTime;
 }
+
+/**
+@brief Revert to the state at given level
+*/
+template<bool also_insert_varorder>
+inline void Searcher::cancelUntil(uint32_t level)
+{
+    #ifdef VERBOSE_DEBUG
+    cout << "Canceling until level " << level;
+    if (level > 0) cout << " sublevel: " << trail_lim[level];
+    cout << endl;
+    #endif
+
+    if (decisionLevel() > level) {
+
+        //Go through in reverse order, unassign & insert then
+        //back to the vars to be branched upon
+        for (int sublevel = trail.size()-1
+            ; sublevel >= (int)trail_lim[level]
+            ; sublevel--
+        ) {
+            #ifdef VERBOSE_DEBUG
+            cout
+            << "Canceling lit " << trail[sublevel]
+            << " sublevel: " << sublevel
+            << endl;
+            #endif
+
+            #ifdef ANIMATE3D
+            std:cerr << "u " << var << endl;
+            #endif
+
+            const Var var = trail[sublevel].var();
+            assert(value(var) != l_Undef);
+            assigns[var] = l_Undef;
+            if (also_insert_varorder) {
+                insertVarOrder(var);
+            }
+        }
+        qhead = trail_lim[level];
+        trail.resize(trail_lim[level]);
+        trail_lim.resize(level);
+    }
+
+    #ifdef VERBOSE_DEBUG
+    cout
+    << "Canceling finished. Now at level: " << decisionLevel()
+    << " sublevel: " << trail.size()-1
+    << endl;
+    #endif
+}
+
+inline void Searcher::insertVarOrder(const Var x)
+{
+    if (!order_heap.in_heap(x)
+    ) {
+        #ifdef SLOW_DEUG
+        //All active varibles are decision variables
+        assert(varData[x].is_decision);
+        #endif
+
+        order_heap.insert(x);
+    }
+}
+
+
+inline void Searcher::bumpClauseAct(Clause* cl)
+{
+    assert(!cl->getRemoved());
+
+    cl->stats.activity += clauseActivityIncrease;
+    if (cl->stats.activity > 1e20 ) {
+        // Rescale
+        for(ClOffset offs: longRedCls) {
+            cl_alloc.ptr(offs)->stats.activity *= 1e-20;
+        }
+        clauseActivityIncrease *= 1e-20;
+        if (clauseActivityIncrease == 0.0) {
+            clauseActivityIncrease = 1.0;
+        }
+    }
+}
+
+inline void Searcher::decayClauseAct()
+{
+    clauseActivityIncrease *= conf.clauseDecayActivity;
+}
+
 
 } //end namespace
 

@@ -34,8 +34,11 @@ using namespace CMSat;
 struct WrappedSolver {
   Solver * solver;
   int nVars;
+  bool interrupt;
 
-  WrappedSolver(Solver * s) : solver(s), nVars(0) { }
+  WrappedSolver() : nVars(0), interrupt(false) {
+    solver = new Solver(NULL, &interrupt);
+  }
 
   Var newVar() {
     solver->new_external_var();
@@ -74,8 +77,7 @@ CAMLprim value cmsat_create(value unit) {
   CAMLparam1 (unit);
   CAMLlocal1 (sv);
 
-  Solver * s = new Solver();
-  WrappedSolver * ws = new WrappedSolver(s);
+  WrappedSolver * ws = new WrappedSolver();
 
   sv = caml_alloc_custom(&cmsat_ops, sizeof(WrappedSolver *), 0, 1);
   WrappedSolver_val(sv) = ws;
@@ -114,7 +116,7 @@ CAMLprim value cmsat_add_clause(value sv, value litsv, value lenv) {
   log_lits(lits);
   log(", %d) = ", len);
 
-  bool res = s->addClauseOuter(lits);
+  bool res = s->add_clause_outer(lits);
 
   log("%d\n", (int)res);
 
@@ -136,7 +138,7 @@ CAMLprim value cmsat_solve(value sv, value assumptsv) {
   }
 
   caml_release_runtime_system();
-  lbool lb = s->solve(&assumpts);
+  lbool lb = s->solve_with_assumptions(&assumpts);
   caml_acquire_runtime_system();
 
   // Convert lbool.
@@ -157,7 +159,7 @@ CAMLprim value cmsat_model_value(value sv, value varv) {
   WrappedSolver * ws = WrappedSolver_val(sv);
   Solver * s = ws->solver;
   Var var = Int_val(varv);
-  lbool lb = s->modelValue(Lit(var, false));
+  lbool lb = s->model_value(Lit(var, false));
 
   // Convert lbool.
   int res = 2;
@@ -173,8 +175,7 @@ CAMLprim value cmsat_interrupt(value sv) {
   CAMLparam1 (sv);
 
   WrappedSolver * ws = WrappedSolver_val(sv);
-  Solver * s = ws->solver;
-  s->setNeedToInterrupt();
+  ws->interrupt = true;
 
   log("cmsat_interrupt(%p)\n", (void *)s);
 

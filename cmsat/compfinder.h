@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -41,7 +41,7 @@ class CompFinder {
 
     public:
         CompFinder(Solver* solver);
-        bool findComps();
+        bool find_components();
         bool getTimedOut() const;
 
         const map<uint32_t, vector<Var> >& getReverseTable() const; // comp->var
@@ -51,9 +51,19 @@ class CompFinder {
 
     private:
         void addToCompImplicits();
-        void addToCompClauses(const vector<ClOffset>& cs);
+        void add_clauses_to_component(const vector<ClOffset>& cs);
         template<class T>
-        void addToCompClause(const T& cl);
+        void add_clause_to_component(const T& cl);
+        template<class T>
+        bool belong_to_same_component(const T& cl);
+        template<class T>
+        void fill_newset_and_tomerge(const T& cl);
+        void merge_newset_into_single_component();
+
+        void time_out_print(const double myTime) const;
+        void print_found_components() const;
+        bool reverse_table_is_correct() const;
+        void print_and_add_to_sql_result(const double myTime) const;
 
         struct MySorter
         {
@@ -64,11 +74,6 @@ class CompFinder {
                 return left.second < right.second;
             }
         };
-
-        /*const uint32_t setComps();
-        template<class T>
-        void calcIn(const vec<T*>& cs, vector<uint32_t>& numClauseInComp, vector<uint32_t>& sumLitsInComp);
-        void calcInBins(vector<uint32_t>& numClauseInComp, vector<uint32_t>& sumLitsInComp);*/
 
         //comp -> vars
         map<uint32_t, vector<Var> > reverseTable;
@@ -85,9 +90,11 @@ class CompFinder {
         vector<uint32_t> tomerge;
 
         //Keep track of time
-        uint64_t timeUsed;
+        long long bogoprops_remain;
+        long long orig_bogoprops;
         bool timedout;
 
+        vector<uint16_t>& seen;
         Solver* solver;
 };
 

@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,9 +22,9 @@
 #ifndef SCCFINDER_H
 #define SCCFINDER_H
 
-#include "vec.h"
 #include "clause.h"
 #include <stack>
+#include <set>
 
 namespace CMSat {
 
@@ -33,27 +33,24 @@ class Solver;
 class SCCFinder {
     public:
         SCCFinder(Solver* _solver);
-        bool performSCC();
+        bool performSCC(uint64_t* bogoprops_given = NULL);
+        const std::set<BinaryXor>& get_binxors() const;
+        size_t get_num_binxors_found() const;
+        void clear_binxors();
 
         struct Stats
         {
-            Stats() :
-                numCalls(0)
-                , cpu_time(0)
-                , foundXors(0)
-                , foundXorsNew(0)
-            {}
-
             void clear()
             {
                 Stats tmp;
                 *this = tmp;
             }
 
-            uint64_t numCalls;
-            double cpu_time;
-            uint64_t foundXors;
-            uint64_t foundXorsNew;
+            uint64_t numCalls = 0;
+            double cpu_time = 0.0;
+            uint64_t foundXors = 0;
+            uint64_t foundXorsNew = 0;
+            uint64_t bogoprops = 0;
 
             Stats& operator+=(const Stats& other)
             {
@@ -61,6 +58,7 @@ class SCCFinder {
                 cpu_time += other.cpu_time;
                 foundXors += other.foundXors;
                 foundXorsNew += other.foundXorsNew;
+                bogoprops += other.bogoprops;
 
                 return *this;
             }
@@ -68,47 +66,43 @@ class SCCFinder {
             void print() const
             {
                 cout << "c ----- SCC STATS --------" << endl;
-                printStatsLine("c time"
+                print_stats_line("c time"
                     , cpu_time
                     , cpu_time/(double)numCalls
                     , "per call"
                 );
 
-                printStatsLine("c called"
+                print_stats_line("c called"
                     , numCalls
                     , (double)foundXorsNew/(double)numCalls
                     , "new found per call"
                 );
 
-                printStatsLine("c found"
+                print_stats_line("c found"
                     , foundXorsNew
-                    , (double)foundXorsNew/(double)foundXors
+                    , stats_line_percent(foundXorsNew, foundXors)
+                    , "% of all found"
+                );
+
+                print_stats_line("c bogoprops"
+                    , bogoprops
                     , "% of all found"
                 );
 
                 cout << "c ----- SCC STATS END --------" << endl;
             }
 
-            void printShort() const
-            {
-                cout
-                << "c SCC"
-                //<< " found: " << foundXors
-                << " new: " << foundXorsNew
-                << " T: " << std::fixed << std::setprecision(2)
-                <<  cpu_time << " s"
-                << endl;
-            }
+            void print_short(Solver* solver) const;
         };
 
-        const Stats& getStats() const;
-        size_t memUsed() const;
+        const Stats& get_stats() const;
+        size_t mem_used() const;
 
     private:
-
         void tarjan(const uint32_t vertex);
         void doit(const Lit lit, const uint32_t vertex);
 
+        //temporaries
         uint32_t globalIndex;
         vector<uint32_t> index;
         vector<uint32_t> lowlink;
@@ -117,6 +111,7 @@ class SCCFinder {
         vector<uint32_t> tmp;
 
         Solver* solver;
+        std::set<BinaryXor> binxors;
 
         //Stats
         Stats runStats;
@@ -133,9 +128,24 @@ inline void SCCFinder::doit(const Lit lit, const uint32_t vertex) {
     }
 }
 
-inline const SCCFinder::Stats& SCCFinder::getStats() const
+inline const SCCFinder::Stats& SCCFinder::get_stats() const
 {
     return globalStats;
+}
+
+inline const std::set<BinaryXor>& SCCFinder::get_binxors() const
+{
+    return binxors;
+}
+
+inline size_t SCCFinder::get_num_binxors_found() const
+{
+    return binxors.size();
+}
+
+inline void SCCFinder::clear_binxors()
+{
+    binxors.clear();
 }
 
 } //end namespaceC

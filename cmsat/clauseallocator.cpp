@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -31,6 +31,12 @@
 #include "time_mem.h"
 #include "simplifier.h"
 #include "completedetachreattacher.h"
+#include "sqlstats.h"
+
+#ifdef USE_VALGRIND
+#include "valgrind/valgrind.h"
+#include "valgrind/memcheck.h"
+#endif
 
 using namespace CMSat;
 
@@ -126,7 +132,7 @@ void* ClauseAllocator::allocEnough(
 
         //Oops, not enough space anyway
         if (newMaxSize < size + needed) {
-            cout
+            std::cerr
             << "ERROR: memory manager can't handle the load"
             << " size: " << size
             << " needed: " << needed
@@ -144,7 +150,7 @@ void* ClauseAllocator::allocEnough(
 
         //Realloc failed?
         if (dataStart == NULL) {
-            cout
+            std::cerr
             << "ERROR: while reallocating clause space"
             << endl;
 
@@ -170,7 +176,7 @@ void* ClauseAllocator::allocEnough(
 Calculates the stack frame and the position of the pointer in the stack, and
 rerturns a 32-bit value that is a concatenation of these two
 */
-ClOffset ClauseAllocator::getOffset(const Clause* ptr) const
+ClOffset ClauseAllocator::get_offset(const Clause* ptr) const
 {
     return ((BASE_DATA_TYPE*)ptr - dataStart);
 }
@@ -190,17 +196,21 @@ of the clause. Therefore, the "currentlyUsedSizes" is an overestimation!!
 */
 void ClauseAllocator::clauseFree(Clause* cl)
 {
-    assert(!cl->getFreed());
+    assert(!cl->freed());
 
     cl->setFreed();
     size_t bytes_freed = (sizeof(Clause) + cl->size()*sizeof(Lit));
     size_t elems_freed = bytes_freed/sizeof(BASE_DATA_TYPE) + (bool)(bytes_freed % sizeof(BASE_DATA_TYPE));
     currentlyUsedSize -= elems_freed;
+
+    #ifdef VALGRIND_MAKE_MEM_UNDEFINED
+    VALGRIND_MAKE_MEM_UNDEFINED(((char*)cl)+sizeof(Clause), cl->size()*sizeof(Lit));
+    #endif
 }
 
 void ClauseAllocator::clauseFree(ClOffset offset)
 {
-    Clause* cl = getPointer(offset);
+    Clause* cl = ptr(offset);
     clauseFree(cl);
 }
 
@@ -216,7 +226,7 @@ void ClauseAllocator::consolidate(
     Solver* solver
     , const bool force
 ) {
-    //double myTime = cpuTime();
+    const double myTime = cpuTime();
 
     //If re-allocation is not really neccessary, don't do it
     //Neccesities:
@@ -225,7 +235,7 @@ void ClauseAllocator::consolidate(
     //2) There is too much empty, unused space (>30%)
     if (!force
         && ((double)currentlyUsedSize/(double)size > 0.7)
-       ) {
+    ) {
         if (solver->conf.verbosity >= 3) {
             cout << "c Not consolidating memory." << endl;
         }
@@ -243,18 +253,21 @@ void ClauseAllocator::consolidate(
 
     assert(sizeof(Clause) % sizeof(BASE_DATA_TYPE) == 0);
     assert(sizeof(BASE_DATA_TYPE) % sizeof(Lit) == 0);
-    for (auto size: origClauseSizes) {
+    for (const size_t sz: origClauseSizes) {
         Clause* clause = (Clause*)tmpDataStart;
         //Already freed, so skip entirely
         if (clause->freed()) {
-            tmpDataStart += size;
+            #ifdef VALGRIND_MAKE_MEM_DEFINED
+            VALGRIND_MAKE_MEM_DEFINED(((char*)clause)+sizeof(Clause), clause->size()*sizeof(Lit));
+            #endif
+            tmpDataStart += sz;
             continue;
         }
 
         //Move to new position
-        uint32_t bytesNeeded = sizeof(Clause) + clause->size()*sizeof(Lit);
-        uint32_t sizeNeeded = bytesNeeded/sizeof(BASE_DATA_TYPE) + (bool)(bytesNeeded % sizeof(BASE_DATA_TYPE));
-        assert(sizeNeeded <= size && "New clause size must not be bigger than orig clause size");
+        size_t bytesNeeded = sizeof(Clause) + clause->size()*sizeof(Lit);
+        size_t sizeNeeded = bytesNeeded/sizeof(BASE_DATA_TYPE) + (bool)(bytesNeeded % sizeof(BASE_DATA_TYPE));
+        assert(sizeNeeded <= sz && "New clause size must not be bigger than orig clause size");
         memmove(newDataStart, tmpDataStart, sizeNeeded*sizeof(BASE_DATA_TYPE));
 
         //Record position
@@ -266,19 +279,28 @@ void ClauseAllocator::consolidate(
 
         //Move pointers along
         newDataStart += sizeNeeded;
-        tmpDataStart += size;
-    }
-
-    if (solver->conf.verbosity >= 3) {
-        cout << "c consolidated memory. "
-        << " Num cls:" << newOrigClauseSizes.size()
-        << " old size:" << size
-        << " new size:" << newSize
-        << endl;
+        tmpDataStart += sz;
     }
 
     //Update offsets & pointers(?) now, when everything is in memory still
     updateAllOffsetsAndPointers(solver, newOffsets);
+
+    const double time_used = cpuTime() - myTime;
+    if (solver->conf.verbosity >= 2) {
+        cout << "c [mem] Consolidated memory ";
+        cout << " cls"; print_value_kilo_mega(newOrigClauseSizes.size());
+        cout << " old size"; print_value_kilo_mega(size);
+        cout << " new size"; print_value_kilo_mega(newSize);
+        cout << solver->conf.print_times(time_used)
+        << endl;
+    }
+    if (solver->sqlStats) {
+        solver->sqlStats->time_passed_min(
+            solver
+            , "consolidate"
+            , time_used
+        );
+    }
 
     //Update sizes
     size = newSize;
@@ -301,13 +323,13 @@ void ClauseAllocator::updateAllOffsetsAndPointers(
 
     //Detach long clauses
     CompleteDetachReatacher detachReattach(solver);
-    detachReattach.detachNonBinsNonTris();
+    detachReattach.detach_nonbins_nontris();
 
     //Make sure all non-freed clauses were accessible from solver
     const size_t origNumClauses =
         solver->longIrredCls.size() + solver->longRedCls.size();
     if (origNumClauses != offsets.size()) {
-        cout
+        std::cerr
         << "ERROR: Not all non-freed clauses are accessible from Solver"
         << endl
         << " This usually means that a clause was not freed, i.e. a mem leak"
@@ -318,7 +340,7 @@ void ClauseAllocator::updateAllOffsetsAndPointers(
         << endl;
 
         assert(origNumClauses == offsets.size());
-        exit(-1);
+        std::exit(-1);
     }
 
     //Clear clauses
@@ -327,8 +349,8 @@ void ClauseAllocator::updateAllOffsetsAndPointers(
 
     //Add back to the solver the correct red & irred clauses
     for(auto offset: offsets) {
-        Clause* cl = getPointer(offset);
-        assert(!cl->getFreed());
+        Clause* cl = ptr(offset);
+        assert(!cl->freed());
 
         //Put it in the right bucket
         if (cl->red()) {
@@ -342,7 +364,7 @@ void ClauseAllocator::updateAllOffsetsAndPointers(
     detachReattach.reattachLongs();
 }
 
-size_t ClauseAllocator::memUsed() const
+size_t ClauseAllocator::mem_used() const
 {
     uint64_t mem = 0;
     mem += maxSize*sizeof(BASE_DATA_TYPE);

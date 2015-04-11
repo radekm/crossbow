@@ -1,12 +1,12 @@
 /*
  * CryptoMiniSat
  *
- * Copyright (c) 2009-2013, Mate Soos and collaborators. All rights reserved.
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.0 of the License, or (at your option) any later version.
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,7 +22,6 @@
 #ifndef CALCDEFAULTPOLARITIES__H
 #define CALCDEFAULTPOLARITIES__H
 
-#include "vec.h"
 #include "clause.h"
 #include "watchalgos.h"
 
@@ -35,11 +34,12 @@ class CalcDefPolars
 {
     public:
         CalcDefPolars(Solver* solver);
-        const vector<char> calculate();
+        const vector<unsigned char> calculate();
 
     private:
-        void tallyVotes(const vector<ClOffset>& cs);
-        void tallyVotesBinTri(const watch_array& watched);
+        void tally_clause_votes(const vector<ClOffset>& cs);
+        void tally_implicit_votes(const watch_array& watched);
+        void add_vote(const Lit lit, const double value);
 
         vector<double> votes;
 

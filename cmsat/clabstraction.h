@@ -1,21 +1,45 @@
+/*
+ * CryptoMiniSat
+ *
+ * Copyright (c) 2009-2014, Mate Soos. All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation
+ * version 2.0 of the License.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ * MA 02110-1301  USA
+*/
+
 #ifndef __CL_ABSTRACTION__H__
 #define __CL_ABSTRACTION__H__
 
-#define CL_ABST_TYPE uint32_t
-#define CLAUSE_ABST_SIZE 32
-#include "constants.h"
+typedef uint32_t cl_abst_type;
+static const int cl_abst_modulo = 29;
 
-inline CL_ABST_TYPE abst_var(const uint32_t v)
+inline cl_abst_type abst_var(const uint32_t v)
 {
-    return 1UL << (v % CLAUSE_ABST_SIZE);
+    return 1UL << (v % cl_abst_modulo);
 }
 
-template <class T> CL_ABST_TYPE calcAbstraction(const T& ps)
+template <class T>
+cl_abst_type calcAbstraction(const T& ps)
 {
-    CL_ABST_TYPE abstraction = 0;
+    cl_abst_type abstraction = 0;
+    if (ps.size() > 100) {
+        return ~((cl_abst_type)(0ULL));
+    }
 
-    for (uint16_t i = 0; i != ps.size(); i++)
-        abstraction |= abst_var(ps[i].var());
+    for (auto l: ps)
+        abstraction |= abst_var(l.var());
 
     return abstraction;
 }
