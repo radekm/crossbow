@@ -1,0 +1,50 @@
+Control groups
+--------------
+
+Scripts
+
+  run_crossbow
+  run_iprover
+  run_mace4
+  run_paradox
+  check_crossbow_models_with_paradox
+
+use cgroup /crossbow-prover in cpuacct controller and memory controller.
+They need permission to create subgroups and set controller parameters.
+
+If the above scripts are executed under a user [user] run
+
+  sudo ./create_cgroup [user]
+
+to create the cgroup. The cgroup can be removed by running
+
+  sudo ./delete_cgroup
+
+The above scripts use commands
+
+  cgcreate
+  cgdelete
+  cgget
+  cgset
+  cgexec
+
+and access following files
+
+  cpuacct.usage
+  memory.swappiness
+  memory.failcnt
+  memory.limit_in_bytes
+  memory.usage_in_bytes
+  memory.max_usage_in_bytes
+  memory.memsw.failcnt
+  memory.memsw.limit_in_bytes
+  memory.memsw.usage_in_bytes
+  memory.memsw.max_usage_in_bytes
+
+so CONFIG_MEMCG_SWAP (Memory Resource Controller Swap Extension)
+must be active - this can be achieved by booting with kernel parameter
+
+  swapaccount=1
+
+Note: On some older kernels it isn't possible to set memory.swappiness=0
+and so the scripts won't work. It is known that this works on kernel 3.19.3.
