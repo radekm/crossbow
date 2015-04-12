@@ -1,15 +1,39 @@
-Gecode 4.1.0
+Gecode 4.4.0
 
-Options for configure:
+------------------------------------------------------------------------------
 
---disable-minimodel
---disable-examples
---disable-flatzinc
---disable-driver
---disable-gist
---disable-qt
---disable-mpfr
---disable-set-vars
---disable-float-vars
---disable-shared
---enable-static
+Updating Gecode
+---------------
+
+Remove everything from gecode. Copy following items to gecode:
+
+  int
+  iter
+  kernel
+  search
+  support
+  int.hh
+  iter.hh
+  kernel.hh
+  search.hh
+  support.hh
+
+Replace gecode/support/config.hpp.in by gecode/support/config.hpp
+created by
+
+./configure \
+  --disable-minimodel \
+  --disable-examples \
+  --disable-flatzinc \
+  --disable-driver \
+  --disable-gist \
+  --disable-qt \
+  --disable-mpfr \
+  --disable-set-vars \
+  --disable-float-vars \
+  --disable-shared \
+  --enable-static
+
+Remove all includes from all.cpp and generate them by
+
+find gecode -name "*.cpp" | sort | sed 's/^\(.*\)$/#include "\1"/' >> all.cpp

@@ -11,8 +11,8 @@
  *     Guido Tack, 2013
  *
  *  Last modified:
- *     $Date: 2013-02-20 18:04:29 +0100 (Wed, 20 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13343 $
+ *     $Date: 2015-03-11 16:37:26 +0100 (Wed, 11 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14437 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -39,16 +39,48 @@
  *
  */
 
-namespace Gecode {
+namespace Gecode { namespace Search {
 
+  template<class T>
   forceinline
-  EngineBase::EngineBase(Search::Engine* e0) 
+  EngineBase<T>::EngineBase(Engine* e0) 
     : e(e0) {}
+  template<class T>
+  forceinline T*
+  EngineBase<T>::next(void) {
+    return dynamic_cast<T*>(e->next());
+  }
+  template<class T>
+  forceinline Statistics
+  EngineBase<T>::statistics(void) const {
+    return e->statistics();
+  }
+  template<class T>
+  forceinline bool
+  EngineBase<T>::stopped(void) const {
+    return e->stopped();
+  }
+  template<class T>
+  forceinline NoGoods&
+  EngineBase<T>::nogoods(void) {
+    return e->nogoods();
+  }
+  template<class T>
   forceinline
-  EngineBase::~EngineBase(void) { 
+  EngineBase<T>::~EngineBase(void) { 
     delete e; 
   }
+  template<class T>
+  forceinline void*
+  EngineBase<T>::operator new(size_t s) {
+    return heap.ralloc(s);
+  }
+  template<class T>
+  forceinline void
+  EngineBase<T>::operator delete(void* p) {
+    heap.rfree(p);
+  }
 
-}
+}}
 
 // STATISTICS: search-other

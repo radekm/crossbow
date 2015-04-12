@@ -1,14 +1,16 @@
 /* -*- mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*- */
 /*
  *  Main authors:
+ *     Christian Schulte <schulte@gecode.org>
  *     Guido Tack <tack@gecode.org>
  *
  *  Copyright:
+ *     Christian Schulte, 2014
  *     Guido Tack, 2012
  *
  *  Last modified:
- *     $Date: 2013-04-08 16:39:34 +0200 (Mon, 08 Apr 2013) $ by $Author: schulte $
- *     $Revision: 13567 $
+ *     $Date: 2015-03-19 14:02:56 +0100 (Thu, 19 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14468 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -40,59 +42,35 @@
 
 namespace Gecode {
 
-  namespace Search {
-    GECODE_SEARCH_EXPORT Engine* rbs(Space* s, size_t sz,
-                                     MetaStop* stop,
-                                     Engine* e,
-                                     const Options& o);
-  }
-
   template<template<class> class E, class T>
   forceinline
   RBS<E,T>::RBS(T* s, const Search::Options& m_opt) {
     if (m_opt.cutoff == NULL)
       throw Search::UninitializedCutoff("RBS::RBS");
-    Search::Options e_opt;
-    e_opt.clone = true;
-    e_opt.threads = m_opt.threads;
-    e_opt.c_d = m_opt.c_d;
-    e_opt.a_d = m_opt.a_d;
-    Search::MetaStop* ms = new Search::MetaStop(m_opt.stop);
-    e_opt.stop = ms;
+    Search::Options e_opt(m_opt.expand());
+    e_opt.clone = false;
+    Search::Meta::RestartStop* rs = new Search::Meta::RestartStop(m_opt.stop);
+    e_opt.stop = rs;
     Space* master;
-    if (m_opt.clone) {
-      if (s->status(ms->m_stat) == SS_FAILED) {
-        ms->m_stat.fail++;
-        master = NULL;
-      } else {
-        master = s->clone();
-      }
+    Space* slave;
+    if (s->status(rs->m_stat) == SS_FAILED) {
+      rs->m_stat.fail++;
+      master = NULL;
+      slave  = NULL;
     } else {
-      master = s;
+      if (m_opt.clone)
+        master = s->clone();
+      else
+        master = s;
+      slave = master->clone();
+      CRI cri(0,0,0,NULL,NoGoods::eng);
+      slave->slave(cri);
     }
-    E<T> engine(dynamic_cast<T*>(master),e_opt);
-    EngineBase* eb = &engine;
+    E<T> engine(dynamic_cast<T*>(slave),e_opt);
+    Search::EngineBase<T>* eb = &engine;
     Search::Engine* ee = eb->e;
     eb->e = NULL;
-    e = Search::rbs(master,sizeof(T),ms,ee,m_opt);
-  }
-
-  template<template<class> class E, class T>
-  forceinline T*
-  RBS<E,T>::next(void) {
-    return dynamic_cast<T*>(e->next());
-  }
-
-  template<template<class> class E, class T>
-  forceinline Search::Statistics
-  RBS<E,T>::statistics(void) const {
-    return e->statistics();
-  }
-
-  template<template<class> class E, class T>
-  forceinline bool
-  RBS<E,T>::stopped(void) const {
-    return e->stopped();
+    e = new Search::Meta::RBS(master,rs,ee,m_opt);
   }
 
 
@@ -105,4 +83,4 @@ namespace Gecode {
 
 }
 
-// STATISTICS: search-other
+// STATISTICS: search-meta

@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2013-02-26 10:47:43 +0100 (Tue, 26 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13414 $
+ *     $Date: 2015-03-20 15:37:34 +0100 (Fri, 20 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14471 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -61,17 +61,19 @@ namespace Gecode { namespace Search { namespace Parallel {
       Space* cur;
       /// Distance until next clone
       unsigned int d;
-      /// Whether worker is currently idle
+      /// Whether the worker is idle
       bool idle;
     public:
-      /// Initialize for space \a s (of size \a sz) with engine \a e
-      Worker(Space* s, size_t sz, Engine& e);
+      /// Initialize for space \a s with engine \a e
+      Worker(Space* s, Engine& e);
       /// Hand over some work (NULL if no work available)
       Space* steal(unsigned long int& d);
       /// Return statistics
       Statistics statistics(void);
       /// Provide access to engine
       Engine& engine(void) const;
+      /// Return no-goods
+      NoGoods& nogoods(void);
       /// Destructor
       virtual ~Worker(void);
     };
@@ -236,9 +238,10 @@ namespace Gecode { namespace Search { namespace Parallel {
    * Engine: initialization
    */
   forceinline
-  Engine::Worker::Worker(Space* s, size_t sz, Engine& e)
-    : Search::Worker(sz), _engine(e), d(0), idle(false) {
-    current(s);
+  Engine::Worker::Worker(Space* s, Engine& e)
+    : _engine(e), 
+      path(s == NULL ? 0 : e.opt().nogoods_limit), d(0), 
+      idle(false) {
     if (s != NULL) {
       if (s->status(*this) == SS_FAILED) {
         fail++;
@@ -251,8 +254,6 @@ namespace Gecode { namespace Search { namespace Parallel {
     } else {
       cur = NULL;
     }
-    current(NULL);
-    current(cur);
   }
 
   forceinline
@@ -276,7 +277,6 @@ namespace Gecode { namespace Search { namespace Parallel {
   Engine::Worker::statistics(void) {
     m.acquire();
     Statistics s = *this;
-    s.memory += path.size();
     m.release();
     return s;
   }
@@ -409,6 +409,14 @@ namespace Gecode { namespace Search { namespace Parallel {
     if (s != NULL) 
       engine().busy();
     return s;
+  }
+
+  /*
+   * Return No-Goods
+   */
+  forceinline NoGoods&
+  Engine::Worker::nogoods(void) {
+    return path;
   }
 
 }}}

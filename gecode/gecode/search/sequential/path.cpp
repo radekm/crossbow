@@ -1,14 +1,14 @@
 /* -*- mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*- */
 /*
  *  Main authors:
- *     Guido Tack <tack@gecode.org>
+ *     Christian Schulte <schulte@gecode.org>
  *
  *  Copyright:
- *     Guido Tack, 2012
+ *     Christian Schulte, 2013
  *
  *  Last modified:
- *     $Date: 2013-03-07 21:40:07 +0100 (Thu, 07 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13466 $
+ *     $Date: 2014-10-21 17:09:50 +0200 (Tue, 21 Oct 2014) $ by $Author: schulte $
+ *     $Revision: 14258 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -35,22 +35,15 @@
  *
  */
 
-#include <gecode/search.hh>
-#include <gecode/search/meta/rbs.hh>
+#include <gecode/search/sequential/path.hh>
 
-namespace Gecode { namespace Search {
-    
-  Engine* 
-  rbs(Space* s, size_t sz, MetaStop* stop,
-      Engine* e, const Options& o) {
-#ifdef GECODE_HAS_THREADS
-    Options to = o.expand();
-    return new Meta::RBS(s,sz,o.cutoff,stop,e,to);
-#else
-    return new Meta::RBS(s,sz,o.cutoff,stop,e,o);
-#endif
+namespace Gecode { namespace Search { namespace Sequential {
+
+  void
+  Path::post(Space& home) const {
+    GECODE_ES_FAIL(Meta::NoGoodsProp::post(home,*this));
   }
 
-}}
+}}}
 
-// STATISTICS: search-other
+// STATISTICS: search-sequential

@@ -7,8 +7,8 @@
  *     Patrick Pekczynski, 2004
  *
  *  Last modified:
- *     $Date: 2012-09-07 17:31:22 +0200 (Fri, 07 Sep 2012) $ by $Author: schulte $
- *     $Revision: 13068 $
+ *     $Date: 2013-09-30 13:48:20 +0200 (Mon, 30 Sep 2013) $ by $Author: tack $
+ *     $Revision: 14017 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -258,6 +258,14 @@ namespace Gecode { namespace Int { namespace Sorted {
         }
         break;
       }
+
+    if (Perm) {
+      // check consistency of channeling after normalization
+      if (!channel(home,x,y,z,nofix))
+        return ES_FAILED;
+      if (nofix)
+        return ES_NOFIX;
+    }
 
     /*
      * STEP 4:

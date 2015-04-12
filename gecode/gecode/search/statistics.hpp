@@ -7,8 +7,8 @@
  *     Christian Schulte, 2004
  *
  *  Last modified:
- *     $Date: 2013-02-15 17:05:40 +0100 (Fri, 15 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13303 $
+ *     $Date: 2013-07-11 12:30:18 +0200 (Thu, 11 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13840 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -42,12 +42,13 @@ namespace Gecode { namespace Search {
   forceinline void
   Statistics::reset(void) {
     StatusStatistics::reset();
-    fail=0; node=0; depth=0; memory=0; restart=0;
+    fail=0; node=0; depth=0; restart=0; nogood=0;
   }
 
   forceinline
   Statistics::Statistics(void)
-    : fail(0), node(0), depth(0), memory(0), restart(0) {}
+    : fail(0), node(0), depth(0),
+      restart(0), nogood(0) {}
 
   forceinline Statistics&
   Statistics::operator +=(const Statistics& s) {
@@ -55,8 +56,8 @@ namespace Gecode { namespace Search {
     fail += s.fail;
     node += s.node;
     depth = std::max(depth,s.depth);
-    memory += s.memory;
     restart += s.restart;
+    nogood += s.nogood;
     return *this;
   }
 

@@ -7,8 +7,8 @@
  *     Christian Schulte, 2008
  *
  *  Last modified:
- *     $Date: 2013-05-08 18:00:34 +0200 (Wed, 08 May 2013) $ by $Author: vbarichard $
- *     $Revision: 13624 $
+ *     $Date: 2013-07-04 17:03:13 +0200 (Thu, 04 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13801 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -149,6 +149,17 @@ namespace Gecode { namespace Int { namespace Branch {
   }
 
   template<int n, bool min>
+  NGL*
+  ViewValuesBrancher<n,min>::ngl(Space& home, const Choice& c, 
+                                 unsigned int a) const {
+    const PosValuesChoice& pvc
+      = static_cast<const PosValuesChoice&>(c);
+    IntView x(ViewBrancher<IntView,n>::view(pvc.pos()));
+    unsigned int b = min ? a : (pvc.alternatives() - 1 - a);
+    return new (home) EqNGL<IntView>(home,x,pvc.val(b));
+  }
+
+  template<int n, bool min>
   void
   ViewValuesBrancher<n,min>::print(const Space& home, const Choice& c, 
                                    unsigned int a, std::ostream& o) const {
@@ -160,7 +171,7 @@ namespace Gecode { namespace Int { namespace Branch {
     if (vvp != NULL)
       vvp(home,*this,a,x,pvc.pos().pos,nn,o);
     else
-      o << "branch[" << pvc.pos().pos << "] = " << nn;
+      o << "var[" << pvc.pos().pos << "] = " << nn;
   }
 
 }}}

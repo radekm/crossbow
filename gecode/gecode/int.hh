@@ -5,18 +5,20 @@
  *     Guido Tack <tack@gecode.org>
  *
  *  Contributing authors:
+ *     Stefano Gualandi <stefano.gualandi@gmail.com>
  *     Mikael Lagerkvist <lagerkvist@gecode.org>
  *     David Rijsman <David.Rijsman@quintiq.com>
  *
  *  Copyright:
- *     David Rijsman, 2009
+ *     Stefano Gualandi, 2013
  *     Mikael Lagerkvist, 2006
+ *     David Rijsman, 2009
  *     Christian Schulte, 2002
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2013-05-08 13:30:48 +0200 (Wed, 08 May 2013) $ by $Author: schulte $
- *     $Revision: 13622 $
+ *     $Date: 2015-01-16 14:10:48 +0100 (Fri, 16 Jan 2015) $ by $Author: schulte $
+ *     $Revision: 14362 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -1136,7 +1138,7 @@ namespace Gecode {
   GECODE_INT_EXPORT void
   rel(Home home, BoolVar x0, IntRelType irt, BoolVar x1, Reify r,
       IntConLevel icl=ICL_DEF);
-  /** \brief Post doamin consistent propagator for \f$ x_i \sim_{irt} y \f$ for all \f$0\leq i<|x|\f$
+  /** \brief Post domain consistent propagator for \f$ x_i \sim_{irt} y \f$ for all \f$0\leq i<|x|\f$
    * \ingroup TaskModelIntRelBool
    */
   GECODE_INT_EXPORT void
@@ -1299,7 +1301,7 @@ namespace Gecode {
           IntConLevel=ICL_DEF);
   /** \brief Post propagator that successive values in \a c precede each other in \a x
    *
-   * This constraint enforces that \f$x_0\neq c_k\f$ for \f$0\leq k<|c|\f$ and 
+   * This constraint enforces that \f$x_0\neq c_k\f$ for \f$0<k<|c|\f$ and 
    * \f$x_j=c_{k} \to \bigvee_{0\leq i<j} x_i=c_{k-1}\f$ for \f$0\leq j<|x|\f$ 
    * and \f$0< k<|c|\f$.
    * \ingroup TaskModelIntPrecede
@@ -2183,6 +2185,31 @@ namespace Gecode {
   max(Home home, const IntVarArgs& x, IntVar y,
       IntConLevel icl=ICL_DEF);
 
+  /** \brief Post propagator for \f$ \operatorname{argmin} x=y\f$
+   *
+   * In case of ties, the smallest value for \a y is chosen 
+   * (provided \a tiebreak is true).
+   *
+   * If \a x is empty, an exception of type Int::TooFewArguments is thrown.
+   * If \a y occurs in \a x, an exception of type Int::ArgumentSame 
+   * is thrown.
+   */
+  GECODE_INT_EXPORT void
+  argmin(Home home, const IntVarArgs& x, IntVar y, bool tiebreak=true,
+         IntConLevel icl=ICL_DEF);
+  /** \brief Post propagator for \f$ \operatorname{argmax} x=y\f$
+   *
+   * In case of ties, the smallest value for \a y is chosen
+   * (provided \a tiebreak is true).
+   *
+   * If \a x is empty, an exception of type Int::TooFewArguments is thrown.
+   * If \a y occurs in \a x, an exception of type Int::ArgumentSame 
+   * is thrown.
+   */
+  GECODE_INT_EXPORT void
+  argmax(Home home, const IntVarArgs& x, IntVar y, bool tiebreak=true,
+         IntConLevel icl=ICL_DEF);
+
   /** \brief Post propagator for \f$ |x_0|=x_1\f$
    *
    * Supports both bounds consistency (\a icl = ICL_BND, default)
@@ -2465,8 +2492,6 @@ namespace Gecode {
    * \defgroup TaskModelIntBinPacking Bin packing constraints
    * \ingroup TaskModelInt
    *
-   * Constraints for modeling bin packing problems. Propagation follows:
-   *   Paul Shaw. A Constraint for Bin Packing. CP 2004.
    */
   /** \brief Post propagator for bin packing
    *
@@ -2478,6 +2503,8 @@ namespace Gecode {
    * constraint \f$l_j=\sum_{0\leq i<|b|\wedge b_i=j}s_i\f$ holds and that
    * for each \f$i\f$ with \f$0\leq i<|b|\f$ the constraint
    * \f$0\leq b_i<|l|\f$ holds.
+   *
+   * The propagation follows: Paul Shaw. A Constraint for Bin Packing. CP 2004.
    *
    * Throws the following exceptions:
    *  - Of type Int::ArgumentSizeMismatch if \a b and \a s are not of
@@ -2492,6 +2519,51 @@ namespace Gecode {
              const IntVarArgs& l, 
              const IntVarArgs& b, const IntArgs& s,
              IntConLevel icl=ICL_DEF);
+  /* \brief Post propagator for multi-dimensional bin packing
+   *
+   * In the following \a n refers to the number of items and \a m
+   * refers to the number of bins.
+   *
+   * The multi-dimensional bin-packing constraint enforces that
+   * all items are packed into bins
+   * \f$b_i\in\{0,\ldots,m-1\}\f$ for \f$0\leq i<n\f$
+   * and that the load of each bin corresponds to the items
+   * packed into it for each dimension \f$l_{j\cdot
+   * d + k} = \sum_{\{i\in\{0,\ldots,n-1\}|
+   * b_{j\cdot d+k}=i}\}s_{i\cdot d+k}\f$
+   * for \f$0\leq j<m\f$, \f$0\leq k<d\f$
+   * Furthermore, the load variables must satisfy the capacity
+   * constraints \f$l_{j\cdot d + k} \leq
+   * c_k\f$ for \f$0\leq j<m\f$, \f$0\leq k<d\f$.
+   *
+   * The constraint is implemented by the decomposition
+   * introduced in: Stefano Gualandi and Michele Lombardi. A
+   * simple and effective decomposition for the multidimensional
+   * binpacking constraint. CP 2013, pages 356--364.
+   *
+   * Posting the constraint returns a maximal set containing conflicting 
+   * items that require pairwise different bins.
+   *
+   * Note that posting the constraint has exponential complexity in the
+   * number of items due to the Bron-Kerbosch algorithm used for finding
+   * the maximal conflict item sets.
+   *
+   * Throws the following exceptions:
+   *  - Of type Int::ArgumentSizeMismatch if any of the following properties
+   *    is violated: \f$|b|=n\f$, \f$|l|=m\cdot d\f$, \f$|s|=n\cdot d\f$,
+   *    and \f$|c|=d\f$.
+   *  - Of type Int::ArgumentSame if \a l and \a b share unassigned variables.
+   *  - Of type Int::OutOfLimits if \a s or \a c contains a negative number.
+   * 
+   * \ingroup TaskModelIntBinPacking
+   */
+  GECODE_INT_EXPORT IntSet
+  binpacking(Home home, int d,
+             const IntVarArgs& l, const IntVarArgs& b, 
+             const IntArgs& s, const IntArgs& c,
+             IntConLevel icl=ICL_DEF);
+
+
   /**
    * \defgroup TaskModelIntGeoPacking Geometrical packing constraints
    * \ingroup TaskModelInt
@@ -3646,30 +3718,54 @@ namespace Gecode {
     IntActivity(const IntActivity& a);
     /// Assignment operator
     IntActivity& operator =(const IntActivity& a);      
-    /// Initialize for integer variables \a x with decay factor \a d
-    GECODE_INT_EXPORT 
-    IntActivity(Home home, const IntVarArgs& x, double d=1.0);
-    /// Initialize for Boolean variables \a x with decay factor \a d
-    GECODE_INT_EXPORT 
-    IntActivity(Home home, const BoolVarArgs& x, double d=1.0);
     /**
      * \brief Initialize for integer variables \a x with decay factor \a d
      *
-     * This member function can only be used once and only if the
-     * activity storage has been constructed with the default constructor.
-     *
+     * If the branch merit function \a bm is different from NULL, the
+     * activity for each variable is initialized with the merit returned
+     * by \a bm.
      */
-    GECODE_INT_EXPORT void
-    init(Home, const IntVarArgs& x, double d=1.0);
+    GECODE_INT_EXPORT 
+    IntActivity(Home home, const IntVarArgs& x, double d=1.0,
+                IntBranchMerit bm=NULL);
     /**
      * \brief Initialize for Boolean variables \a x with decay factor \a d
      *
+     * If the branch merit function \a bm is different from NULL, the
+     * activity for each variable is initialized with the merit returned
+     * by \a bm.
+     */
+    GECODE_INT_EXPORT 
+    IntActivity(Home home, const BoolVarArgs& x, double d=1.0,
+                BoolBranchMerit bm=NULL);
+    /**
+     * \brief Initialize for integer variables \a x with decay factor \a d
+     *
+     * If the branch merit function \a bm is different from NULL, the
+     * activity for each variable is initialized with the merit returned
+     * by \a bm.
+     *
      * This member function can only be used once and only if the
      * activity storage has been constructed with the default constructor.
      *
      */
     GECODE_INT_EXPORT void
-    init(Home, const BoolVarArgs& x, double d=1.0);
+    init(Home home, const IntVarArgs& x, double d=1.0,
+         IntBranchMerit bm=NULL);
+    /**
+     * \brief Initialize for Boolean variables \a x with decay factor \a d
+     *
+     * If the branch merit function \a bm is different from NULL, the
+     * activity for each variable is initialized with the merit returned
+     * by \a bm.
+     *
+     * This member function can only be used once and only if the
+     * activity storage has been constructed with the default constructor.
+     *
+     */
+    GECODE_INT_EXPORT void
+    init(Home home, const BoolVarArgs& x, double d=1.0,
+         BoolBranchMerit bm=NULL);
   };
 
 }

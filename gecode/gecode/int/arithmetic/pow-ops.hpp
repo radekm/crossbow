@@ -7,8 +7,8 @@
  *     Christian Schulte, 2012
  *
  *  Last modified:
- *     $Date: 2013-02-08 16:47:00 +0100 (Fri, 08 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13278 $
+ *     $Date: 2013-08-22 20:55:38 +0200 (Thu, 22 Aug 2013) $ by $Author: schulte $
+ *     $Revision: 13987 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -88,6 +88,8 @@ namespace Gecode { namespace Int { namespace Arithmetic {
       }
       if (p > Limits::max)
         return Limits::max+1;
+      if (p < Limits::min)
+        return Limits::min-1;
     } while (m > 0);
     return static_cast<int>(p);
   }
@@ -196,6 +198,8 @@ namespace Gecode { namespace Int { namespace Arithmetic {
     long long int x = _x;
     if (x*x > Limits::max)
       return Limits::max+1;
+    if (x*x < Limits::min)
+      return Limits::min-1;
     return static_cast<int>(x*x);
   }
 

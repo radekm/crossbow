@@ -11,8 +11,8 @@
  *     Christian Schulte, 2007
  *
  *  Last modified:
- *     $Date: 2010-07-14 17:46:18 +0200 (Wed, 14 Jul 2010) $ by $Author: schulte $
- *     $Revision: 11192 $
+ *     $Date: 2014-07-30 14:16:57 +0200 (Wed, 30 Jul 2014) $ by $Author: schulte $
+ *     $Revision: 14181 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -52,7 +52,7 @@ namespace Gecode { namespace Support {
     A& a;
   public:
     /// Bit set with space for \a s bits
-    BitSet(A& a, unsigned int s);
+    BitSet(A& a, unsigned int s, bool set=false);
     /// Copy bit set \a bs
     BitSet(A& a, const BitSet& bs);
     /// Destructor
@@ -61,8 +61,8 @@ namespace Gecode { namespace Support {
 
   template<class A>
   forceinline
-  BitSet<A>::BitSet(A& a0, unsigned int s)
-    : BitSetBase(a0,s), a(a0) {}
+  BitSet<A>::BitSet(A& a0, unsigned int s, bool set)
+    : BitSetBase(a0,s,set), a(a0) {}
 
   template<class A>
   forceinline

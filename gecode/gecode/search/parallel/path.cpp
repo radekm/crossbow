@@ -4,11 +4,11 @@
  *     Christian Schulte <schulte@gecode.org>
  *
  *  Copyright:
- *     Christian Schulte, 2007
+ *     Christian Schulte, 2013
  *
  *  Last modified:
- *     $Date: 2013-10-24 16:42:20 +0200 (Thu, 24 Oct 2013) $ by $Author: schulte $
- *     $Revision: 14030 $
+ *     $Date: 2014-10-21 17:09:50 +0200 (Tue, 21 Oct 2014) $ by $Author: schulte $
+ *     $Revision: 14258 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -35,32 +35,15 @@
  *
  */
 
-namespace Gecode {
+#include <gecode/search/parallel/path.hh>
 
-  /// Cast \a p into pointer of type \a T
-  template<class T>
-  T ptr_cast(void* p);
+namespace Gecode { namespace Search { namespace Parallel {
 
-  /// Base type for any function pointer
-  typedef void (*VoidFunction)(void);
-
-  /// Cast function pointer
-  template<class F1, class F2>
-  F1 function_cast(F2 f);
-
-
-  template<class T>
-  forceinline T
-  ptr_cast(void* p) {
-    return static_cast<T>(p);
+  void
+  Path::post(Space& home) const {
+    GECODE_ES_FAIL(Meta::NoGoodsProp::post(home,*this));
   }
 
-  template<class F1, class F2>
-  forceinline F1
-  function_cast(F2 f) {
-    return F1(f);
-  }
+}}}
 
-}
-
-// STATISTICS: support-any
+// STATISTICS: search-parallel

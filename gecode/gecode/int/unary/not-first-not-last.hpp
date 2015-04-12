@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2012-09-07 17:31:22 +0200 (Fri, 07 Sep 2012) $ by $Author: schulte $
- *     $Revision: 13068 $
+ *     $Date: 2014-02-20 17:00:07 +0100 (Thu, 20 Feb 2014) $ by $Author: schulte $
+ *     $Revision: 14107 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -106,15 +106,17 @@ namespace Gecode { namespace Int { namespace Unary {
         lct[i] = std::min(lct[i],t[j].lst());
     }
 
-    int n = t.size();
-    for (int i=n; i--; )
-      if (t[i].mandatory()) {
-        GECODE_ME_CHECK(t[i].lct(home,lct[i]));
-      } else if (lct[i] < t[i].ect()) {
-        //        GECODE_ME_CHECK(t[i].excluded(home));
-        //        t[i].cancel(home,p); t[i]=t[--n];
-      }
-    t.size(n);
+    {
+      int n = t.size();
+      for (int i=n; i--; )
+        if (t[i].mandatory()) {
+          GECODE_ME_CHECK(t[i].lct(home,lct[i]));
+        } else if (lct[i] < t[i].ect()) {
+          GECODE_ME_CHECK(t[i].excluded(home));
+          t[i].cancel(home,p,PC_INT_BND); t[i]=t[--n];
+        }
+      t.size(n);
+    }
 
     return (t.size() < 2) ? home.ES_SUBSUMED(p) : ES_OK;
   }

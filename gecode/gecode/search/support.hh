@@ -7,8 +7,8 @@
  *     Christian Schulte, 2008
  *
  *  Last modified:
- *     $Date: 2013-04-08 16:39:34 +0200 (Mon, 08 Apr 2013) $ by $Author: schulte $
- *     $Revision: 13567 $
+ *     $Date: 2013-07-11 12:30:18 +0200 (Thu, 11 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13840 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -50,10 +50,11 @@ namespace Gecode { namespace Search {
   template<class Worker>
   class WorkerToEngine : public Engine {
   protected:
+    /// The worker to wrap into an engine
     Worker w;
   public:
     /// Initialization
-    WorkerToEngine(Space* s, size_t sz, const Options& o);
+    WorkerToEngine(Space* s, const Options& o);
     /// Return next solution (NULL, if none exists or search has been stopped)
     virtual Space* next(void);
     /// Return statistics
@@ -62,6 +63,8 @@ namespace Gecode { namespace Search {
     virtual bool stopped(void) const;
     /// Reset engine to restart at space \a s
     virtual void reset(Space* s);
+    /// Return no-goods
+    virtual NoGoods& nogoods(void);
   };
 
 
@@ -73,9 +76,8 @@ namespace Gecode { namespace Search {
 
   
   template<class Worker>
-  WorkerToEngine<Worker>::WorkerToEngine(Space* s, size_t sz, 
-                                         const Options& o) 
-    : w(s,sz,o) {}
+  WorkerToEngine<Worker>::WorkerToEngine(Space* s, const Options& o) 
+    : w(s,o) {}
   template<class Worker>
   Space* 
   WorkerToEngine<Worker>::next(void) {
@@ -95,6 +97,12 @@ namespace Gecode { namespace Search {
   void
   WorkerToEngine<Worker>::reset(Space* s) {
     w.reset(s);
+  }
+
+  template<class Worker>
+  NoGoods&
+  WorkerToEngine<Worker>::nogoods(void) {
+    return w.nogoods();
   }
 
 }}

@@ -7,8 +7,8 @@
  *     Christian Schulte, 2002
  *
  *  Last modified:
- *     $Date: 2013-05-22 16:48:57 +0200 (Wed, 22 May 2013) $ by $Author: schulte $
- *     $Revision: 13654 $
+ *     $Date: 2015-01-05 07:32:41 +0100 (Mon, 05 Jan 2015) $ by $Author: tack $
+ *     $Revision: 14336 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -54,11 +54,6 @@ namespace Gecode {
    * Actor
    *
    */
-  size_t
-  Actor::allocated(void) const {
-    return 0;
-  }
-
   Actor* Actor::sentinel;
 
 #ifdef __GNUC__
@@ -80,9 +75,24 @@ namespace Gecode {
 
 
   /*
+   * No-goods
+   *
+   */
+  void
+  NoGoods::post(Space&) const {
+  }
+
+  NoGoods NoGoods::eng;
+
+  /*
    * Brancher
    *
    */
+  NGL*
+  Brancher::ngl(Space&, const Choice&, unsigned int) const {
+    return NULL;
+  }
+
   void 
   Brancher::print(const Space&, const Choice&, unsigned int,
                   std::ostream&) const {
@@ -414,6 +424,33 @@ namespace Gecode {
   }
 
   void
+  Space::_trycommit(const Choice& c, unsigned int a) {
+    if (a >= c.alternatives())
+      throw SpaceIllegalAlternative("Space::commit");
+    if (failed())
+      return;
+    if (Brancher* b = brancher(c._id)) {
+      // There is a matching brancher
+      if (b->commit(*this,c,a) == ES_FAILED)
+        fail();
+    }
+  }
+
+  NGL*
+  Space::ngl(const Choice& c, unsigned int a) {
+    if (a >= c.alternatives())
+      throw SpaceIllegalAlternative("Space::ngl");
+    if (failed())
+      return NULL;
+    if (Brancher* b = brancher(c._id)) {
+      // There is a matching brancher
+      return b->ngl(*this,c,a);
+    } else {
+      return NULL;
+    }
+  }
+
+  void
   Space::print(const Choice& c, unsigned int a, std::ostream& o) const {
     if (a >= c.alternatives())
       throw SpaceIllegalAlternative("Space::print");
@@ -608,12 +645,18 @@ namespace Gecode {
   Space::constrain(const Space&) {
   }
 
-  void
-  Space::master(unsigned long int, const Space*) {
+  bool
+  Space::master(const CRI& cri) {
+    if (cri.last() != NULL)
+      constrain(*cri.last());
+    cri.nogoods().post(*this);
+    // Perform a restart even if a solution has been found
+    return true;
   }
 
-  void
-  Space::slave(unsigned long int, const Space*) {
+  bool
+  Space::slave(const CRI&) {
+    return true;
   }
 
   void
@@ -645,6 +688,11 @@ namespace Gecode {
       gafc.set(p.propagator().gafc,a);
   }
 
+
+  bool
+  NGL::notice(void) const {
+    return false;
+  }
 
 }
 

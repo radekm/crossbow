@@ -7,8 +7,8 @@
  *     Christian Schulte, 2012
  *
  *  Last modified:
- *     $Date: 2013-02-18 21:53:58 +0100 (Mon, 18 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13310 $
+ *     $Date: 2013-07-23 14:31:03 +0200 (Tue, 23 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13939 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -39,26 +39,30 @@
 
 namespace Gecode {
 
-  IntActivity::IntActivity(Home home, const IntVarArgs& x, double d) {
+  IntActivity::IntActivity(Home home, const IntVarArgs& x, double d,
+                           IntBranchMerit bm) {
     ViewArray<Int::IntView> y(home,x);
-    Activity::init(home,y,d);
+    Activity::init(home,y,d,bm);
   }
 
-  IntActivity::IntActivity(Home home, const BoolVarArgs& x, double d) {
+  IntActivity::IntActivity(Home home, const BoolVarArgs& x, double d,
+                           BoolBranchMerit bm) {
     ViewArray<Int::BoolView> y(home,x);
-    Activity::init(home,y,d);
+    Activity::init(home,y,d,bm);
   }
 
   void
-  IntActivity::init(Home home, const IntVarArgs& x, double d) {
+  IntActivity::init(Home home, const IntVarArgs& x, double d,
+                    IntBranchMerit bm) {
     ViewArray<Int::IntView> y(home,x);
-    Activity::init(home,y,d);
+    Activity::init(home,y,d,bm);
   }
 
   void
-  IntActivity::init(Home home, const BoolVarArgs& x, double d) {
+  IntActivity::init(Home home, const BoolVarArgs& x, double d,
+                    BoolBranchMerit bm) {
     ViewArray<Int::BoolView> y(home,x);
-    Activity::init(home,y,d);
+    Activity::init(home,y,d,bm);
   }
 
 }

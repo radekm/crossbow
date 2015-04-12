@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2013-04-08 16:39:34 +0200 (Mon, 08 Apr 2013) $ by $Author: schulte $
- *     $Revision: 13567 $
+ *     $Date: 2015-03-20 15:37:34 +0100 (Fri, 20 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14471 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -57,22 +57,23 @@ namespace Gecode { namespace Search { namespace Sequential {
     /// Distance until next clone
     unsigned int d;
   public:
-    /// Initialize for space \a s (of size \a sz) with options \a o
-    DFS(Space* s, size_t sz, const Options& o);
+    /// Initialize for space \a s with options \a o
+    DFS(Space* s, const Options& o);
     /// %Search for next solution
     Space* next(void);
     /// Return statistics
     Statistics statistics(void) const;
     /// Reset engine to restart at space \a s
     void reset(Space* s);
+    /// Return no-goods
+    NoGoods& nogoods(void);
     /// Destructor
     ~DFS(void);
   };
 
   forceinline 
-  DFS::DFS(Space* s, size_t sz, const Options& o)
-    : Worker(sz), opt(o), d(0) {
-    current(s);
+  DFS::DFS(Space* s, const Options& o)
+    : opt(o), path(opt.nogoods_limit), d(0) {
     if ((s == NULL) || (s->status(*this) == SS_FAILED)) {
       fail++;
       cur = NULL;
@@ -81,8 +82,6 @@ namespace Gecode { namespace Search { namespace Sequential {
     } else {
       cur = snapshot(s,opt);
     }
-    current(NULL);
-    current(cur);
   }
 
   forceinline void
@@ -91,63 +90,78 @@ namespace Gecode { namespace Search { namespace Sequential {
     path.reset();
     d = 0;
     if ((s == NULL) || (s->status(*this) == SS_FAILED)) {
+      delete s;
       cur = NULL;
-      Worker::reset();
     } else {
       cur = s;
-      Worker::reset(cur);
     }
+    Worker::reset();
+  }
+
+  forceinline NoGoods&
+  DFS::nogoods(void) {
+    return path;
   }
 
   forceinline Space*
   DFS::next(void) {
+    /*
+     * The engine maintains the following invariant:
+     *  - If the current space (cur) is not NULL, the path always points
+     *    to exactly that space.
+     *  - If the current space (cur) is NULL, the path always points
+     *    to the next space (if there is any).
+     *
+     * This invariant is needed so that no-goods can be extracted properly
+     * when the engine is stopped or has found a solution.
+     *
+     */
     start();
     while (true) {
-      while (cur) {
-        if (stop(opt,path.size()))
-          return NULL;
-        node++;
-        switch (cur->status(*this)) {
-        case SS_FAILED:
-          fail++;
-          delete cur;
-          cur = NULL;
-          Worker::current(NULL);
-          break;
-        case SS_SOLVED:
-          {
-            // Deletes all pending branchers
-            (void) cur->choice();
-            Space* s = cur;
-            cur = NULL;
-            Worker::current(NULL);
-            return s;
-          }
-        case SS_BRANCH:
-          {
-            Space* c;
-            if ((d == 0) || (d >= opt.c_d)) {
-              c = cur->clone();
-              d = 1;
-            } else {
-              c = NULL;
-              d++;
-            }
-            const Choice* ch = path.push(*this,cur,c);
-            Worker::push(c,ch);
-            cur->commit(*ch,0);
-            break;
-          }
-        default:
-          GECODE_NEVER;
-        }
-      }
-      do {
-        if (!path.next(*this))
+      if (stop(opt))
+        return NULL;
+      while (cur == NULL) {
+        if (path.empty())
           return NULL;
         cur = path.recompute(d,opt.a_d,*this);
-      } while (cur == NULL);
-      Worker::current(cur);
+        if (cur != NULL)
+          break;
+        path.next();
+      }
+      node++;
+      switch (cur->status(*this)) {
+      case SS_FAILED:
+        fail++;
+        delete cur;
+        cur = NULL;
+        path.next();
+        break;
+      case SS_SOLVED:
+        {
+          // Deletes all pending branchers
+          (void) cur->choice();
+          Space* s = cur;
+          cur = NULL;
+          path.next();
+          return s;
+        }
+      case SS_BRANCH:
+        {
+          Space* c;
+          if ((d == 0) || (d >= opt.c_d)) {
+            c = cur->clone();
+            d = 1;
+          } else {
+            c = NULL;
+            d++;
+          }
+          const Choice* ch = path.push(*this,cur,c);
+          cur->commit(*ch,0);
+          break;
+        }
+      default:
+        GECODE_NEVER;
+      }
     }
     GECODE_NEVER;
     return NULL;
@@ -155,9 +169,7 @@ namespace Gecode { namespace Search { namespace Sequential {
 
   forceinline Statistics
   DFS::statistics(void) const {
-    Statistics s = *this;
-    s.memory += path.size();
-    return s;
+    return *this;
   }
 
   forceinline 

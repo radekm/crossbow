@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2009-05-12 10:35:58 +0200 (Tue, 12 May 2009) $ by $Author: schulte $
- *     $Revision: 9057 $
+ *     $Date: 2013-07-11 12:30:18 +0200 (Thu, 11 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13840 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -45,15 +45,15 @@
 namespace Gecode { namespace Search {
 
   Engine* 
-  dfs(Space* s, size_t sz, const Options& o) {
+  dfs(Space* s, const Options& o) {
 #ifdef GECODE_HAS_THREADS
     Options to = o.expand();
     if (to.threads == 1.0)
-      return new WorkerToEngine<Sequential::DFS>(s,sz,to);
+      return new WorkerToEngine<Sequential::DFS>(s,to);
     else
-      return new Parallel::DFS(s,sz,to);
+      return new Parallel::DFS(s,to);
 #else
-    return new WorkerToEngine<Sequential::DFS>(s,sz,o);
+    return new WorkerToEngine<Sequential::DFS>(s,o);
 #endif
   }
 

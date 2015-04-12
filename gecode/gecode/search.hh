@@ -9,8 +9,8 @@
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2013-03-08 11:11:37 +0100 (Fri, 08 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13482 $
+ *     $Date: 2015-03-17 11:17:00 +0100 (Tue, 17 Mar 2015) $ by $Author: tack $
+ *     $Revision: 14443 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -102,6 +102,9 @@ namespace Gecode { namespace Search {
     const unsigned int steal_limit = 3;
     /// Initial delay in milliseconds for all but first worker thread
     const unsigned int initial_delay = 5;
+
+    /// Depth limit for no-good generation during search
+    const unsigned int nogoods_limit = 128;
   }
 
 }}
@@ -138,10 +141,10 @@ namespace Gecode { namespace Search {
     unsigned long int node;
     /// Maximum depth of search stack
     unsigned long int depth;
-    /// Peak memory allocated
-    size_t memory;
     /// Number of restarts
     unsigned long int restart;
+    /// Number of no-goods posted
+    unsigned long int nogood;
     /// Initialize
     Statistics(void);
     /// Reset
@@ -158,8 +161,253 @@ namespace Gecode { namespace Search {
 
 namespace Gecode { namespace Search {
 
+  /**
+   * \brief Base class for cutoff generators for restart-based meta engine
+   * \ingroup TaskModelSearch
+   */
+  class GECODE_SEARCH_EXPORT Cutoff {
+  public:
+    /// \name Constructors and member functions
+    //@{
+    /// Default constructor
+    Cutoff(void);
+    /// Return the current cutoff value
+    virtual unsigned long int operator ()(void) const = 0;
+    /// Increment and return the next cutoff value
+    virtual unsigned long int operator ++(void) = 0;
+    /// Destructor
+    virtual ~Cutoff(void);
+    //@}
+    /// Memory management
+    //@{
+    /// Allocate memory from heap
+    static void* operator new(size_t s);
+    /// Free memory allocated from heap
+    static void  operator delete(void* p);
+    //@}
+    /// \name Predefined cutoff generators
+    //@{
+    /// Create generator for constant sequence with constant \a s
+    static Cutoff*
+    constant(unsigned long int scale=1U);
+    /// Create generator for linear sequence scaled by \a scale
+    static Cutoff*
+    linear(unsigned long int scale=1U);
+    /** Create generator for geometric sequence scaled by
+     *  \a scale using base \a base
+     */
+    static Cutoff*
+    geometric(unsigned long int scale=1U, double base=1.5);
+    /// Create generator for luby sequence with scale-factor \a scale
+    static Cutoff*
+    luby(unsigned long int scale=1U);
+    /** Create generator for random sequence with seed \a seed that
+     *  generates values between \a min and \a max with \a n steps
+     *  between the extreme values (use 0 for \a n to get step size 1).
+     */
+    static Cutoff*
+    rnd(unsigned int seed, 
+        unsigned long int min, unsigned long int max, 
+        unsigned long int n);
+    /// Append cutoff values from \a c2 after \a n values from \a c1
+    static Cutoff*
+    append(Cutoff* c1, unsigned long int n, Cutoff* c2);
+    /// Merge cutoff values from \a c1 with values from \a c2
+    static Cutoff*
+    merge(Cutoff* c1, Cutoff* c2);
+    /// Create generator that repeats \a n times each cutoff value from \a c
+    static Cutoff*
+    repeat(Cutoff* c, unsigned long int n);
+    //@}
+  };
+
+  /**
+   * \brief Cutoff generator for constant sequence
+   * \ingroup TaskModelSearch
+   */
+  class GECODE_SEARCH_EXPORT CutoffConstant : public Cutoff {
+  protected:
+    /// Constant
+    unsigned long int c;
+  public:
+    /// Constructor
+    CutoffConstant(unsigned long int c);
+    /// Return the current cutoff value
+    virtual unsigned long int operator ()(void) const;
+    /// Increment and return the next cutoff value
+    virtual unsigned long int operator ++(void);
+  };
+
+  /**
+   * \brief Cutoff generator for linear sequence
+   * \ingroup TaskModelSearch
+   */
+  class GECODE_SEARCH_EXPORT CutoffLinear : public Cutoff {
+  protected:
+    /// Scale factor
+    unsigned long int scale;
+    /// Next number in sequence
+    unsigned long int n;
+  public:
+    /// Constructor
+    CutoffLinear(unsigned long int scale);
+    /// Return the current cutoff value
+    virtual unsigned long int operator ()(void) const;
+    /// Increment and return the next cutoff value
+    virtual unsigned long int operator ++(void);
+  };
+
+  /**
+   * \brief Cutoff generator for the Luby sequence
+   * \ingroup TaskModelSearch
+   */
+  class GECODE_SEARCH_EXPORT CutoffLuby : public Cutoff {
+  protected:
+    /// Iteration number
+    unsigned long int i;
+    /// Scale factor
+    unsigned long int scale;
+    /// Number of pre-computed luby values
+    static const unsigned long int n_start = 63U;
+    /// Precomputed luby-values
+    static unsigned long int start[n_start];
+    /// Compute binary logarithm of \a i
+    static unsigned long int log(unsigned long int i);
+    /// Compute Luby number for step \a i
+    static unsigned long int luby(unsigned long int i);
+  public:
+    /// Constructor
+    CutoffLuby(unsigned long int scale);
+    /// Return the current cutoff value
+    virtual unsigned long int operator ()(void) const;
+    /// Increment and return the next cutoff value
+    virtual unsigned long int operator ++(void);
+  };
+
+  /**
+   * \brief Cutoff generator for the geometric sequence
+   * \ingroup TaskModelSearch
+   */
+  class GECODE_SEARCH_EXPORT CutoffGeometric : public Cutoff {
+  protected:
+    /// Current cutoff value
+    double n;
+    /// Scale factor
+    double scale;
+    /// Base
+    double base;
+  public:
+    /// Constructor
+    CutoffGeometric(unsigned long int scale, double base);
+    /// Return the current cutoff value
+    virtual unsigned long int operator ()(void) const;
+    /// Increment and return the next cutoff value
+    virtual unsigned long int operator ++(void);
+  };
+  
+  /**
+   * \brief Cutoff generator for the random sequence
+   * \ingroup TaskModelSearch
+   */
+  class GECODE_SEARCH_EXPORT CutoffRandom : public Cutoff {
+  protected:
+    /// Random number generator
+    Support::RandomGenerator rnd;
+    /// Minimum cutoff value
+    unsigned long int min;
+    /// Random values
+    unsigned long int n;
+    /// Step size
+    unsigned long int step;
+    /// Current value
+    unsigned long int cur;
+  public:
+    /// Constructor
+    CutoffRandom(unsigned int seed, 
+                 unsigned long int min, unsigned long int max, 
+                 unsigned long int n);
+    /// Return the current cutoff value
+    virtual unsigned long int operator ()(void) const;
+    /// Increment and return the next cutoff value
+    virtual unsigned long int operator ++(void);
+  };
+  
+  /**
+   * \brief Cutoff generator appending two cutoff generators
+   * \ingroup TaskModelSearch
+   */
+  class GECODE_SEARCH_EXPORT CutoffAppend : public Cutoff {
+  protected:
+    /// First cutoff generators
+    Cutoff* c1;
+    /// Second cutoff generators
+    Cutoff* c2;
+    /// How many number to take from the first
+    unsigned long int n;
+  public:
+    /// Constructor
+    CutoffAppend(Cutoff* c1, unsigned long int n, Cutoff* c2);
+    /// Return the current cutoff value
+    virtual unsigned long int operator ()(void) const;
+    /// Increment and return the next cutoff value
+    virtual unsigned long int operator ++(void);
+    /// Destructor
+    virtual ~CutoffAppend(void);
+  };
+
+  /**
+   * \brief Cutoff generator merging two cutoff generators
+   * \ingroup TaskModelSearch
+   */
+  class GECODE_SEARCH_EXPORT CutoffMerge : public Cutoff {
+  protected:
+    /// First cutoff generator
+    Cutoff* c1;
+    /// Second cutoff generator
+    Cutoff* c2;
+  public:
+    /// Constructor
+    CutoffMerge(Cutoff* c1, Cutoff* c2);
+    /// Return the current cutoff value
+    virtual unsigned long int operator ()(void) const;
+    /// Increment and return the next cutoff value
+    virtual unsigned long int operator ++(void);
+    /// Destructor
+    virtual ~CutoffMerge(void);
+  };
+
+  /**
+   * \brief Cutoff generator that repeats a cutoff from another cutoff generator
+   * \ingroup TaskModelSearch
+   */
+  class GECODE_SEARCH_EXPORT CutoffRepeat : public Cutoff {
+  protected:
+    /// Actual cutoff generator
+    Cutoff* c;
+    // Current cutoff
+    unsigned int cutoff;
+    // Iteration
+    unsigned long int i;
+    // Number of repetitions
+    unsigned long int n;
+  public:
+    /// Constructor
+    CutoffRepeat(Cutoff* c, unsigned long int n);
+    /// Return the current cutoff value
+    virtual unsigned long int operator ()(void) const;
+    /// Increment and return the next cutoff value
+    virtual unsigned long int operator ++(void);
+    /// Destructor
+    virtual ~CutoffRepeat(void);
+  };
+  
+}}
+
+#include <gecode/search/cutoff.hpp>
+
+namespace Gecode { namespace Search {
+
     class Stop;
-    class Cutoff;
 
     /**
      * \brief %Search engine options
@@ -208,6 +456,8 @@ namespace Gecode { namespace Search {
       unsigned int c_d;
       /// Create a clone during recomputation if distance is greater than \a a_d (adaptive distance)
       unsigned int a_d;
+      /// Depth limit for extraction of no-goods
+      unsigned int nogoods_limit;
       /// Stop object for stopping search
       Stop* stop;
       /// Cutoff for restart-based search
@@ -224,19 +474,6 @@ namespace Gecode { namespace Search {
 }}
 
 #include <gecode/search/options.hpp>
-
-namespace Gecode {
-
-  template<template<class> class E, class T>
-  class RBS;
-
-}
-
-namespace Gecode { namespace Search { namespace Meta {
-
-  class RBS;
-
-}}}
 
 namespace Gecode { namespace Search {
 
@@ -256,36 +493,31 @@ namespace Gecode { namespace Search {
    */
   class GECODE_SEARCH_EXPORT Stop {
   public:
+    /// \name Constructors and member functions
+    //@{
     /// Default constructor
     Stop(void);
     /// Stop search, if returns true
     virtual bool stop(const Statistics& s, const Options& o) = 0;
     /// Destructor
     virtual ~Stop(void);
+    //@}
+    /// \name Memory management
+    //@{
     /// Allocate memory from heap
     static void* operator new(size_t s);
     /// Free memory allocated from heap
     static void  operator delete(void* p);
-  };
-  
-  /**
-   * \brief %Stop-object based on memory consumption
-   *
-   * \ingroup TaskModelSearchStop
-   */
-  class GECODE_SEARCH_EXPORT MemoryStop : public Stop {
-  protected:
-    /// Size limit
-    size_t l;
-  public:
-    /// Stop if memory limit \a l (in bytes) is exceeded
-    MemoryStop(size_t l);
-    /// Return current limit
-    size_t limit(void) const;
-    /// Set current limit to \a l (in bytes)
-    void limit(size_t l);
-    /// Return true if memory limit is exceeded
-    virtual bool stop(const Statistics& s, const Options& o);
+    //@}
+    /// \name Predefined stop objects
+    //@{
+    /// Stop if node limit \a l has been exceeded
+    static Stop* node(unsigned long int l);
+    /// Stop if failure limit \a l has been exceeded
+    static Stop* fail(unsigned long int l);
+    /// Stop if time limit \a l (in milliseconds) has been exceeded
+    static Stop* time(unsigned long int l);
+    //@}
   };
   
   /**
@@ -357,39 +589,6 @@ namespace Gecode { namespace Search {
     virtual bool stop(const Statistics& s, const Options& o);
   };
 
-  /**
-   * \brief %Stop-object for meta engine
-   * \ingroup TaskModelSearchStop
-   */
-  class GECODE_SEARCH_EXPORT MetaStop : public Stop {
-    template<template<class>class,class> friend class ::Gecode::RBS;
-    friend class ::Gecode::Search::Meta::RBS;
-  private:
-    /// The failure stop object for the engine
-    FailStop* e_stop;
-    /// The stop object for the meta engine
-    Stop* m_stop;
-    /// Whether the engine was stopped
-    bool e_stopped;
-    /// Accumulated statistics for the meta engine
-    Statistics m_stat;
-  public:
-    /// Stop the meta engine if indicated by the stop object \a s
-    MetaStop(Stop* s);
-    /// Return true if meta engine must be stopped
-    virtual bool stop(const Statistics& s, const Options& o);
-    /// Set current limit for the engine to \a l fails
-    void limit(const Search::Statistics& s, unsigned long int l);
-    /// Return the stop object to control the engine
-    Stop* enginestop(void) const;
-    /// Return whether the engine has been stopped
-    bool enginestopped(void) const;
-    /// Return statistics for the meta engine
-    Statistics metastatistics(void) const;
-    /// Delete object
-    ~MetaStop(void);
-  };
-
 }}
 
 #include <gecode/search/stop.hpp>
@@ -397,57 +596,9 @@ namespace Gecode { namespace Search {
 namespace Gecode { namespace Search {
 
   /**
-   * \brief Base class for cutoff generators for restart-based meta engine
-   */
-  class GECODE_SEARCH_EXPORT Cutoff {
-  public:
-    /// Default constructor
-    Cutoff(void);
-    /// Return next cutoff value
-    virtual unsigned long int operator ()(void) = 0;
-      /// Destructor
-    virtual ~Cutoff(void);
-    /// Create generator for constant sequence with constant \a s
-    static Cutoff*
-    constant(unsigned long int scale=1U);
-    /// Create generator for linear sequence scaled by \a scale
-    static Cutoff*
-    linear(unsigned long int scale=1U);
-    /** Create generator for geometric sequence scaled by
-     *  \a scale using base \a base
-     */
-    static Cutoff*
-    geometric(unsigned long int scale=1U, double base=1.5);
-    /// Create generator for luby sequence with scale-factor \a scale
-    static Cutoff*
-    luby(unsigned long int scale=1U);
-    /** Create generator for random sequence with seed \a seed that
-     *  generates values between \a min and \a max with \a n steps
-     *  between the extreme values (use 0 for \a n to get step size 1).
-     */
-    static Cutoff*
-    rnd(unsigned int seed, 
-        unsigned long int min, unsigned long int max, 
-        unsigned long int n);
-    /// Append cutoff values from \a c2 after \a n values from \a c1
-    static Cutoff*
-    append(Cutoff* c1, unsigned long int n, Cutoff* c2);
-    /// Allocate memory from heap
-    static void* operator new(size_t s);
-    /// Free memory allocated from heap
-    static void  operator delete(void* p);
-  };
-    
-}}
-
-#include <gecode/search/cutoff.hpp>
-
-namespace Gecode { namespace Search {
-
-  /**
    * \brief %Search engine implementation interface
    */
-  class Engine {
+  class GECODE_SEARCH_EXPORT Engine {
   public:
     /// Return next solution (NULL, if none exists or search has been stopped)
     virtual Space* next(void) = 0;
@@ -455,31 +606,64 @@ namespace Gecode { namespace Search {
     virtual Statistics statistics(void) const = 0;
     /// Check whether engine has been stopped
     virtual bool stopped(void) const = 0;
-    /// Reset engine to restart at space \a s
-    virtual void reset(Space* s) = 0;
+    /// Reset engine to restart at space \a s (does nothing)
+    virtual void reset(Space* s);
+    /// Return no-goods (the no-goods are empty)
+    virtual NoGoods& nogoods(void);
     /// Destructor
-    virtual ~Engine(void) {}
+    virtual ~Engine(void);
+    /// \name Memory management
+    //@{
+    /// Allocate memory from heap
+    static void* operator new(size_t s);
+    /// Free memory allocated from heap
+    static void  operator delete(void* p);
+    //@}
   };
 
 }}
 
+#include <gecode/search/engine.hpp>
+
 namespace Gecode {
 
-  /**
-   *  \brief Base-class for search engines
-   */
+  template<template<class> class E, class T>
+  class RBS;
+
+}
+
+namespace Gecode { namespace Search {
+
+  /// Base-class for search engines
+  template<class T>
   class EngineBase {
     template<template<class>class,class> friend class ::Gecode::RBS;
   protected:
     /// The actual search engine
-    Search::Engine* e;
-    /// Destructor
-    ~EngineBase(void);
+    Engine* e;
     /// Constructor
-    EngineBase(Search::Engine* e = NULL);
+    EngineBase(Engine* e = NULL);
+  public:
+    /// Return next solution (NULL, if none exists or search has been stopped)
+    virtual T* next(void);
+    /// Return statistics
+    virtual Statistics statistics(void) const;
+    /// Check whether engine has been stopped
+    virtual bool stopped(void) const;
+    /// Return no-goods (the no-goods are empty)
+    virtual NoGoods& nogoods(void);
+    /// Destructor
+    virtual ~EngineBase(void);
+    /// \name Memory management
+    //@{
+    /// Allocate memory from heap
+    static void* operator new(size_t s);
+    /// Free memory allocated from heap
+    static void  operator delete(void* p);
+    //@}
   };
 
-}
+}}
 
 #include <gecode/search/engine-base.hpp>
 
@@ -494,16 +678,10 @@ namespace Gecode {
    * \ingroup TaskModelSearch
    */
   template<class T>
-  class DFS : public EngineBase {
+  class DFS : public Search::EngineBase<T> {
   public:
     /// Initialize search engine for space \a s with options \a o
     DFS(T* s, const Search::Options& o=Search::Options::def);
-    /// Return next solution (NULL, if none exists or search has been stopped)
-    T* next(void);
-    /// Return statistics
-    Search::Statistics statistics(void) const;
-    /// Check whether engine has been stopped
-    bool stopped(void) const;
   };
 
   /// Invoke depth-first search engine for subclass \a T of space \a s with options \a o
@@ -528,16 +706,10 @@ namespace Gecode {
    * \ingroup TaskModelSearch
    */
   template<class T>
-  class BAB : public EngineBase {
+  class BAB : public Search::EngineBase<T> {
   public:
     /// Initialize engine for space \a s and options \a o
     BAB(T* s, const Search::Options& o=Search::Options::def);
-    /// Return next better solution (NULL, if none exists or search has been stopped)
-    T* next(void);
-    /// Return statistics
-    Search::Statistics statistics(void) const;
-    /// Check whether engine has been stopped
-    bool stopped(void) const;
   };
 
   /**
@@ -568,9 +740,9 @@ namespace Gecode {
    * periodically restart the search of engine \a E.
    *
    * The class \a T can implement member functions
-   * \code virtual void master(unsigned long int i, const Space* s) \endcode
+   * \code virtual bool master(const CRI& cri) \endcode
    * and
-   * \code virtual void slave(unsigned long int i, const Space* s) \endcode
+   * \code virtual bool slave(const CRI& cri) \endcode
    *
    * Whenever exploration restarts or a solution is found, the
    * engine executes the functions on the master and slave
@@ -580,28 +752,23 @@ namespace Gecode {
    * \ingroup TaskModelSearch
    */
   template<template<class> class E, class T>
-  class RBS : public EngineBase {
+  class RBS : public Search::EngineBase<T> {
+      using Search::EngineBase<T>::e;
   public:
     /// Initialize engine for space \a s and options \a o
     RBS(T* s, const Search::Options& o);
-    /// Return next solution (NULL, if non exists or search has been stopped)
-    T* next(void);
-    /// Return statistics
-    Search::Statistics statistics(void) const;
-    /// Check whether engine has been stopped
-    bool stopped(void) const;
   };
 
   /**
    * \brief Perform restart-based search
    *
    * The engine uses the Cutoff sequence supplied in the options \a o to
-   * periodically restart the search of an engine of type \a E.
+   * periodically restart the search of engine \a E.
    *
    * The class \a T can implement member functions
-   * \code virtual void master(unsigned long int i, const Space* s) \endcode
+   * \code virtual bool master(const CRI& cri) \endcode
    * and
-   * \code virtual void slave(unsigned long int i, const Space* s) \endcode
+   * \code virtual bool slave(const CRI& cri) \endcode
    *
    * Whenever exploration restarts or a solution is found, the
    * engine executes the functions on the master and slave

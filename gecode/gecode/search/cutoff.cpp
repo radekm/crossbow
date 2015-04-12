@@ -11,8 +11,8 @@
  *     Guido Tack, 2013
  *
  *  Last modified:
- *     $Date: 2013-03-12 16:42:52 +0100 (Tue, 12 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13504 $
+ *     $Date: 2015-03-20 15:37:34 +0100 (Fri, 20 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14471 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -39,24 +39,27 @@
  *
  */
 
+#include <algorithm>
 #include <gecode/search.hh>
 
 namespace Gecode { namespace Search {
 
-  forceinline
-  CutoffConstant::CutoffConstant(unsigned long int c0) 
-    : c(c0) {}
   unsigned long int 
-  CutoffConstant::operator ()(void) {
+  CutoffConstant::operator ()(void) const {
+    return c;
+  }
+  unsigned long int 
+  CutoffConstant::operator ++(void) {
     return c;
   }
   
   
-  forceinline
-  CutoffLinear::CutoffLinear(unsigned long int s) 
-    : scale(s), n(0) {}
   unsigned long int 
-  CutoffLinear::operator ()(void) {
+  CutoffLinear::operator ()(void) const {
+    return n;
+  }
+  unsigned long int 
+  CutoffLinear::operator ++(void) {
     n += scale;
     return n;
   }
@@ -67,76 +70,81 @@ namespace Gecode { namespace Search {
     1,1,2,1,1,2,4,1,1,2,1,1,2,4,8,1,1,2,1,1,2,4,1,1,2,1,1,2,4,8,16,
     1,1,2,1,1,2,4,1,1,2,1,1,2,4,8,1,1,2,1,1,2,4,1,1,2,1,1,2,4,8,16,32
   };
-  forceinline
-  CutoffLuby::CutoffLuby(unsigned long int scale0) 
-    : i(1U), scale(scale0) {}
-  forceinline unsigned long int 
-  CutoffLuby::log(unsigned long int i) {
-    if (i == 1U)
-      return 0U;
-    unsigned long int exp = 0U;
-    while ( (i >> (++exp)) > 1U ) {}
-    return exp;
-  }
-  forceinline unsigned long int 
-  CutoffLuby::luby(unsigned long int i) {
-    while (true) {
-      if (i <= n_start)
-        return start[i-1];
-      unsigned long int l = log(i);
-      if (i == (1U<<(l+1))-1)
-        return 1<<l;
-      i=i-(1U<<l)+1;
-    }
-    GECODE_NEVER;
-    return 0;
+  unsigned long int 
+  CutoffLuby::operator ()(void) const {
+    return scale*luby(i);
   }
   unsigned long int 
-  CutoffLuby::operator() (void) {
+  CutoffLuby::operator ++(void) {
     return scale*luby(i++);
   }
 
 
-  forceinline
-  CutoffGeometric::CutoffGeometric(unsigned long int scale, double base0) 
-    : n(static_cast<double>(scale)), base(base0) {}
   unsigned long int 
-  CutoffGeometric::operator ()(void) {
-    unsigned long int oldn = static_cast<unsigned long int>(n);
+  CutoffGeometric::operator ()(void) const {
+    return static_cast<unsigned long int>(scale * n);
+  }
+  unsigned long int 
+  CutoffGeometric::operator ++(void) {
     n *= base;
-    return oldn;
+    return static_cast<unsigned long int>(scale * n);
   }
   
   
-  forceinline
-  CutoffRandom::CutoffRandom(unsigned int seed, 
-                             unsigned long int min0, 
-                             unsigned long int max0, 
-                             unsigned long int n0)
-      : rnd(seed), min(min0), n(n0 == 0 ? (max0-min+1U) : n0), 
-        step(std::max(1UL,
-                      static_cast<unsigned long int>((max0-min0+1U)/n))) {}
   unsigned long int 
-  CutoffRandom::operator ()(void) {
-    return min+step*rnd(n);
+  CutoffRandom::operator ++(void) {
+    cur = min+step*rnd(n);
+    return cur;
+  }
+  unsigned long int 
+  CutoffRandom::operator ()(void) const {
+    return cur;
   }
   
 
-  forceinline
-  CutoffAppend::CutoffAppend(Cutoff* d1, unsigned long int n0, Cutoff* d2) 
-    : c1(d1), c2(d2), n(n0) {}
   unsigned long int 
-  CutoffAppend::operator ()(void) {
+  CutoffAppend::operator ()(void) const {
     if (n > 0) {
-      n--;
       return (*c1)();
     } else {
       return (*c2)();
     }
   }
-  forceinline
-  CutoffAppend::~CutoffAppend(void) {
-    delete c1; delete c2;
+  unsigned long int 
+  CutoffAppend::operator ++(void) {
+    if (n > 0) {
+      n--;
+      return ++(*c1);
+    } else {
+      return ++(*c2);
+    }
+  }
+
+
+  unsigned long int 
+  CutoffMerge::operator ()(void) const {
+    return (*c1)();
+  }
+  unsigned long int 
+  CutoffMerge::operator ++(void) {
+    (void) ++(*c1);
+    std::swap(c1,c2);
+    return (*c1)();
+  }
+
+
+  unsigned long int
+  CutoffRepeat::operator ()(void) const {
+    return cutoff;
+  }
+  unsigned long int
+  CutoffRepeat::operator ++(void) {
+    i++;
+    if (i == n) {
+      cutoff = (*c)();
+      i = 0;
+    }
+    return cutoff;
   }
   
   
@@ -167,7 +175,15 @@ namespace Gecode { namespace Search {
   Cutoff::append(Cutoff* c1, unsigned long int n, Cutoff* c2) {
     return new CutoffAppend(c1,n,c2);
   }
-  
+  Cutoff*
+  Cutoff::merge(Cutoff* c1, Cutoff* c2) {
+    return new CutoffMerge(c1,c2);
+  }
+  Cutoff*
+  Cutoff::repeat(Cutoff* c, unsigned long int n) {
+  return new CutoffRepeat(c,n);
+  }
+
 }}
 
 // STATISTICS: search-other

@@ -7,8 +7,8 @@
  *     Guido Tack, 2008
  *
  *  Last modified:
- *     $Date: 2013-07-01 06:38:48 +0200 (Mon, 01 Jul 2013) $ by $Author: tack $
- *     $Revision: 13740 $
+ *     $Date: 2014-11-26 23:29:51 +0100 (Wed, 26 Nov 2014) $ by $Author: tack $
+ *     $Revision: 14327 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -80,11 +80,26 @@
 /* Whether unistd.h is available */
 #define GECODE_HAS_UNISTD_H 1
 
+/* Whether unordered_map is available */
+/* #undef GECODE_HAS_UNORDERED_MAP */
+
 /* Gecode version */
-#define GECODE_LIBRARY_VERSION "4-1-0"
+#define GECODE_LIBRARY_VERSION "4-4-0"
 
 /* Heap memory alignment */
 /* #undef GECODE_MEMORY_ALIGNMENT */
+
+/* How to check allocation size */
+/* #undef GECODE_MSIZE */
+
+/* Whether to track peak heap size */
+/* #undef GECODE_PEAKHEAP */
+
+/* Whether we need malloc.h */
+/* #undef GECODE_PEAKHEAP_MALLOC_H */
+
+/* Whether we need malloc/malloc.h */
+/* #undef GECODE_PEAKHEAP_MALLOC_MALLOC_H */
 
 /* Whether we are compiling static libraries */
 #define GECODE_STATIC_LIBS /**/
@@ -108,10 +123,10 @@
 #define GECODE_USE_GETTIMEOFDAY 1
 
 /* Gecode version */
-#define GECODE_VERSION "4.1.0"
+#define GECODE_VERSION "4.4.0"
 
 /* Gecode version */
-#define GECODE_VERSION_NUMBER 400100
+#define GECODE_VERSION_NUMBER 400400
 
 /* How to tell the compiler to really, really inline */
 #define forceinline inline __attribute__ ((__always_inline__))

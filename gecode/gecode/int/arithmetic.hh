@@ -9,8 +9,8 @@
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2013-02-14 16:29:11 +0100 (Thu, 14 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13292 $
+ *     $Date: 2015-01-16 14:10:48 +0100 (Fri, 16 Jan 2015) $ by $Author: schulte $
+ *     $Revision: 14362 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -42,6 +42,7 @@
 
 #include <gecode/int.hh>
 
+#include <gecode/int/idx-view.hh>
 #include <gecode/int/rel.hh>
 #include <gecode/int/linear.hh>
 
@@ -251,6 +252,50 @@ namespace Gecode { namespace Int { namespace Arithmetic {
 namespace Gecode { namespace Int { namespace Arithmetic {
 
   /**
+   * \brief Argument maximum propagator
+   *
+   * Tiebreaking is used if \a tiebreak is true and views can be shared
+   * if \a shread is true.
+   *
+   * Requires \code #include <gecode/int/arithmetic.hh> \endcode
+   * \ingroup FuncIntProp
+   */
+  template<class VA, class VB, bool tiebreak>
+  class ArgMax : public Propagator { 
+  protected:
+    /// Map of index and views
+    IdxViewArray<VA> x;
+    /// Position of maximum view (maximal argument)
+    VB y;
+    /// Constructor for cloning \a p
+    ArgMax(Space& home, bool share, ArgMax& p);
+    /// Constructor for posting
+    ArgMax(Home home, IdxViewArray<VA>& x, VB y);
+  public:
+    /// Copy propagator during cloning
+    virtual Actor* copy(Space& home, bool share);
+    // Cost function (defined as low linear)
+    virtual PropCost cost(const Space& home, const ModEventDelta& med) const;
+    /// Perform propagation
+    virtual ExecStatus propagate(Space& home, const ModEventDelta& med);
+    /// Delete propagator and return its size
+    virtual size_t dispose(Space& home);
+    /**
+     * \brief Post propagator \f$ \operatorname{argmax} x=y\f$
+     *
+     * Note that \a y must be constrained to be in the proper range
+     * for the index values in \a x.
+     */
+    static  ExecStatus post(Home home, IdxViewArray<VA>& x, VB y);
+  };
+
+}}}
+
+#include <gecode/int/arithmetic/argmax.hpp>
+
+namespace Gecode { namespace Int { namespace Arithmetic {
+
+  /**
    * \brief Operations for square and square-root propagators
    *
    * Requires \code #include <gecode/int/arithmetic.hh> \endcode
@@ -267,7 +312,7 @@ namespace Gecode { namespace Int { namespace Arithmetic {
     /// Return \f$x^2\f$
     template<class IntType>
     IntType pow(IntType x) const;
-    /// Return \f$\min(x^2,m+1)\f$ where \f$n>0\f$ and \f$m\f$ is Int::Limits::max
+    /// Return \f$x^2\f$ truncated to integer limits
     int tpow(int x) const;
     /// Return \f$\lfloor \sqrt{x}\rfloor\f$ where \a x must be non-negative and \f$n>0\f$
     int fnroot(int x) const;
@@ -303,7 +348,7 @@ namespace Gecode { namespace Int { namespace Arithmetic {
     /// Return \f$x^n\f$ where \f$n>0\f$
     template<class IntType>
     IntType pow(IntType x) const;
-    /// Return \f$\min(x^n,m+1)\f$ where \f$n>0\f$ and \f$m\f$ is Int::Limits::max
+    /// Return \f$x^n\f$ where \f$n>0\f$ truncated to integer limits
     int tpow(int x) const;
     /// Return \f$\lfloor \sqrt[n]{x}\rfloor\f$ where \a x must be non-negative and \f$n>0\f$
     int fnroot(int x) const;
@@ -442,6 +487,32 @@ namespace Gecode { namespace Int { namespace Arithmetic {
 namespace Gecode { namespace Int { namespace Arithmetic {
 
   /**
+   * \brief Positive bounds consistent n-th root propagator
+   *
+   * Requires \code #include <gecode/int/arithmetic.hh> \endcode
+   * \ingroup FuncIntProp
+   */
+  template<class Ops, bool minus>
+  class NrootPlusBnd : public BinaryPropagator<IntView,PC_INT_BND> {
+  protected:
+    using BinaryPropagator<IntView,PC_INT_BND>::x0;
+    using BinaryPropagator<IntView,PC_INT_BND>::x1;
+    /// Operations
+    Ops ops;
+    /// Constructor for cloning \a p
+    NrootPlusBnd(Space& home, bool share, NrootPlusBnd<Ops,minus>& p);
+    /// Constructor for posting
+    NrootPlusBnd(Home home, IntView x0, IntView x1, const Ops& ops);
+  public:
+    /// Copy propagator during cloning
+    virtual Actor* copy(Space& home, bool share);
+    /// Perform propagation
+    virtual ExecStatus propagate(Space& home, const ModEventDelta& med);
+    /// Post propagator
+    static ExecStatus post(Home home, IntView x0, IntView x1, Ops ops);
+  };
+
+  /**
    * \brief Bounds consistent n-th root propagator
    *
    * Requires \code #include <gecode/int/arithmetic.hh> \endcode
@@ -463,6 +534,40 @@ namespace Gecode { namespace Int { namespace Arithmetic {
     virtual Actor* copy(Space& home, bool share);
     /// Perform propagation
     virtual ExecStatus propagate(Space& home, const ModEventDelta& med);
+    /// Post propagator
+    static ExecStatus post(Home home, IntView x0, IntView x1, Ops ops);
+  };
+
+  /**
+   * \brief Domain consistent n-th root propagator
+   *
+   * Requires \code #include <gecode/int/arithmetic.hh> \endcode
+   * \ingroup FuncIntProp
+   */
+  template<class Ops, bool minus>
+  class NrootPlusDom : public BinaryPropagator<IntView,PC_INT_DOM> {
+  protected:
+    using BinaryPropagator<IntView,PC_INT_DOM>::x0;
+    using BinaryPropagator<IntView,PC_INT_DOM>::x1;
+    /// Operations
+    Ops ops;
+    /// Constructor for cloning \a p
+    NrootPlusDom(Space& home, bool share, NrootPlusDom<Ops,minus>& p);
+    /// Constructor for posting
+    NrootPlusDom(Home home, IntView x0, IntView x1, const Ops& ops);
+  public:
+    /// Copy propagator during cloning
+    virtual Actor* copy(Space& home, bool share);
+    /// Perform propagation
+    virtual ExecStatus propagate(Space& home, const ModEventDelta& med);
+    /**
+     * \brief Cost function
+     *
+     * If a view has been assigned, the cost is low unary.
+     * If in stage for bounds propagation, the cost is
+     * low binary. Otherwise it is high binary.
+     */
+    virtual PropCost cost(const Space& home, const ModEventDelta& med) const;
     /// Post propagator
     static ExecStatus post(Home home, IntView x0, IntView x1, Ops ops);
   };

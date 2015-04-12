@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2012-09-07 17:31:22 +0200 (Fri, 07 Sep 2012) $ by $Author: schulte $
- *     $Revision: 13068 $
+ *     $Date: 2013-07-04 17:03:13 +0200 (Thu, 04 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13801 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -56,7 +56,7 @@ namespace Gecode { namespace Kernel {
     /// Continuation to execute
     void (*c)(Space&);
     /// Constructor for creation
-    UnaryWait(Space& home, View x, void (*c0)(Space&));
+    UnaryWait(Home home, View x, void (*c0)(Space&));
     /// Constructor for cloning \a p
     UnaryWait(Space& home, bool shared, UnaryWait& p);
   public:
@@ -86,7 +86,7 @@ namespace Gecode { namespace Kernel {
     /// Continuation to execute
     void (*c)(Space&);
     /// Constructor for creation
-    NaryWait(Space& home, ViewArray<View>& x, void (*c0)(Space&));
+    NaryWait(Home home, ViewArray<View>& x, void (*c0)(Space&));
     /// Constructor for cloning \a p
     NaryWait(Space& home, bool shared, NaryWait& p);
   public:
@@ -109,7 +109,7 @@ namespace Gecode { namespace Kernel {
    */
   template<class View>
   forceinline
-  UnaryWait<View>::UnaryWait(Space& home, View x0, void (*c0)(Space&))
+  UnaryWait<View>::UnaryWait(Home home, View x0, void (*c0)(Space&))
     : Propagator(home), x(x0), c(c0) {
     x.subscribe(home,*this,PC_GEN_ASSIGNED);
   }
@@ -162,7 +162,7 @@ namespace Gecode { namespace Kernel {
    */
   template<class View>
   forceinline
-  NaryWait<View>::NaryWait(Space& home, ViewArray<View>& x0, 
+  NaryWait<View>::NaryWait(Home home, ViewArray<View>& x0, 
                            void (*c0)(Space&))
     : Propagator(home), x(x0), c(c0) {
     assert(!x[0].assigned());

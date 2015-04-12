@@ -7,8 +7,8 @@
  *     Christian Schulte, 2008
  *
  *  Last modified:
- *     $Date: 2013-02-20 17:42:40 +0100 (Wed, 20 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13341 $
+ *     $Date: 2013-07-08 14:22:40 +0200 (Mon, 08 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13820 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -42,6 +42,7 @@ namespace Gecode { namespace Search {
     : clone(Config::clone), 
       threads(Config::threads), 
       c_d(Config::c_d), a_d(Config::a_d), 
+      nogoods_limit(0),
       stop(NULL), cutoff(NULL) {}
 
 }}

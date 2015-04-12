@@ -7,8 +7,8 @@
  *     Christian Schulte, 2006
  *
  *  Last modified:
- *     $Date: 2013-03-07 22:14:40 +0100 (Thu, 07 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13467 $
+ *     $Date: 2015-03-11 15:59:09 +0100 (Wed, 11 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14435 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -39,13 +39,21 @@
 
 namespace Gecode { namespace Search {
 
-  /*
-   * Stopping for memory limit
-   *
-   */
-  bool
-  MemoryStop::stop(const Statistics& s, const Options&) {
-    return s.memory > l;
+   /*
+    * Creation functions for stop objects
+    *
+    */
+  Stop*
+  Stop::node(unsigned long int l) {
+    return new NodeStop(l);
+  }
+  Stop*
+  Stop::fail(unsigned long int l) {
+    return new FailStop(l);
+  }
+  Stop*
+  Stop::time(unsigned long int l) {
+    return new TimeStop(l);
   }
 
 
@@ -78,27 +86,6 @@ namespace Gecode { namespace Search {
     return t.stop() > l;
   }
 
-
-  /*
-   * Stopping for meta search engines
-   *
-   */
-
-  bool 
-  MetaStop::stop(const Statistics& s, const Options& o) {
-    // Stop if the fail stop object for the engine says so
-    if (e_stop->stop(s,o)) {
-      e_stopped = true;
-      m_stat.restart++;
-      return true;
-    }
-    // Stop if the stop object for the meta engine says so
-    if ((m_stop != NULL) && m_stop->stop(m_stat+s,o)) {
-      e_stopped = false;
-      return true;
-    }
-    return false;
-  }
 
 }}
 

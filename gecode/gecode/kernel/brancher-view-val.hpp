@@ -7,8 +7,8 @@
  *     Christian Schulte, 2012
  *
  *  Last modified:
- *     $Date: 2013-05-20 13:21:09 +0200 (Mon, 20 May 2013) $ by $Author: schulte $
- *     $Revision: 13644 $
+ *     $Date: 2015-03-20 15:37:34 +0100 (Fri, 20 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14471 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -62,6 +62,28 @@ namespace Gecode {
     virtual void archive(Archive& e) const;
   };
 
+
+  /// View-value no-good literal
+  template<class View, class Val, PropCond pc>
+  class ViewValNGL : public NGL {
+  protected:
+    /// The stored view
+    View x;
+    /// The stored value
+    Val n;
+  public:
+    /// Initialize for propagator \a p with view \a x and value \a n
+    ViewValNGL(Space& home, View x, Val n);
+    /// Constructor for cloning \a ngl
+    ViewValNGL(Space& home, bool share, ViewValNGL& ngl);
+    /// Create subscription for no-good literal
+    virtual void subscribe(Space& home, Propagator& p);
+    /// Cancel subscription for no-good literal
+    virtual void cancel(Space& home, Propagator& p);
+    /// Dispose
+    virtual size_t dispose(Space& home);
+  };
+
   /**
    * \brief Generic brancher by view and value selection
    *
@@ -101,6 +123,8 @@ namespace Gecode {
     virtual const Choice* choice(const Space& home, Archive& e);
     /// Perform commit for choice \a c and alternative \a b
     virtual ExecStatus commit(Space& home, const Choice& c, unsigned int b);
+    /// Create no-good literal for choice \a c and alternative \a b
+    virtual NGL* ngl(Space& home, const Choice& c, unsigned int b) const;
     /**
      * \brief Print branch for choice \a c and alternative \a b
      *
@@ -153,13 +177,48 @@ namespace Gecode {
     e << _val;
   }
 
+
+  /*
+   * View-value no-good literal
+   *
+   */
+  template<class View, class Val, PropCond pc>
+  forceinline
+  ViewValNGL<View,Val,pc>::ViewValNGL(Space& home, View x0, Val n0)
+    : NGL(home), x(x0), n(n0) {}
+
+  template<class View, class Val, PropCond pc>
+  forceinline
+  ViewValNGL<View,Val,pc>::ViewValNGL(Space& home, bool share, ViewValNGL& ngl)
+    : NGL(home,share,ngl), n(ngl.n) {
+    x.update(home,share,ngl.x);
+  }
+  
+  template<class View, class Val, PropCond pc>
+  void
+  ViewValNGL<View,Val,pc>::subscribe(Space& home, Propagator& p) {
+    x.subscribe(home,p,pc);
+  }
+  
+  template<class View, class Val, PropCond pc>
+  void
+  ViewValNGL<View,Val,pc>::cancel(Space& home, Propagator& p) {
+    x.cancel(home,p,pc);
+  }
+  
+  template<class View, class Val, PropCond pc>
+  size_t
+  ViewValNGL<View,Val,pc>::dispose(Space& home) {
+    (void) NGL::dispose(home);
+    return sizeof(*this);
+  }
+  
+
+
   /*
    * Generic brancher based on variable/value selection
    *
    */
-
-
-
   template<class View, int n, class Val, unsigned int a>
   forceinline
   ViewValBrancher<View,n,Val,a>::
@@ -175,7 +234,7 @@ namespace Gecode {
   }
 
   template<class View, int n, class Val, unsigned int a>
-  forceinline BrancherHandle
+  inline BrancherHandle
   ViewValBrancher<View,n,Val,a>::
   post(Home home, ViewArray<View>& x,
        ViewSel<View>* vs[n], ValSelCommitBase<View,Val>* vsc,
@@ -225,6 +284,16 @@ namespace Gecode {
                                  pvc.pos().pos,
                                  pvc.val())) 
       ? ES_FAILED : ES_OK;
+  }
+
+  template<class View, int n, class Val, unsigned int a>
+  NGL*
+  ViewValBrancher<View,n,Val,a>
+  ::ngl(Space& home, const Choice& c, unsigned int b) const {
+    const PosValChoice<Val>& pvc
+      = static_cast<const PosValChoice<Val>&>(c);
+    return vsc->ngl(home,b,
+                    ViewBrancher<View,n>::view(pvc.pos()),pvc.val());
   }
 
   template<class View, int n, class Val, unsigned int a>

@@ -10,8 +10,8 @@
  *     Christian Schulte, 2008
  *
  *  Last modified:
- *     $Date: 2013-02-20 18:27:38 +0100 (Wed, 20 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13347 $
+ *     $Date: 2013-07-08 17:25:13 +0200 (Mon, 08 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13825 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -97,7 +97,7 @@ namespace Gecode {
      *
      * The minimal size is given in the number of free list units.
      *
-     * Currently, for 32 bit machines, the minimal size is 12 bytes.
+     * Currently, for 32 bit machines, the minimal size is 8 bytes.
      * For 64 bit machines, it is 16 bytes.
      */
     const int fl_size_min  = ((sizeof(void*) == 4) ? 2 : 2);

@@ -7,8 +7,8 @@
  *     Christian Schulte, 2009
  *
  *  Last modified:
- *     $Date: 2009-08-11 15:05:41 +0200 (Tue, 11 Aug 2009) $ by $Author: schulte $
- *     $Revision: 9585 $
+ *     $Date: 2013-07-08 15:03:36 +0200 (Mon, 08 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13823 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -102,13 +102,12 @@ namespace Gecode { namespace Search { namespace Parallel {
     return has_stopped;
   }
 
-
   /*
    * Termination and deletion
    */
   Engine::Worker::~Worker(void) {
     delete cur;
-    path.reset();
+    path.reset(0);
   }
 
 }}}

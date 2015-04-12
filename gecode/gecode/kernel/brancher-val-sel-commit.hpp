@@ -7,8 +7,8 @@
  *     Christian Schulte, 2012
  *
  *  Last modified:
- *     $Date: 2013-05-02 17:10:16 +0200 (Thu, 02 May 2013) $ by $Author: schulte $
- *     $Revision: 13603 $
+ *     $Date: 2013-07-04 17:03:13 +0200 (Thu, 04 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13801 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -62,6 +62,9 @@ namespace Gecode {
     /// Commit view \a x at position \a i to value \a n for alternative \a a
     virtual ModEvent commit(Space& home, unsigned int a, 
                             View x, int i, Val n) = 0;
+    /// Create no-good literal for choice \a c and alternative \a a
+    virtual NGL* ngl(Space& home, unsigned int a,
+                     View x, Val n) const = 0;
     /// Print on \a o branch for alternative \a a, view \a x at position \a i, and value \a n
     virtual void print(const Space& home, unsigned int a,
                        View x, int i, const Val& n,
@@ -106,6 +109,9 @@ namespace Gecode {
     virtual Val val(const Space& home, View x, int i);
     /// Commit view \a x at position \a i to value \a n for alternative \a a
     virtual ModEvent commit(Space& home, unsigned int a, View x, int i, Val n);
+    /// Create no-good literal for choice \a c and alternative \a a
+    virtual NGL* ngl(Space& home, unsigned int a,
+                     View x, Val n) const;
     /// Print on \a o branch for alternative \a a, view \a x at position \a i, and value \a n
     virtual void print(const Space& home, unsigned int a,
                        View x, int i, const Val& n,
@@ -167,6 +173,13 @@ namespace Gecode {
   ValSelCommit<ValSel,ValCommit>::commit(Space& home, unsigned int a, 
                                          View x, int i, Val n) {
     return c.commit(home,a,x,i,n);
+  }
+
+  template<class ValSel, class ValCommit>
+  NGL* 
+  ValSelCommit<ValSel,ValCommit>::ngl(Space& home, unsigned int a,
+                                      View x, Val n) const {
+    return c.ngl(home, a, x, n);
   }
 
   template<class ValSel, class ValCommit>

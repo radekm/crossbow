@@ -7,8 +7,8 @@
  *     Christian Schulte, 2010
  *
  *  Last modified:
- *     $Date: 2011-08-08 18:04:53 +0200 (Mon, 08 Aug 2011) $ by $Author: schulte $
- *     $Revision: 12253 $
+ *     $Date: 2013-07-11 19:23:04 +0200 (Thu, 11 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13866 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -130,12 +130,11 @@ namespace Gecode { namespace Iter { namespace Ranges {
 
   forceinline
   RangeListIter::RangeListIter(void) 
-    : rlio(NULL) {}
+    : rlio(NULL), h(NULL), c(NULL) {}
 
   forceinline
   RangeListIter::RangeListIter(Region& r) 
-    : rlio(new (r.ralloc(sizeof(RLIO))) RLIO(r)), 
-      h(NULL), c(NULL) {}
+    : rlio(new (r.ralloc(sizeof(RLIO))) RLIO(r)), h(NULL), c(NULL) {}
 
   forceinline void
   RangeListIter::init(Region& r) {
@@ -146,19 +145,21 @@ namespace Gecode { namespace Iter { namespace Ranges {
   forceinline
   RangeListIter::RangeListIter(const RangeListIter& i) 
     : rlio(i.rlio), h(i.h), c(i.c)  {
-    rlio->use_cnt++;
+    if (rlio != NULL)
+      rlio->use_cnt++;
   }
 
   forceinline RangeListIter&
   RangeListIter::operator =(const RangeListIter& i) {
     if (&i != this) {
-      if (--rlio->use_cnt == 0) {
+      if ((rlio != NULL) && (--rlio->use_cnt == 0)) {
         Region& r = rlio->allocator();
         rlio->~RLIO();
         r.rfree(rlio,sizeof(RLIO));
       }
       rlio = i.rlio;
-      rlio->use_cnt++;
+      if (rlio != NULL)
+        rlio->use_cnt++;
       c=i.c; h=i.h;
     }
     return *this;
@@ -166,7 +167,7 @@ namespace Gecode { namespace Iter { namespace Ranges {
 
   forceinline
   RangeListIter::~RangeListIter(void) {
-    if (--rlio->use_cnt == 0) {
+    if ((rlio != NULL) && (--rlio->use_cnt == 0)) {
       Region& r = rlio->allocator();
       rlio->~RLIO();
       r.rfree(rlio,sizeof(RLIO));

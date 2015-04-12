@@ -7,8 +7,8 @@
  *     Christian Schulte, 2003
  *
  *  Last modified:
- *     $Date: 2013-02-26 10:47:43 +0100 (Tue, 26 Feb 2013) $ by $Author: schulte $
- *     $Revision: 13414 $
+ *     $Date: 2015-03-20 15:37:34 +0100 (Fri, 20 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14471 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -39,6 +39,9 @@
 #define __GECODE_SEARCH_SEQUENTIAL_PATH_HH__
 
 #include <gecode/search.hh>
+#include <gecode/search/support.hh>
+#include <gecode/search/worker.hh>
+#include <gecode/search/meta/nogoods.hh>
 
 namespace Gecode { namespace Search { namespace Sequential {
 
@@ -55,7 +58,8 @@ namespace Gecode { namespace Search { namespace Sequential {
    * clone is created.
    *
    */
-  class Path {
+  class GECODE_VTABLE_EXPORT Path : public NoGoods {
+    friend class Search::Meta::NoGoodsProp;
   public:
     /// %Search tree edge for recomputation
     class Edge {
@@ -82,6 +86,10 @@ namespace Gecode { namespace Search { namespace Sequential {
       
       /// Return number for alternatives
       unsigned int alt(void) const;
+      /// Return true number for alternatives (excluding lao optimization)
+      unsigned int truealt(void) const;
+      /// Test whether current alternative is leftmost
+      bool leftmost(void) const;
       /// Test whether current alternative is rightmost
       bool rightmost(void) const;
       /// Move to next alternative
@@ -95,13 +103,19 @@ namespace Gecode { namespace Search { namespace Sequential {
   protected:
     /// Stack to store edge information
     Support::DynamicStack<Edge,Heap> ds;
+    /// Depth limit for no-good generation
+    unsigned int _ngdl;
   public:
-    /// Initialize
-    Path(void);
+    /// Initialize with no-good depth limit \a l
+    Path(unsigned int l);
+    /// Return no-good depth limit
+    unsigned int ngdl(void) const;
+    /// Set no-good depth limit to \a l
+    void ngdl(unsigned int l);
     /// Push space \a c (a clone of \a s or NULL)
     const Choice* push(Worker& stat, Space* s, Space* c);
-    /// Generate path for next node and return whether a next node exists
-    bool next(Worker& s);
+    /// Generate path for next node
+    void next(void);
     /// Provide access to topmost edge
     Edge& top(void) const;
     /// Test whether path is empty
@@ -116,13 +130,13 @@ namespace Gecode { namespace Search { namespace Sequential {
     Space* recompute(unsigned int& d, unsigned int a_d, Worker& s);
     /// Recompute space according to path
     Space* recompute(unsigned int& d, unsigned int a_d, Worker& s,
-                     const Space* best, int& mark);
+                     const Space& best, int& mark);
     /// Return number of entries on stack
     int entries(void) const;
-    /// Return size used
-    size_t size(void) const;
     /// Reset stack
     void reset(void);
+    /// Post no-goods
+    GECODE_SEARCH_EXPORT virtual void post(Space& home) const;
   };
 
 
@@ -149,6 +163,15 @@ namespace Gecode { namespace Search { namespace Sequential {
   forceinline unsigned int
   Path::Edge::alt(void) const {
     return _alt;
+  }
+  forceinline unsigned int
+  Path::Edge::truealt(void) const {
+    assert(_alt < _choice->alternatives());
+    return _alt;
+  }
+  forceinline bool
+  Path::Edge::leftmost(void) const {
+    return _alt == 0;
   }
   forceinline bool
   Path::Edge::rightmost(void) const {
@@ -182,13 +205,23 @@ namespace Gecode { namespace Search { namespace Sequential {
    */
 
   forceinline
-  Path::Path(void) : ds(heap) {}
+  Path::Path(unsigned int l) 
+    : ds(heap), _ngdl(l) {}
+
+  forceinline unsigned int
+  Path::ngdl(void) const {
+    return _ngdl;
+  }
+
+  forceinline void
+  Path::ngdl(unsigned int l) {
+    _ngdl = l;
+  }
 
   forceinline const Choice*
   Path::push(Worker& stat, Space* s, Space* c) {
     if (!ds.empty() && ds.top().lao()) {
       // Topmost stack entry was LAO -> reuse
-      stat.pop(ds.top().space(),ds.top().choice());
       ds.pop().dispose();
     }
     Edge sn(s,c);
@@ -197,17 +230,15 @@ namespace Gecode { namespace Search { namespace Sequential {
     return sn.choice();
   }
 
-  forceinline bool
-  Path::next(Worker& stat) {
+  forceinline void
+  Path::next(void) {
     while (!ds.empty())
       if (ds.top().rightmost()) {
-        stat.pop(ds.top().space(),ds.top().choice());
         ds.pop().dispose();
       } else {
         ds.top().next();
-        return true;
+        return;
       }
-    return false;
   }
 
   forceinline Path::Edge&
@@ -240,11 +271,6 @@ namespace Gecode { namespace Search { namespace Sequential {
     return ds.entries();
   }
 
-  forceinline size_t
-  Path::size(void) const {
-    return ds.size();
-  }
-
   forceinline void
   Path::unwind(int l) {
     assert((ds[l].space() == NULL) || ds[l].space()->failed());
@@ -269,12 +295,12 @@ namespace Gecode { namespace Search { namespace Sequential {
     // Check for LAO
     if ((ds.top().space() != NULL) && ds.top().rightmost()) {
       Space* s = ds.top().space();
-      stat.lao(s);
       s->commit(*ds.top().choice(),ds.top().alt());
       assert(ds.entries()-1 == lc());
       ds.top().space(NULL);
       // Mark as reusable
-      ds.top().next();
+      if (static_cast<unsigned int>(ds.entries()) > ngdl())
+        ds.top().next();
       d = 0;
       return s;
     }
@@ -315,7 +341,6 @@ namespace Gecode { namespace Search { namespace Sequential {
           return NULL;
         }
         ds[i].space(s->clone());
-        stat.adapt(ds[i].space());
         d = static_cast<unsigned int>(n-i);
       }
       // Finally do the remaining commits
@@ -327,7 +352,7 @@ namespace Gecode { namespace Search { namespace Sequential {
 
   forceinline Space*
   Path::recompute(unsigned int& d, unsigned int a_d, Worker& stat,
-                  const Space* best, int& mark) {
+                  const Space& best, int& mark) {
     assert(!ds.empty());
     // Recompute space according to path
     // Also say distance to copy (d == 0) requires immediate copying
@@ -335,16 +360,16 @@ namespace Gecode { namespace Search { namespace Sequential {
     // Check for LAO
     if ((ds.top().space() != NULL) && ds.top().rightmost()) {
       Space* s = ds.top().space();
-      stat.lao(s);
       s->commit(*ds.top().choice(),ds.top().alt());
       assert(ds.entries()-1 == lc());
       if (mark > ds.entries()-1) {
         mark = ds.entries()-1;
-        s->constrain(*best);
+        s->constrain(best);
       }
       ds.top().space(NULL);
       // Mark as reusable
-      ds.top().next();
+      if (static_cast<unsigned int>(ds.entries()) > ngdl())
+        ds.top().next();
       d = 0;
       return s;
     }
@@ -358,7 +383,7 @@ namespace Gecode { namespace Search { namespace Sequential {
 
     if (l < mark) {
       mark = l;
-      s->constrain(*best);
+      s->constrain(best);
       // The space on the stack could be failed now as an additional
       // constraint might have been added.
       if (s->status(stat) == SS_FAILED) {
@@ -372,7 +397,6 @@ namespace Gecode { namespace Search { namespace Sequential {
       // of propagators
       Space* c = s->clone();
       ds[l].space(c);
-      stat.constrained(s,c);
     } else {
       s = s->clone();
     }
@@ -409,7 +433,6 @@ namespace Gecode { namespace Search { namespace Sequential {
           return NULL;
         }
         ds[i].space(s->clone());
-        stat.adapt(ds[i].space());
         d = static_cast<unsigned int>(n-i);
       }
       // Finally do the remaining commits

@@ -11,8 +11,8 @@
  *     Guido Tack, 2013
  *
  *  Last modified:
- *     $Date: 2013-03-12 16:42:52 +0100 (Tue, 12 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13504 $
+ *     $Date: 2015-03-11 10:45:36 +0100 (Wed, 11 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14434 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -41,112 +41,6 @@
 
 namespace Gecode { namespace Search {
 
-  /// Cutoff generator for constant sequence
-  class CutoffConstant : public Cutoff {
-    friend class Cutoff;
-  private:
-    /// Constant
-    unsigned long int c;
-    /// Constructor
-    CutoffConstant(unsigned long int c);
-  public:
-    /// Return next cutoff value
-    virtual unsigned long int operator() (void);
-  };
-
-  /// Cutoff generator for linear sequence
-  class CutoffLinear : public Cutoff {
-    friend class Cutoff;
-  private:
-    /// Scale factor
-    unsigned long int scale;
-    /// Next number in sequence
-    unsigned long int n;
-    /// Constructor
-    CutoffLinear(unsigned long int scale);
-  public:
-    /// Return next cutoff value
-    virtual unsigned long int operator() (void);
-  };
-
-  /// Cutoff generator for the Luby sequence
-  class CutoffLuby : public Cutoff {
-    friend class Cutoff;
-  private:
-    /// Iteration number
-    unsigned long int i;
-    /// Scale factor
-    unsigned long int scale;
-    /// Number of pre-computed luby values
-    static const unsigned long int n_start = 63U;
-    /// Precomputed luby-values
-    static unsigned long int start[n_start];
-    /// Compute binary logarithm of \a i
-    static unsigned long int log(unsigned long int i);
-    /// Compute Luby number for step \a i
-    static unsigned long int luby(unsigned long int i);
-    /// Constructor
-    CutoffLuby(unsigned long int scale);
-  public:
-    /// Return next cutoff value
-    virtual unsigned long int operator() (void);
-  };
-
-  /// Cutoff generator for the geometric sequence
-  class CutoffGeometric : public Cutoff {
-    friend class Cutoff;
-  private:
-    /// Current cutoff value
-    double n;
-    /// Base
-    double base;
-    /// Constructor
-    CutoffGeometric(unsigned long int scale, double base);
-  public:
-    /// Return next cutoff value
-    virtual unsigned long int operator ()(void);
-  };
-  
-  /// Cutoff generator for the random sequence
-  class CutoffRandom : public Cutoff {
-    friend class Cutoff;
-  private:
-    /// Random number generator
-    Support::RandomGenerator rnd;
-    /// Minimum cutoff value
-    unsigned long int min;
-    /// Random values
-    unsigned long int n;
-    /// Step size
-    unsigned long int step;
-    /// Constructor
-    CutoffRandom(unsigned int seed, 
-                 unsigned long int min, unsigned long int max, 
-                 unsigned long int n);
-  public:
-    /// Return next cutoff value
-    virtual unsigned long int operator ()(void);
-  };
-  
-  /// Cutoff generator appending two cutoff generators
-  class CutoffAppend : public Cutoff {
-    friend class Cutoff;
-  private:
-    /// First cutoff generators
-    Cutoff* c1;
-    /// Second cutoff generators
-    Cutoff* c2;
-    /// How many number to take from the first
-    unsigned long int n;
-    /// Constructor
-    CutoffAppend(Cutoff* c1, unsigned long int n, Cutoff* c2);
-  public:
-    /// Return next cutoff value
-    virtual unsigned long int operator ()(void);
-    /// Destructor
-    virtual ~CutoffAppend(void);
-  };
-  
   forceinline
   Cutoff::Cutoff(void) {}
   forceinline
@@ -158,6 +52,88 @@ namespace Gecode { namespace Search {
   forceinline void
   Cutoff::operator delete(void* p) {
     heap.rfree(p);
+  }
+
+
+  forceinline
+  CutoffConstant::CutoffConstant(unsigned long int c0) 
+    : c(c0) {}
+
+
+  forceinline
+  CutoffLinear::CutoffLinear(unsigned long int s) 
+    : scale(s), n(0) {}
+
+
+  forceinline
+  CutoffLuby::CutoffLuby(unsigned long int scale0) 
+    : i(1U), scale(scale0) {}
+  forceinline unsigned long int 
+  CutoffLuby::log(unsigned long int i) {
+    if (i == 1U)
+      return 0U;
+    unsigned long int exp = 0U;
+    while ( (i >> (++exp)) > 1U ) {}
+    return exp;
+  }
+  forceinline unsigned long int 
+  CutoffLuby::luby(unsigned long int i) {
+    while (true) {
+      if (i <= n_start)
+        return start[i-1];
+      unsigned long int l = log(i);
+      if (i == (1U<<(l+1))-1)
+        return 1UL<<l;
+      i=i-(1U<<l)+1;
+    }
+    GECODE_NEVER;
+    return 0;
+  }
+
+
+  forceinline
+  CutoffGeometric::CutoffGeometric(unsigned long int scale0, double base0) 
+    : n(1.0), scale(static_cast<double>(scale0)), base(base0) {}
+
+
+  forceinline
+  CutoffRandom::CutoffRandom(unsigned int seed, 
+                             unsigned long int min0, 
+                             unsigned long int max0, 
+                             unsigned long int n0)
+      : rnd(seed), min(min0), n(n0 == 0 ? (max0-min+1U) : n0), 
+        step(std::max(1UL,
+                      static_cast<unsigned long int>((max0-min0+1U)/n))) {
+    cur = ++(*this);
+  }
+
+
+  forceinline
+  CutoffAppend::CutoffAppend(Cutoff* d1, unsigned long int n0, Cutoff* d2) 
+    : c1(d1), c2(d2), n(n0) {}
+  forceinline
+  CutoffAppend::~CutoffAppend(void) {
+    delete c1; delete c2;
+  }
+
+
+  forceinline
+  CutoffMerge::CutoffMerge(Cutoff* d1, Cutoff* d2) 
+    : c1(d1), c2(d2) {}
+  forceinline
+  CutoffMerge::~CutoffMerge(void) {
+    delete c1; delete c2;
+  }
+
+
+  forceinline
+  CutoffRepeat::CutoffRepeat(Cutoff* c1, unsigned long int n0)
+    : c(c1), i(0), n(n0) {
+    cutoff = (*c)();
+  }
+  forceinline
+  CutoffRepeat::~CutoffRepeat(void) {
+    delete c;
   }
 
 }}

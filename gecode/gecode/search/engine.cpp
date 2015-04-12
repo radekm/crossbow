@@ -4,11 +4,11 @@
  *     Christian Schulte <schulte@gecode.org>
  *
  *  Copyright:
- *     Christian Schulte, 2007
+ *     Christian Schulte, 2015
  *
  *  Last modified:
- *     $Date: 2013-10-24 16:42:20 +0200 (Thu, 24 Oct 2013) $ by $Author: schulte $
- *     $Revision: 14030 $
+ *     $Date: 2015-03-11 16:24:08 +0100 (Wed, 11 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14436 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -35,32 +35,19 @@
  *
  */
 
-namespace Gecode {
+#include <gecode/search.hh>
 
-  /// Cast \a p into pointer of type \a T
-  template<class T>
-  T ptr_cast(void* p);
+namespace Gecode { namespace Search {
 
-  /// Base type for any function pointer
-  typedef void (*VoidFunction)(void);
-
-  /// Cast function pointer
-  template<class F1, class F2>
-  F1 function_cast(F2 f);
-
-
-  template<class T>
-  forceinline T
-  ptr_cast(void* p) {
-    return static_cast<T>(p);
+  void
+  Engine::reset(Space* s) {
+    (void) s;
+  }
+  NoGoods&
+  Engine::nogoods(void) {
+    return NoGoods::eng;
   }
 
-  template<class F1, class F2>
-  forceinline F1
-  function_cast(F2 f) {
-    return F1(f);
-  }
+}}
 
-}
-
-// STATISTICS: support-any
+// STATISTICS: search-other

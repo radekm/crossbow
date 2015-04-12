@@ -7,8 +7,8 @@
  *     Christian Schulte, 2013
  *
  *  Last modified:
- *     $Date: 2013-04-17 20:35:47 +0200 (Wed, 17 Apr 2013) $ by $Author: schulte $
- *     $Revision: 13584 $
+ *     $Date: 2014-05-27 14:57:59 +0200 (Tue, 27 May 2014) $ by $Author: schulte $
+ *     $Revision: 14124 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -128,7 +128,7 @@ namespace Gecode {
   forceinline
   AFC::AFC(Home home, const VarArgArray<Var>& x, double d) 
     : n(x.size()) {
-    if ((d <= 0.0) || (d > 1.0))
+    if ((d < 0.0) || (d > 1.0))
       throw IllegalDecay("AFC");
     static_cast<Space&>(home).afc_decay(d);
   }
@@ -136,7 +136,7 @@ namespace Gecode {
   forceinline void
   AFC::init(Home home, const VarArgArray<Var>& x, double d) {
     n = x.size();
-    if ((d <= 0.0) || (d > 1.0))
+    if ((d < 0.0) || (d > 1.0))
       throw IllegalDecay("AFC");
     static_cast<Space&>(home).afc_decay(d);
   }
@@ -160,7 +160,7 @@ namespace Gecode {
 
   forceinline void
   AFC::decay(Space& home, double d) {
-    if ((d <= 0.0) || (d > 1.0))
+    if ((d < 0.0) || (d > 1.0))
       throw IllegalDecay("AFC");
     home.afc_decay(d);
   }

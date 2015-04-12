@@ -18,8 +18,8 @@
  *     Alexander Samoilov <alexander_samoilov@yahoo.com>
  *
  *  Last modified:
- *     $Date: 2013-05-20 13:21:09 +0200 (Mon, 20 May 2013) $ by $Author: schulte $
- *     $Revision: 13644 $
+ *     $Date: 2015-03-20 15:37:34 +0100 (Fri, 20 Mar 2015) $ by $Author: schulte $
+ *     $Revision: 14471 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -389,7 +389,7 @@ namespace Gecode {
 #ifdef GECODE_HAS_VAR_DISPOSE
     /// Return reference to variables (dispose)
     static VarImp<VIC>* vars_d(Space& home);
-    /// Set reference to variables (dispose)
+    /// %Set reference to variables (dispose)
     static void vars_d(Space& home, VarImp<VIC>* x);
 #endif
 
@@ -685,9 +685,6 @@ namespace Gecode {
 
     /// \name Memory management
     //@{
-    /// Report size occupied by additionally datastructures
-    GECODE_KERNEL_EXPORT
-    virtual size_t allocated(void) const;
     /// Delete actor and return its size
     GECODE_KERNEL_EXPORT
     virtual size_t dispose(Space& home);
@@ -781,6 +778,8 @@ namespace Gecode {
     Propagator(Home home);
     /// Constructor for cloning \a p
     Propagator(Space& home, bool share, Propagator& p);
+    /// Return forwarding pointer during copying
+    Propagator* fwd(void) const;
 
   public:
     /// \name Propagation
@@ -966,6 +965,66 @@ namespace Gecode {
 
 
   /**
+   * \brief No-good literal recorded during search
+   *
+   */
+  class GECODE_VTABLE_EXPORT NGL {
+  private:
+    /// Combines pointer to next literal and mark whether it is a leaf
+    void* nl;
+  public:
+    /// The status of a no-good literal
+    enum Status {
+      FAILED,   ///< The literal is failed
+      SUBSUMED, ///< The literal is subsumed
+      NONE      ///< The literal is neither failed nor subsumed
+    };
+    /// Constructor for creation
+    NGL(void);
+    /// Constructor for creation
+    NGL(Space& home);
+    /// Constructor for cloning \a ngl
+    NGL(Space& home, bool share, NGL& ngl);
+    /// Subscribe propagator \a p to all views of the no-good literal
+    virtual void subscribe(Space& home, Propagator& p) = 0;
+    /// Cancel propagator \a p from all views of the no-good literal
+    virtual void cancel(Space& home, Propagator& p) = 0;
+    /// Test the status of the no-good literal
+    virtual NGL::Status status(const Space& home) const = 0;
+    /// Propagate the negation of the no-good literal
+    virtual ExecStatus prune(Space& home) = 0;
+    /// Create copy
+    virtual NGL* copy(Space& home, bool share) = 0;
+    /// Whether dispose must always be called (returns false)
+    GECODE_KERNEL_EXPORT
+    virtual bool notice(void) const;
+    /// Dispose
+    virtual size_t dispose(Space& home);
+    /// \name Internal management routines
+    //@{
+    /// Test whether literal is a leaf
+    bool leaf(void) const;
+    /// Return pointer to next literal
+    NGL* next(void) const;
+    /// Mark literal as leaf or not
+    void leaf(bool l);
+    /// %Set pointer to next literal
+    void next(NGL* n);
+    /// Add node \a n and mark it as leaf \a l and return \a n
+    NGL* add(NGL* n, bool l);
+    //@}
+    /// \name Memory management
+    //@{
+    /// Allocate memory from space
+    static void* operator new(size_t s, Space& home);
+    /// Return memory to space
+    static void  operator delete(void* s, Space& home);
+    /// Needed for exceptions
+    static void  operator delete(void* p);
+    //@}
+  };
+
+  /**
    * \brief %Choice for performing commit
    *
    * Must be refined by inheritance such that the information stored
@@ -1028,6 +1087,8 @@ namespace Gecode {
   public:
     /// \name Brancher
     //@{
+    /// Return unsigned brancher id
+    unsigned int id(void) const;
     /**
      * \brief Check status of brancher, return true if alternatives left
      *
@@ -1055,8 +1116,21 @@ namespace Gecode {
      */
     virtual ExecStatus commit(Space& home, const Choice& c, 
                               unsigned int a) = 0;
-    /// Return unsigned brancher id
-    unsigned int id(void) const;
+    /**
+     * \brief Create no-good literal for choice \a c and alternative \a a
+     *
+     * The current brancher in the space \a home creates a no-good literal
+     * from the information provided by the choice \a c and the alternative
+     * \a a. The brancher has the following options:
+     *  - it returns NULL for all alternatives \a a. This means that the
+     *    brancher does not support no-good literals (default).
+     *  - it returns NULL for the last alternative \a a. This means that
+     *    this alternative is equivalent to the negation of the disjunction
+     *    of all other alternatives.
+     *
+     */
+    GECODE_KERNEL_EXPORT 
+    virtual NGL* ngl(Space& home, const Choice& c, unsigned int a) const;
     /**
      * \brief Print branch for choice \a c and alternative \a a
      *
@@ -1158,6 +1232,66 @@ namespace Gecode {
     void object(LocalObject* n);
   };
 
+
+  /**
+   * \brief No-goods recorded from restarts
+   *
+   */
+  class GECODE_VTABLE_EXPORT NoGoods {
+  protected:
+    /// Number of no-goods
+    unsigned long int n;
+  public:
+    /// Initialize
+    NoGoods(void);
+    /// Post no-goods
+    GECODE_KERNEL_EXPORT 
+    virtual void post(Space& home) const;
+    /// Return number of no-goods posted
+    unsigned long int ng(void) const;
+    /// %Set number of no-goods posted to \a n
+    void ng(unsigned long int n);
+    /// Destructor
+    virtual ~NoGoods(void);
+    /// Empty no-goods
+    GECODE_KERNEL_EXPORT
+    static NoGoods eng;
+  };
+
+  /**
+   * \brief Current restart information during search
+   *
+   */
+  class GECODE_VTABLE_EXPORT CRI {
+  protected:
+    /// Number of restarts
+    const unsigned long int r;
+    /// Number of solutions since last restart
+    const unsigned long int s;
+    /// Number of failures since last restart
+    const unsigned long int f;
+    /// Last solution found
+    const Space* l;
+    /// No-goods from restart
+    const NoGoods& ng;
+  public:
+    /// Constructor
+    CRI(unsigned long int r,
+        unsigned long int s,
+        unsigned long int f,
+        const Space* l,
+        NoGoods& ng);
+    /// Return number of restarts
+    unsigned long int restart(void) const;
+    /// Return number of solutions since last restart
+    unsigned long int solution(void) const;
+    /// Return number of failures since last restart
+    unsigned long int fail(void) const;
+    /// Return last solution found (possibly NULL)
+    const Space* last(void) const;
+    /// Return no-goods recorded from restart
+    const NoGoods& nogoods(void) const;
+  };
 
   /**
    * \brief %Space status
@@ -1321,7 +1455,7 @@ namespace Gecode {
     VarImpBase* _vars_d[AllVarConf::idx_d];
     /// Return reference to variables (dispose)
     template<class VIC> VarImpBase* vars_d(void) const;
-    /// Set reference to variables (dispose)
+    /// %Set reference to variables (dispose)
     template<class VIC> void vars_d(VarImpBase* x);
 #endif
     /// Update all cloned variables
@@ -1347,11 +1481,11 @@ namespace Gecode {
      * one.
      */
     unsigned int _wmp_afc;
-    /// Set that AFC information must be recorded
+    /// %Set that AFC information must be recorded
     void afc_enable(void);
     /// Whether AFC information must be recorded
     bool afc_enabled(void) const;
-    /// Set number of wmp propagators to \a n
+    /// %Set number of wmp propagators to \a n
     void wmp(unsigned int n);
     /// Return number of wmp propagators
     unsigned int wmp(void) const;
@@ -1418,14 +1552,39 @@ namespace Gecode {
     GECODE_KERNEL_EXPORT
     void _commit(const Choice& c, unsigned int a);
 
-    /// Set AFC decay factor to \a d
+    /**
+     * \brief Commit choice \a c for alternative \a a if possible
+     *
+     * The current brancher in the space performs a commit from
+     * the information provided by the choice \a c
+     * and the alternative \a a. The statistics information \a stat is
+     * updated.
+     *
+     * Note that no propagation is perfomed (to support path
+     * recomputation), in order to perform propagation the member
+     * function status must be used.
+     *
+     * Committing with choices must be carried
+     * out in the same order as the choices have been
+     * obtained by the member function Space::choice().
+     *
+     * It is perfectly okay to add constraints interleaved with
+     * choices (provided they are in the right order).
+     * However, if propagation is performed by calling the member
+     * function status and then new choices are
+     * computed, these choices are different.
+     *
+     * Only choices can be used that are up-to-date in the following
+     * sense: if a new choice is created (via the choice member
+     * function), no older choices can be used.
+     *
+     * Committing throws the following exceptions:
+     *  - SpaceIllegalAlternative, if \a a is not smaller than the number
+     *    of alternatives supported by the choice \a c.
+     */
     GECODE_KERNEL_EXPORT
-    void afc_decay(double d);
-    /// Return AFC decay factor
-    double afc_decay(void) const;
-    /// Reset AFC to \a a
-    GECODE_KERNEL_EXPORT
-    void afc_set(double a);
+    void _trycommit(const Choice& c, unsigned int a);
+
   public:
     /**
      * \brief Default constructor
@@ -1471,29 +1630,37 @@ namespace Gecode {
      *
      * A restart meta search engine calls this function on its
      * master space whenever it finds a solution or exploration
-     * restarts. \a i is the number of the restart. \a s is 
-     * either the solution space or NULL.
+     * restarts. \a cri contains information about the current restart.
      *
-     * The default function does nothing.
+     * If a solution has been found, then search will continue with a restart
+     * when the function returns true, otherwise search will continue.
+     *
+     * The default function posts no-goods obtained from \a cri.
      *
      * \ingroup TaskModelScript
      */
     GECODE_KERNEL_EXPORT 
-    virtual void master(unsigned long int i, const Space* s);
+    virtual bool master(const CRI& cri);
     /**
      * \brief Slave configuration function for restart meta search engine
      *
      * A restart meta search engine calls this function on its
      * slave space whenever it finds a solution or exploration
-     * restarts. \a i is the number of the restart. \a s is 
-     * either the solution space or NULL.
+     * restarts.  \a cri contains information about the current restart.
      *
-     * The default function does nothing.
+     * If the function returns true, the search on the slave space is
+     * considered complete, i.e., if it fails or exhaustively explores the
+     * entire search space, the meta search engine finishes. If the function
+     * returns false, the search on the slave space is considered incomplete,
+     * and the meta engine will restart the search regardless of whether
+     * the search on the slave space finishes or times out.
+     *
+     * The default function does nothing and returns true.
      *
      * \ingroup TaskModelScript
      */
     GECODE_KERNEL_EXPORT 
-    virtual void slave(unsigned long int i, const Space* s);
+    virtual bool slave(const CRI& cri);
     /**
      * \brief Allocate memory from heap for new space
      * \ingroup TaskModelScript
@@ -1629,6 +1796,60 @@ namespace Gecode {
      */
     void commit(const Choice& c, unsigned int a,
                 CommitStatistics& stat=unused_commit);
+    /**
+     * \brief If possible, commit choice \a c for alternative \a a
+     *
+     * The current brancher in the space performs a commit from
+     * the information provided by the choice \a c
+     * and the alternative \a a. The statistics information \a stat is
+     * updated.
+     *
+     * Note that no propagation is perfomed (to support path
+     * recomputation), in order to perform propagation the member
+     * function status must be used.
+     *
+     * Committing with choices must be carried
+     * out in the same order as the choices have been
+     * obtained by the member function Space::choice().
+     *
+     * It is perfectly okay to add constraints interleaved with
+     * choices (provided they are in the right order).
+     * However, if propagation is performed by calling the member
+     * function status and then new choices are
+     * computed, these choices are different.
+     *
+     * Only choices can be used that are up-to-date in the following
+     * sense: if a new choice is created (via the choice member
+     * function), no older choices can be used.
+     *
+     * Committing throws the following exceptions:
+     *  - SpaceIllegalAlternative, if \a a is not smaller than the number
+     *    of alternatives supported by the choice \a c.
+     *
+     * \ingroup TaskSearch
+     */
+    void trycommit(const Choice& c, unsigned int a,
+                   CommitStatistics& stat=unused_commit);
+    /**
+     * \brief Create no-good literal for choice \a c and alternative \a a
+     *
+     * The current brancher in the space \a home creates a no-good literal
+     * from the information provided by the choice \a c and the alternative
+     * \a a. The brancher has the following options:
+     *  - it returns NULL for all alternatives \a a. This means that the
+     *    brancher does not support no-good literals.
+     *  - it returns NULL for the last alternative \a a. This means that
+     *    this alternative is equivalent to the negation of the disjunction
+     *    of all other alternatives.
+     *
+     * It throws the following exceptions:
+     *  - SpaceIllegalAlternative, if \a a is not smaller than the number
+     *    of alternatives supported by the choice \a c.
+     *
+     * \ingroup TaskSearch
+     */
+    GECODE_KERNEL_EXPORT
+    NGL* ngl(const Choice& c, unsigned int a);
 
     /**
      * \brief Print branch for choice \a c and alternative \a a
@@ -1636,7 +1857,7 @@ namespace Gecode {
      * Prints an explanation of the alternative \a a of choice \a c
      * on the stream \a o.
      *
-     * Explanation throws the following exceptions:
+     * Print throws the following exceptions:
      *  - SpaceNoBrancher, if the space has no current brancher (it is
      *    already solved).
      *  - SpaceIllegalAlternative, if \a a is not smaller than the number
@@ -1669,7 +1890,7 @@ namespace Gecode {
 
 
     /**
-     * \brief %Propagator \a p is subsumed
+     * \Brief %Propagator \a p is subsumed
      *
      * First disposes the propagator and then returns subsumption.
      *
@@ -1982,13 +2203,6 @@ namespace Gecode {
      */
     template<size_t> void  fl_dispose(FreeList* f, FreeList* l);
     /**
-     * \brief Return how much heap memory is allocated
-     *
-     * Note that is includes both the memory allocated for the space heap
-     * as well as additional memory allocated by actors.
-     */
-    size_t allocated(void) const;
-    /**
      * \brief Flush cached memory blocks
      *
      * All spaces that are obtained as non-shared clones from some same space
@@ -2089,6 +2303,18 @@ namespace Gecode {
       /// Return propagator
       const Brancher& brancher(void) const;
     };    
+
+    /// \name Low-level support for AFC
+    //@{
+    /// %Set AFC decay factor to \a d
+    GECODE_KERNEL_EXPORT
+    void afc_decay(double d);
+    /// Return AFC decay factor
+    double afc_decay(void) const;
+    /// Reset AFC to \a a
+    GECODE_KERNEL_EXPORT
+    void afc_set(double a);
+    //@}
   };
 
 
@@ -2127,6 +2353,7 @@ namespace Gecode {
     return heap.ralloc(s);
   }
 
+
   // Space allocation: general space heaps and free lists
   forceinline void*
   Space::ralloc(size_t s) {
@@ -2159,14 +2386,6 @@ namespace Gecode {
   forceinline void
   Space::fl_dispose(FreeList* f, FreeList* l) {
     mm.template fl_dispose<s>(f,l);
-  }
-
-  forceinline size_t
-  Space::allocated(void) const {
-    size_t s = mm.allocated();
-    for (Actor** a = d_fst; a < d_cur; a++)
-      s += (*a)->allocated();
-    return s;
   }
 
   /*
@@ -2375,6 +2594,15 @@ namespace Gecode {
     return home.ralloc(s);
   }
 
+  forceinline void
+  NGL::operator delete(void*) {}
+  forceinline void
+  NGL::operator delete(void*, Space&) {}
+  forceinline void*
+  NGL::operator new(size_t s, Space& home) {
+    return home.ralloc(s);
+  }
+
   /*
    * Shared objects and handles
    *
@@ -2443,6 +2671,59 @@ namespace Gecode {
   forceinline
   SharedHandle::~SharedHandle(void) {
     cancel();
+  }
+
+
+
+  /*
+   * No-goods
+   *
+   */
+  forceinline
+  NoGoods::NoGoods(void) 
+    : n(0) {}
+  forceinline unsigned long int
+  NoGoods::ng(void) const {
+    return n;
+  }
+  forceinline void
+  NoGoods::ng(unsigned long int n0) {
+    n=n0;
+  }
+  forceinline
+  NoGoods::~NoGoods(void) {}
+
+
+  /*
+   * Current restart information
+   */
+  forceinline
+  CRI::CRI(unsigned long int r0,
+           unsigned long int s0,
+           unsigned long int f0,
+           const Space* l0,
+           NoGoods& ng0)
+    : r(r0), s(s0), f(f0), l(l0), ng(ng0) {}
+
+  forceinline unsigned long int
+  CRI::restart(void) const {
+    return r;
+  }
+  forceinline unsigned long int
+  CRI::solution(void) const {
+    return s;
+  }
+  forceinline unsigned long int
+  CRI::fail(void) const {
+    return f;
+  }
+  forceinline const Space*
+  CRI::last(void) const {
+    return l;
+  }
+  forceinline const NoGoods&
+  CRI::nogoods(void) const {
+    return ng;
   }
 
 
@@ -2582,6 +2863,11 @@ namespace Gecode {
     _commit(c,a);
   }
 
+  forceinline void
+  Space::trycommit(const Choice& c, unsigned int a, CommitStatistics&) {
+    _trycommit(c,a);
+  }
+
   forceinline double
   Space::afc_decay(void) const {
     return gafc.decay();
@@ -2639,6 +2925,11 @@ namespace Gecode {
     GECODE_NOT_NULL(al);
     const ActorLink& t = *al;
     return static_cast<const Propagator*>(&t);
+  }
+
+  forceinline Propagator*
+  Propagator::fwd(void) const {
+    return static_cast<Propagator*>(prev());
   }
 
   forceinline
@@ -2892,6 +3183,47 @@ namespace Gecode {
   Choice::~Choice(void) {}
 
 
+
+  /*
+   * No-good literal
+   *
+   */
+  forceinline bool
+  NGL::leaf(void) const {
+    return Support::marked(nl);
+  }
+  forceinline NGL*
+  NGL::next(void) const {
+    return static_cast<NGL*>(Support::funmark(nl));
+  }
+  forceinline void
+  NGL::leaf(bool l) {
+    nl = l ? Support::fmark(nl) : Support::funmark(nl);
+  }
+  forceinline void
+  NGL::next(NGL* n) {
+    nl = Support::marked(nl) ? Support::mark(n) : n;
+  }
+  forceinline NGL*
+  NGL::add(NGL* n, bool l) {
+    nl = Support::marked(nl) ? Support::mark(n) : n;
+    n->leaf(l);
+    return n;
+  }
+
+  forceinline
+  NGL::NGL(void) 
+    : nl(NULL) {}
+  forceinline
+  NGL::NGL(Space&) 
+    : nl(NULL) {}
+  forceinline
+  NGL::NGL(Space&, bool, NGL&) 
+    : nl(NULL) {}
+  forceinline size_t
+  NGL::dispose(Space&) {
+    return sizeof(*this);
+  }
 
   /*
    * Advisor
@@ -3526,6 +3858,7 @@ namespace Gecode {
       case ES_NOFIX_FORCE:
         schedule(home,p,me,true);
         break;
+      case __ES_SUBSUMED:
       default:
         GECODE_NEVER;
       }

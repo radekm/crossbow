@@ -14,8 +14,8 @@
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2013-05-14 01:34:01 +0200 (Tue, 14 May 2013) $ by $Author: tack $
- *     $Revision: 13635 $
+ *     $Date: 2013-07-11 12:30:18 +0200 (Thu, 11 Jul 2013) $ by $Author: schulte $
+ *     $Revision: 13840 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -164,8 +164,6 @@ namespace Gecode {
   public:
     /// Allocate memory of size \a s
     void* alloc(SharedMemory* sm, size_t s);
-    /// Return how much memory has been allocated
-    size_t allocated(void) const;
     /// Get the memory area for subscriptions
     void* subscriptions(void) const;
 
@@ -325,11 +323,6 @@ namespace Gecode {
    * The active memory manager
    *
    */
-
-  forceinline size_t
-  MemoryManager::allocated(void) const {
-    return requested;
-  }
 
   forceinline void*
   MemoryManager::alloc(SharedMemory* sm, size_t sz) {

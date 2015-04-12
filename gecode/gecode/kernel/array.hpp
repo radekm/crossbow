@@ -13,8 +13,8 @@
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2013-03-07 17:39:13 +0100 (Thu, 07 Mar 2013) $ by $Author: schulte $
- *     $Revision: 13458 $
+ *     $Date: 2014-11-05 00:53:26 +0100 (Wed, 05 Nov 2014) $ by $Author: tack $
+ *     $Revision: 14294 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -183,7 +183,7 @@ namespace Gecode {
     void update(Space&, bool share, VarArray<Var>& a);
     //@}
   private:
-    static void* operator new(size_t);
+    static void* operator new(size_t) throw();
     static void  operator delete(void*,size_t);
   };
 
@@ -500,7 +500,7 @@ namespace Gecode {
     //@}
 
   private:
-    static void* operator new(size_t);
+    static void* operator new(size_t) throw();
     static void  operator delete(void*,size_t);
   };
 
@@ -633,7 +633,7 @@ namespace Gecode {
     ~ArgArrayBase(void);
     //@}
   private:
-    static void* operator new(size_t);
+    static void* operator new(size_t) throw();
     static void  operator delete(void*,size_t);
   };
 
@@ -1091,7 +1091,7 @@ namespace Gecode {
   
   template<class Var>
   forceinline void*
-  VarArray<Var>::operator new(size_t) {
+  VarArray<Var>::operator new(size_t) throw() {
     return NULL;
   }
 
@@ -1572,7 +1572,7 @@ namespace Gecode {
 
   template<class View>
   forceinline void*
-  ViewArray<View>::operator new(size_t) {
+  ViewArray<View>::operator new(size_t) throw() {
     return NULL;
   }
 
@@ -1796,7 +1796,7 @@ namespace Gecode {
 
   template<class T>
   forceinline void*
-  ArgArrayBase<T>::operator new(size_t) {
+  ArgArrayBase<T>::operator new(size_t) throw () {
     return NULL;
   }
 

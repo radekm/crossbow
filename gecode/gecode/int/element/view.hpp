@@ -11,8 +11,8 @@
  *     Guido Tack, 2004
  *
  *  Last modified:
- *     $Date: 2012-09-07 17:31:22 +0200 (Fri, 07 Sep 2012) $ by $Author: schulte $
- *     $Revision: 13068 $
+ *     $Date: 2015-01-16 14:10:48 +0100 (Fri, 16 Jan 2015) $ by $Author: schulte $
+ *     $Revision: 14362 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -42,120 +42,6 @@
 #include <algorithm>
 
 namespace Gecode { namespace Int { namespace Element {
-
-  /// VarArg type for integer views
-  template<>
-  class ViewToVarArg<IntView> {
-  public:
-    typedef IntVarArgs argtype;
-  };
-  /// VarArg type for Boolean views
-  template<>
-  class ViewToVarArg<BoolView> {
-  public:
-    typedef BoolVarArgs argtype;
-  };
-
-  /**
-   * \brief Class for pair of index and view
-   *
-   */
-  template<class View>
-  class IdxView {
-  public:
-    int idx; View view;
-
-    static IdxView* allocate(Space&, int);
-  };
-
-  template<class View>
-  forceinline IdxView<View>*
-  IdxView<View>::allocate(Space& home, int n) {
-    return home.alloc<IdxView<View> >(n);
-  }
-
-  template<class View>
-  IdxViewArray<View>::IdxViewArray(void) : xs(NULL), n(0) {}
-
-  template<class View>
-  IdxViewArray<View>::IdxViewArray(const IdxViewArray<View>& a) {
-    n = a.n; xs = a.xs;
-  }
-
-  template<class View>
-  IdxViewArray<View>::IdxViewArray(Space& home,
-    const typename ViewToVarArg<View>::argtype& xa) : xs(NULL) {
-    n = xa.size();
-    if (n>0) {
-      xs = IdxView<View>::allocate(home, n);
-      for (int i = n; i--; ) {
-        xs[i].idx = i; xs[i].view = xa[i];
-      }
-    }
-  }
-
-  template<class View>
-  IdxViewArray<View>::IdxViewArray(Space& home, int n0) : xs(NULL) {
-    n = n0;
-    if (n>0) {
-      xs = IdxView<View>::allocate(home, n);
-    }
-  }
-
-  template<class View>
-  forceinline int
-  IdxViewArray<View>::size(void) const {
-    return n;
-  }
-
-  template<class View>
-  forceinline void
-  IdxViewArray<View>::size(int n0) {
-    n = n0;
-  }
-
-  template<class View>
-  forceinline IdxView<View>&
-  IdxViewArray<View>::operator [](int i) {
-    assert((i >= 0) && (i < size()));
-    return xs[i];
-  }
-
-  template<class View>
-  forceinline const IdxView<View>&
-  IdxViewArray<View>::operator [](int i) const {
-    assert((i >= 0) && (i < size()));
-    return xs[i];
-  }
-
-  template<class View>
-  void
-  IdxViewArray<View>::subscribe(Space& home, Propagator& p, PropCond pc,
-                                bool process) {
-    for (int i = n; i--; )
-      xs[i].view.subscribe(home,p,pc,process);
-  }
-
-  template<class View>
-  void
-  IdxViewArray<View>::cancel(Space& home, Propagator& p, PropCond pc) {
-    for (int i = n; i--; )
-      xs[i].view.cancel(home,p,pc);
-  }
-
-  template<class View>
-  void
-  IdxViewArray<View>::update(Space& home, bool share, IdxViewArray<View>& a) {
-    n = a.size();
-    if (n>0) {
-      xs = IdxView<View>::allocate(home,n);
-      for (int i=n; i--; ) {
-        xs[i].idx = a[i].idx;
-        xs[i].view.update(home,share,a[i].view);
-      }
-    }
-  }
-
 
   /**
    * \brief Class for bounds-equality test
@@ -542,15 +428,23 @@ namespace Gecode { namespace Int { namespace Element {
       return es;
     }
     assert(iv.size() > 1);
-    Region r(home);
-    ViewRanges<VA>* i_view = r.alloc<ViewRanges<VA> >(iv.size());
-    for (int i = iv.size(); i--; )
-      i_view[i].init(iv[i].view);
-    Iter::Ranges::NaryUnion i_val(r, i_view, iv.size());
-    ModEvent me = x1.inter_r(home,i_val);
-    r.free<ViewRanges<VA> >(i_view,iv.size());
-    GECODE_ME_CHECK(me);
-    return (shared(x0,x1) || me_modified(me)) ? ES_NOFIX : ES_FIX;
+    
+    if (x1.assigned()) {
+      for (int i = iv.size(); i--; )
+        if (iv[i].view.in(x1.val()))
+          return shared(x0,x1) ? ES_NOFIX : ES_FIX;
+      return ES_FAILED;
+    } else {
+      Region r(home);
+      ViewRanges<VA>* i_view = r.alloc<ViewRanges<VA> >(iv.size());
+      for (int i = iv.size(); i--; )
+        i_view[i].init(iv[i].view);
+      Iter::Ranges::NaryUnion i_val(r, i_view, iv.size());
+      ModEvent me = x1.inter_r(home,i_val);
+      r.free<ViewRanges<VA> >(i_view,iv.size());
+      GECODE_ME_CHECK(me);
+      return (shared(x0,x1) || me_modified(me)) ? ES_NOFIX : ES_FIX;
+    }
   }
 
 }}}

@@ -9,8 +9,8 @@
  *     Mikael Lagerkvist, 2008
  *
  *  Last modified:
- *     $Date: 2013-05-03 10:00:50 +0200 (Fri, 03 May 2013) $ by $Author: schulte $
- *     $Revision: 13606 $
+ *     $Date: 2013-11-14 14:35:45 +0100 (Thu, 14 Nov 2013) $ by $Author: schulte $
+ *     $Revision: 14073 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -98,17 +98,17 @@ namespace Gecode {
       return new (home) FunctionBranch(home,share,*this);
     }
     /// Post brancher
-    static void post(Home home, void (*f)(Space&)) {
-      (void) new (home) FunctionBranch(home,f);
+    static BrancherHandle post(Home home, void (*f)(Space&)) {
+      return *new (home) FunctionBranch(home,f);
     }
   };
 
 
-  void
+  BrancherHandle
   branch(Home home, void (*f)(Space& home)) {
     if (home.failed())
-      return;
-    FunctionBranch::post(home,f);
+      return BrancherHandle();
+    return FunctionBranch::post(home,f);
   }
 
 }

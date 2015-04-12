@@ -4,11 +4,11 @@
  *     Christian Schulte <schulte@gecode.org>
  *
  *  Copyright:
- *     Christian Schulte, 2007
+ *     Christian Schulte, 2014
  *
  *  Last modified:
- *     $Date: 2013-10-24 16:42:20 +0200 (Thu, 24 Oct 2013) $ by $Author: schulte $
- *     $Revision: 14030 $
+ *     $Date: 2014-08-28 14:29:11 +0200 (Thu, 28 Aug 2014) $ by $Author: schulte $
+ *     $Revision: 14203 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -35,32 +35,57 @@
  *
  */
 
-namespace Gecode {
+#include <gecode/int/bin-packing.hh>
 
-  /// Cast \a p into pointer of type \a T
-  template<class T>
-  T ptr_cast(void* p);
+namespace Gecode { namespace Int { namespace BinPacking {
 
-  /// Base type for any function pointer
-  typedef void (*VoidFunction)(void);
+  ExecStatus
+  ConflictGraph::bk(NodeSet& p, NodeSet& x) {
+    assert(!(p.none(nodes()) && x.none(nodes())));
+    // Iterate over neighbors of pivot node
+    Nodes n(node[pivot(p,x)].n);
+    // Iterate over elements of p 
+    Nodes i(p);
+    // The loop iterates over elements in i - n
+    while (i() < nodes()) {
+      int iv = i(), nv = n();
+      if ((n() < nodes()) && (iv == nv)) {
+        ++i; ++n;
+      } else if ((n() < nodes()) && (iv > nv)) {
+        ++n;
+      } else {
+        ++i; ++n;
 
-  /// Cast function pointer
-  template<class F1, class F2>
-  F1 function_cast(F2 f);
+        Region reg(home);
 
+        // Found i.val() to be in i - n
+       
+        NodeSet np, nx;
+        np.allocate(reg,nodes());
+        nx.allocate(reg,nodes());
 
-  template<class T>
-  forceinline T
-  ptr_cast(void* p) {
-    return static_cast<T>(p);
+        bool empty = NodeSet::iwn(np,p,nx,x,node[iv].n,nodes());
+
+        p.excl(iv); x.incl(iv);
+
+        // Update current clique
+        cur.incl(iv,node[iv].w);
+
+        if (empty) {
+          // Found a max clique
+          GECODE_ES_CHECK(clique());
+        } else {
+          GECODE_ES_CHECK(bk(np,nx));
+        }
+
+        // Reset current clique
+        cur.excl(iv,node[iv].w);
+      }
+    }
+    return ES_OK;
   }
+  
+}}}
 
-  template<class F1, class F2>
-  forceinline F1
-  function_cast(F2 f) {
-    return F1(f);
-  }
+// STATISTICS: int-prop
 
-}
-
-// STATISTICS: support-any

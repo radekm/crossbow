@@ -7,8 +7,8 @@
  *     Christian Schulte, 2010
  *
  *  Last modified:
- *     $Date: 2012-09-07 17:31:22 +0200 (Fri, 07 Sep 2012) $ by $Author: schulte $
- *     $Revision: 13068 $
+ *     $Date: 2014-07-30 14:16:57 +0200 (Wed, 30 Jul 2014) $ by $Author: schulte $
+ *     $Revision: 14181 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -356,6 +356,8 @@ namespace Gecode { namespace Int { namespace BinPacking {
 
   ExecStatus
   Pack::post(Home home, ViewArray<OffsetView>& l, ViewArray<Item>& bs) {
+    // Sort according to size
+    Support::quicksort(&bs[0], bs.size());
     // Eliminate zero sized items (which are at the end as the size are sorted)
     {
       int n = bs.size();

@@ -7,8 +7,8 @@
  *     Christian Schulte, 2002
  *
  *  Last modified:
- *     $Date: 2012-09-03 17:08:20 +0200 (Mon, 03 Sep 2012) $ by $Author: schulte $
- *     $Revision: 13038 $
+ *     $Date: 2015-01-16 14:10:48 +0100 (Fri, 16 Jan 2015) $ by $Author: schulte $
+ *     $Revision: 14362 $
  *
  *  This file is part of Gecode, the generic constraint
  *  development environment:
@@ -107,6 +107,59 @@ namespace Gecode {
     } else {
       GECODE_ES_FAIL(Arithmetic::NaryMaxBnd<MinusView>::post(home,m,my));
     }
+  }
+
+
+  void
+  argmax(Home home, const IntVarArgs& x, IntVar y, bool tiebreak,
+         IntConLevel) {
+    using namespace Int;
+    if (x.size() == 0)
+      throw TooFewArguments("Int::argmax");
+    if (x.same(home,y))
+      throw ArgumentSame("Int::argmax");
+    if (home.failed()) return;
+    // Constrain y properly
+    IntView yv(y);
+    GECODE_ME_FAIL(yv.gq(home,0));
+    GECODE_ME_FAIL(yv.le(home,x.size()));
+    // Construct index view array
+    IdxViewArray<IntView> ix(home,x.size());
+    for (int i=x.size(); i--; ) {
+      ix[i].idx=i; ix[i].view=x[i];
+    }
+    if (tiebreak)
+        GECODE_ES_FAIL((Arithmetic::ArgMax<IntView,IntView,true>
+                        ::post(home,ix,yv)));
+    else
+        GECODE_ES_FAIL((Arithmetic::ArgMax<IntView,IntView,false>
+                        ::post(home,ix,yv)));
+  }
+
+  void
+  argmin(Home home, const IntVarArgs& x, IntVar y, bool tiebreak,
+         IntConLevel) {
+    using namespace Int;
+    if (x.size() == 0)
+      throw TooFewArguments("Int::argmin");
+    if (x.same(home,y))
+      throw ArgumentSame("Int::argmin");
+    if (home.failed()) return;
+    // Constrain y properly
+    IntView yv(y);
+    GECODE_ME_FAIL(yv.gq(home,0));
+    GECODE_ME_FAIL(yv.le(home,x.size()));
+    // Construct index view array
+    IdxViewArray<MinusView> ix(home,x.size());
+    for (int i=x.size(); i--; ) {
+      ix[i].idx=i; ix[i].view=MinusView(x[i]);
+    }
+    if (tiebreak)
+        GECODE_ES_FAIL((Arithmetic::ArgMax<MinusView,IntView,true>
+                        ::post(home,ix,yv)));
+    else
+        GECODE_ES_FAIL((Arithmetic::ArgMax<MinusView,IntView,false>
+                        ::post(home,ix,yv)));
   }
 
 
