@@ -1,0 +1,11 @@
+#!/usr/bin/sh
+
+if [ $# -ne 1 ]
+then
+    echo "Usage: `basename $0` user"
+    exit 65
+fi
+
+USER="$1"
+
+cgcreate -a "$USER" -g cpuacct,memory:/crossbow-prover

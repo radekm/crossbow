@@ -6,7 +6,6 @@ OCAMLPACKS[] =
     threads
     batteries
     tptp
-    oclock
     sqlite3
     sexplib
     zarith

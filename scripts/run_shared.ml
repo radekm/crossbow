@@ -63,13 +63,13 @@ let run_solver_ex
     max_time max_mem solver args
     new_stdin new_stdout new_stderr =
 
-  let timeout_exe = Shared.file_in_program_dir "timeout" in
+  let cgroup = "/crossbow-prover" in
   Printf.fprintf stderr "\n+ %s %s\n\n"
     solver
     (args |> Array.to_list |> String.concat " ");
   flush stderr;
   Shared.run_with_limits
-    timeout_exe max_time max_mem
+    cgroup max_time max_mem
     solver args
     new_stdin new_stdout new_stderr
 

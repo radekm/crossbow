@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 (** Reads a list of problems from file.
 
@@ -19,16 +19,16 @@ val file_in_dir : string -> string -> string
 *)
 val file_in_program_dir : string -> string
 
-
-(** [run_with_limits timeout_exe max_time max_mem prog args
+(** [run_with_limits cgroup max_time max_mem prog args
    new_stdin new_stdout new_stderr] executes a program in file [prog]
-   with arguments [args], time limit [max_time] (in seconds)
+   with arguments [args], CPU time limit [max_time] (in seconds)
    and memory limit [max_mem] (in mebibytes).
 
-   [timeout_exe] is the path to a script which enforces the limits.
+   [cgroup] is a relative path to control groups in [cpuacct] controller
+   and [memory] controller.
 
-   Returns [(time, mem_peak, exit_status)]. [time] is the elapsed
-   number of seconds between the invocation and the termination of [prog].
+   Returns [(time, mem_peak, exit_status)].
+   [time] is the number of CPU seconds consumed by [prog].
    [mem_peak] is the maximal amount of memory (in mebibytes)
    which was allocated by the program and its children.
 *)

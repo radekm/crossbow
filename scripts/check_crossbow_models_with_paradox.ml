@@ -92,12 +92,12 @@ let check_model_with_paradox
   (* Execute Paradox. *)
   let paradox_out = BatFile.with_temporary_out (fun _ file -> file) in
   let _, _, exit_status =
-    let timeout_exe = Shared.file_in_program_dir "timeout" in
+    let cgroup = "/crossbow-prover" in
     BatPervasives.with_dispose
       ~dispose:close_out
       (fun out ->
         Shared.run_with_limits
-          timeout_exe max_time max_mem
+          cgroup max_time max_mem
           paradox_exe
           [| paradox_in |]
           Unix.stdin
