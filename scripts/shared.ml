@@ -237,6 +237,37 @@ module Cg_stats = struct
 
 end
 
+let list_pids_in_cgroups controllers cg =
+  let cgroup_base = "/sys/fs/cgroup/" in
+  let pid_of_string = int_of_string in
+  controllers
+  |> BatList.enum
+  |> BatEnum.map (fun ctrl -> cgroup_base ^ ctrl ^ cg ^ "/tasks")
+  |> BatEnum.map BatFile.lines_of
+  |> BatEnum.concat
+  |> BatEnum.map pid_of_string
+  |> BatList.of_enum
+  |> BatList.sort_uniq compare
+
+(** Kills all processes running in the given control groups.
+   Returns when no process runs there.
+*)
+let kill_all_in_cgroups controllers cg =
+  let rec loop () =
+    match list_pids_in_cgroups controllers cg with
+      | [] -> ()
+      | pids ->
+          List.iter
+            (fun pid ->
+              try
+                Unix.kill pid Sys.sigkill
+              (* The process with [pid] doesn't exist. *)
+              with Unix.Unix_error (Unix.ESRCH, _, _) -> ())
+            pids;
+          Unix.sleep 1;
+          loop () in
+  loop ()
+
 let run_with_limits
     cgroup max_time max_mem
     prog args
@@ -311,5 +342,9 @@ let run_with_limits
       time, mem_peak, exit_status in
 
   let res = wait () in
+
+  (* Cleanup. *)
+  kill_all_in_cgroups controllers cgroup;
   Cg.delete controllers cgroup;
+
   res
