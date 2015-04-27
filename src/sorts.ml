@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 let (%>) = BatPervasives.(%>)
 
@@ -338,3 +338,22 @@ let compute_sort_sizes prob sorts =
 let of_problem prob =
   let sorts = infer_sorts prob in
   compute_sort_sizes prob sorts
+
+let unify_all sorts =
+  {
+    symb_sorts =
+      BatHashtbl.map
+        (fun _ sorts -> Earray.make (Earray.length sorts) 0)
+        sorts.symb_sorts;
+    var_sorts =
+      BatHashtbl.map
+        (fun _ _ -> 0)
+        sorts.var_sorts;
+    adeq_sizes = Earray.singleton 0;
+    consts =
+      sorts.consts
+      |> Earray.to_list
+      |> Earray.concat
+      |> Earray.singleton;
+    only_consts = sorts.only_consts;
+  }

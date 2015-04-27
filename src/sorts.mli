@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 (** Sort inference. *)
 
@@ -59,3 +59,6 @@ type t = {
      [k + 1] is an adequate domain size.
 *)
 val of_problem : [> `R] Prob.t -> t
+
+(** Unifies all sorts into one without an adequate domain size. *)
+val unify_all : t -> t

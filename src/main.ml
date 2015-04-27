@@ -877,6 +877,7 @@ let find_model
     all_models
     nthreads
     max_secs
+    disable_sort_inference
     verbose
     output_file
     base_dir
@@ -949,7 +950,11 @@ let find_model
   (* Normalize variables. *)
   transform_each_clause p (fun cl -> [Clause.normalize_vars cl |> fst]);
   (* Infer sorts. *)
-  let sorts = Sorts.of_problem p in
+  let sorts =
+    let sorts = Sorts.of_problem p in
+    if disable_sort_inference
+    then Sorts.unify_all sorts
+    else sorts in
   (* Print statistics before solving. *)
   print_symb_info (verbose >= 2) tptp_prob;
   print_sort_info (verbose >= 2) sorts;
@@ -1072,6 +1077,10 @@ let verbose =
   let doc = "Verbosity level of the program. $(docv) can be: 0, 1, 2, 3." in
   Arg.(value & opt int 1 & info ["v"; "verbose"] ~docv:"N" ~doc)
 
+let disable_sort_inference =
+  let doc = "Sort inference is enabled by default." in
+  Arg.(value & flag & info ["disable-sort-inference"] ~doc)
+
 let max_secs =
   let doc = "Stop search after $(docv) seconds." in
   Arg.(value & opt (some int) None &
@@ -1144,7 +1153,8 @@ let find_model_t =
           max_lemmas $ detect_commutativity_from_lemmas $
           transforms $ solver $
           n_from $ n_to $ all_models $
-          nthreads $ max_secs $ verbose $ output_file $ base_dir $ in_file)
+          nthreads $ max_secs $ disable_sort_inference $ verbose $
+          output_file $ base_dir $ in_file)
 
 let info =
   let doc = "finite model finder" in

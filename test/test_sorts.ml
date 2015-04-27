@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 open OUnit
 
@@ -321,6 +321,65 @@ let test_func_high_arity () =
   assert_bool "" (not sorts.Sorts.only_consts)
 
 
+let hashtbl_items a =
+  a |> BatHashtbl.enum |> BatList.of_enum |> BatList.sort compare
+
+
+(* 4 sorts. *)
+let test_unify_all () =
+  let db = S.create_db () in
+  let c = S.add_func db 0 in
+  let c' = S.add_func db 0 in
+  let d = S.add_func db 0 in
+  let f = S.add_func db 2 in
+  let p = S.add_pred db 1 in
+  let clause_id = 5 in
+  let clause_id' = 12 in
+  let var = 4 in
+  let var' = 0 in
+  let sorts = {
+    Sorts.symb_sorts =
+      [
+        c, [| 3 |];
+        c', [| 3 |];
+        d, [| 1 |];
+        f, [| 0; 1; 2 |];
+        p, [| 0 |];
+      ]
+      |> BatList.enum
+      |> BatHashtbl.of_enum;
+    Sorts.var_sorts =
+      [
+        (clause_id, var), 1;
+        (clause_id', var'), 2;
+      ]
+      |> BatList.enum
+      |> BatHashtbl.of_enum;
+    Sorts.adeq_sizes = [| 0; 1; 0; 2  |];
+    Sorts.consts = [| [| |]; [| d |]; [| |]; [| c; c' |] |];
+    Sorts.only_consts = false;
+  } in
+  let unified_sorts = Sorts.unify_all sorts in
+  assert_equal
+    [
+      c, [| 0 |];
+      c', [| 0 |];
+      d, [| 0 |];
+      f, [| 0; 0; 0 |];
+      p, [| 0 |];
+    ]
+    (hashtbl_items unified_sorts.Sorts.symb_sorts);
+  assert_equal
+    [
+      (clause_id, var), 0;
+      (clause_id', var'), 0;
+    ]
+    (hashtbl_items unified_sorts.Sorts.var_sorts);
+  assert_equal [| 0 |] unified_sorts.Sorts.adeq_sizes;
+  assert_equal [| [| d; c; c' |] |] unified_sorts.Sorts.consts;
+  assert_equal false unified_sorts.Sorts.only_consts
+
+
 let suite =
   "Sorts suite" >:::
     [
@@ -330,4 +389,5 @@ let suite =
       "more clauses" >:: test_more_clauses;
       "predicate" >:: test_predicate;
       "function with high arity" >:: test_func_high_arity;
+      "unify all sorts" >:: test_unify_all;
     ]
