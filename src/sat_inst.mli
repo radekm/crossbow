@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 (** Instantiation of flat clauses for SAT solvers. *)
 
@@ -39,7 +39,7 @@ module type Inst_sig = sig
 
      Note: the maximum domain size is 0.
   *)
-  val create : [> `R] Prob.t -> Sorts.t -> t
+  val create : ?nthreads:int -> [> `R] Prob.t -> Sorts.t -> t
 
   (** Increases the maximum domain size:
 

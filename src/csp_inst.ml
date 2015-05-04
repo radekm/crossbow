@@ -1,10 +1,10 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 module type Inst_sig = sig
   type solver
   type t
 
-  val create : ?nthreads:int -> [> `R] Prob.t -> int -> t
+  val create : ?nthreads:int -> [> `R] Prob.t -> Sorts.t -> int -> t
 
   val destroy : t -> unit
 
@@ -12,7 +12,7 @@ module type Inst_sig = sig
 
   val solve_timed : t -> int -> Sh.lbool * bool
 
-  val construct_model : t -> Model.t
+  val construct_model : t -> Ms_model.t
 
   val get_solver : t -> solver
 end
@@ -27,14 +27,22 @@ struct
   module T = Term
   module L = Lit
 
-  let (|>) = BatPervasives.(|>)
-
   type t = {
     solver : Solv.t;
     symbols : [`R] Symb.db;
+    sorts : Sorts.t;
 
     (* Domain size. *)
     n : int;
+
+    (* For each symbol contains domain sizes of its argument sorts
+       and result sort (if any).
+
+       [dom_sizes] can be used in places where [adeq_sizes] is needed.
+       The difference from [adeq_sizes] is that [dom_sizes] contains
+       no zeros and no sizes bigger than [n].
+    *)
+    dom_sizes : (Symb.id, (int, [`R]) Earray.t) BatMap.t;
 
     (* Variables for predicates. *)
     pred_arrays : (S.id, (bool Solv.var, [`R]) Earray.t) Hashtbl.t;
@@ -76,35 +84,56 @@ struct
     | I_const of int
     | I_var of int Solv.var
 
-  (* Index into the array representing a symbol table.
-     a is assignment.
+  (* Computes index into the array representing a symbol table.
+     [a] is assignment of variables.
+
+     [dom_sizes] contains domain sizes of [args].
   *)
   let rec index
       (inst : t)
       (a : (int, [> `R]) Earray.t)
+      (dom_sizes : (int, [> `R]) Earray.t)
       (args : (T.t, [> `R]) Earray.t) : index =
 
     (* Index can be computed statically. *)
     if Earray.for_all T.is_var args then
-      I_const (Earray.fold_left (fun i x -> i * inst.n + a.(get_var x)) 0 args)
+      I_const (Earray.fold_lefti
+                 (fun acc i x -> acc * dom_sizes.(i) + a.(get_var x))
+                 0 args)
     else begin
-      (* Maps CSP variables to their coefficients. *)
+      (* Maps CSP variables for cells to their coefficients. *)
       let vars = ref BatMap.empty in
+      (* Maps CSP variables for cells to their domain sizes.
+         These size are used when computing [max_idx].
+      *)
+      let var_dom_sizes = ref BatMap.empty in
       let c, _ =
-        Earray.fold_right
-          (fun arg (c, mult) ->
+        Earray.fold_righti
+          (fun i arg (c, mult) ->
             match arg with
-              | T.Var x -> (c + a.(x) * mult, mult * inst.n)
+              | T.Var x -> (c + a.(x) * mult, mult * dom_sizes.(i))
               | T.Func (s, _) ->
-                  (* Get CSP variable for each argument
-                     which is function term.
-                  *)
+                  (* Get CSP variable for cell [arg]. *)
                   let y = var_for_func_term inst a arg in
                   vars :=
                     BatMap.modify_def 0 y (fun coef -> coef + mult) !vars;
-                  (c, mult * inst.n))
+                  (* Domain size of the CSP variable [y] is the size of the
+                     result sort of [arg] which is the size of [i]-th argument
+                     sort which is [dom_sizes.(i)].
+                  *)
+                  var_dom_sizes :=
+                    BatMap.add y dom_sizes.(i) !var_dom_sizes;
+                  (c, mult * dom_sizes.(i)))
           args (0, 1) in
       let vars = BatMap.enum !vars |> Earray.of_enum in
+      let var_dom_sizes =
+        (* [BatMap.values] is not used since its documentation
+           doesn't guarantee that the values are in increasing order
+           by their keys.
+        *)
+        BatMap.enum !var_dom_sizes
+        |> BatEnum.map snd
+        |> Earray.of_enum in
       let nvars = Earray.length vars in
       match%earr vars with
         (* Single variable x with coefficient 1 and no constant term -
@@ -118,9 +147,12 @@ struct
               I_var (Hashtbl.find inst.linear key)
             with
               | Not_found ->
+                  (* Maximal value of CSP variable [y]. *)
                   let max_idx =
-                    Earray.fold_left
-                      (fun max_idx (_, coef) -> max_idx + (inst.n - 1) * coef)
+                    Earray.fold_lefti
+                      (fun max_idx i (_, coef) ->
+                        let max_el = var_dom_sizes.(i) - 1 in
+                        max_idx + max_el * coef)
                       c
                       vars in
                   let dom_size = max_idx + 1 in
@@ -141,14 +173,15 @@ struct
                   I_var y
     end
 
-  (* a is assignment. *)
+  (* [a] is assignment of variables. *)
   and var_for_func_term
       (inst : t)
       (a : (int, [> `R]) Earray.t) : T.t -> int Solv.var = function
 
     | T.Var _ -> failwith "var_for_func_term"
     | T.Func (s, args) ->
-        match index inst a args with
+        let dom_sizes = BatMap.find s inst.dom_sizes in
+        match index inst a dom_sizes args with
           | I_const i ->
               (Hashtbl.find inst.func_arrays s).(i)
           | I_var i ->
@@ -158,14 +191,15 @@ struct
                 Hashtbl.find inst.int_element key
               with
                 | Not_found ->
-                    let y = Solv.new_tmp_int_var inst.solver inst.n in
+                    let dom_size = dom_sizes.(Symb.arity s) in
+                    let y = Solv.new_tmp_int_var inst.solver dom_size in
                     Solv.int_element
                       inst.solver
                       (Hashtbl.find inst.funcs s) i y;
                     Hashtbl.add inst.int_element key y;
                     y
 
-  (* a is assignment. *)
+  (* [a] is assignment of variables. *)
   let var_for_noneq_atom
       (inst : t)
       (a : (int, [> `R]) Earray.t)
@@ -173,7 +207,8 @@ struct
       (args : (T.t, [> `R]) Earray.t) : bool Solv.var =
 
     assert (s <> S.sym_eq);
-    match index inst a args with
+    let dom_sizes = BatMap.find s inst.dom_sizes in
+    match index inst a dom_sizes args with
       | I_const i ->
           (Hashtbl.find inst.pred_arrays s).(i)
       | I_var i ->
@@ -190,7 +225,7 @@ struct
                 Hashtbl.add inst.bool_element key y;
                 y
 
-  (* a is assignment. *)
+  (* [a] is assignment of variables. *)
   let var_for_eq_atom
       (inst : t)
       (a : (int, [> `R]) Earray.t)
@@ -231,9 +266,12 @@ struct
                  Hashtbl.add inst.eq_var_var key y;
                  y)
 
+  (* [var_adeq_sizes] are adequate domain sizes for variables
+     from the clause.
+  *)
   let instantiate_clause
       (inst : t)
-      (nvars : int)
+      (var_adeq_sizes : (int, [> `R]) Earray.t)
       (var_eqs : (T.var * T.var, [> `R]) Earray.t)
       (var_ineqs : (T.var * T.var, [> `R]) Earray.t)
       (pos_eq_lits : (T.t * T.t, [> `R]) Earray.t)
@@ -241,6 +279,8 @@ struct
       (pos_noneq_lits : (S.id * (T.t, [> `R]) Earray.t, [> `R]) Earray.t)
       (neg_noneq_lits : (S.id * (T.t, [> `R]) Earray.t, [> `R]) Earray.t)
       : unit =
+
+    let nvars = Earray.length var_adeq_sizes in
 
     (* Arrays for literals. *)
     let pos =
@@ -252,7 +292,7 @@ struct
         (Earray.length neg_eq_lits + Earray.length neg_noneq_lits)
         dummy_bool_var in
 
-    Assignment.each (Earray.make nvars 0) 0 nvars (Earray.make nvars 0) inst.n
+    Assignment.each (Earray.make nvars 0) 0 nvars var_adeq_sizes inst.n
       (fun a ->
         (* If no (in)equality of variables is satisfied. *)
         if
@@ -287,37 +327,38 @@ struct
       (solver : Solv.t)
       (n : int)
       (arity : int)
+      (dom_sizes : (int, [> `R]) Earray.t)
       (commutative : bool)
       (new_t_var : Solv.t -> 'a Solv.var)
       (new_t_var_array : Solv.t -> ('a Solv.var, [> `R]) Earray.t ->
        'a Solv.var_array)
       : 'a Solv.var_array * ('a Solv.var, [`R]) Earray.t  =
 
-    let adeq_sizes = Earray.make arity 0 in
     if commutative then begin
       let count = ref 0 in
       let starts = Earray.make n 0 in
       for max_size = 1 to n do
         starts.(max_size-1) <- !count;
-        count := !count + Assignment.count_comm_me 0 arity adeq_sizes max_size
+        count := !count + Assignment.count_comm_me 0 arity dom_sizes max_size
       done;
       let distinct_vars = Earray.init !count (fun _ -> new_t_var solver) in
       let vars = BatDynArray.create () in
-      Assignment.each (Earray.make arity 0) 0 arity adeq_sizes n
+      Assignment.each (Earray.make arity 0) 0 arity dom_sizes n
         (fun a ->
-          let r, max_el_idx = Assignment.rank_comm_me a 0 arity adeq_sizes in
+          let r, max_el_idx = Assignment.rank_comm_me a 0 arity dom_sizes in
           let var_idx = r + starts.(a.(max_el_idx)) in
           let var = distinct_vars.(var_idx) in
           BatDynArray.add vars var);
       let vars = Earray.of_dyn_array vars in
       (new_t_var_array solver vars, vars)
     end else begin
-      let count = Assignment.count 0 arity adeq_sizes n in
+      let count = Assignment.count 0 arity dom_sizes n in
       let vars = Earray.init count (fun _ -> new_t_var solver) in
       (new_t_var_array solver vars, vars)
     end
 
   let add_pred inst s =
+    let dom_sizes = BatMap.find s inst.dom_sizes in
     if not (Hashtbl.mem inst.preds s) then begin
       let new_var =
         if Symb.auxiliary inst.symbols s
@@ -328,6 +369,7 @@ struct
           inst.solver
           inst.n
           (Symb.arity s)
+          dom_sizes
           (Symb.commutative inst.symbols s)
           new_var
           Solv.new_bool_var_array in
@@ -336,6 +378,8 @@ struct
     end
 
   let add_func inst s =
+    let arity = Symb.arity s in
+    let dom_sizes = BatMap.find s inst.dom_sizes in
     if not (Hashtbl.mem inst.funcs s) then begin
       let new_var =
         if Symb.auxiliary inst.symbols s
@@ -345,17 +389,24 @@ struct
         add_symb
           inst.solver
           inst.n
-          (Symb.arity s)
+          arity
+          dom_sizes
           (Symb.commutative inst.symbols s)
-          (fun solver -> new_var solver inst.n)
+          (fun solver -> new_var solver dom_sizes.(arity))
           Solv.new_int_var_array in
       Hashtbl.add inst.func_arrays s arr;
       Hashtbl.add inst.funcs s vars
     end
 
-  let each_clause inst lits =
-    let nvars = Sh.IntSet.cardinal (Clause.vars lits) in
-
+  let each_clause inst clause_id lits =
+    (* Adequate domain sizes for variables from the clause. *)
+    let var_adeq_sizes =
+      let nvars = Sh.IntSet.cardinal (Clause.vars lits) in
+      Earray.init
+        nvars
+        (fun x ->
+          let sort = Hashtbl.find inst.sorts.Sorts.var_sorts (clause_id, x) in
+          inst.sorts.Sorts.adeq_sizes.(sort)) in
     let add_funcs_in_term =
       T.iter
         (function
@@ -399,7 +450,7 @@ struct
 
     instantiate_clause
       inst
-      nvars
+      var_adeq_sizes
       (Earray.of_dyn_array var_eqs)
       (Earray.of_dyn_array var_ineqs)
       (Earray.of_dyn_array pos_eq_lits)
@@ -407,41 +458,79 @@ struct
       (Earray.of_dyn_array pos_noneq_lits)
       (Earray.of_dyn_array neg_noneq_lits)
 
-  let lnh inst =
+  (* Computes domain size of the sort [sort]. *)
+  let dsize ~n ~sorts sort =
+    let adeq_size = sorts.Sorts.adeq_sizes.(sort) in
+    if adeq_size = 0 || adeq_size >= n
+    then n
+    else adeq_size
+
+  (* LNH for sort [sort]. *)
+  let lnh inst sort =
+    let dom_size = dsize ~n:inst.n ~sorts:inst.sorts sort in
+
     let lower_eq' x c =
-      if c < inst.n - 1 then
+      (* Post constraint only when [c] is lower than the maximal element
+         (which is [dom_size - 1]) of [sort].
+      *)
+      if c < dom_size - 1 then
         Solv.lower_eq inst.solver x c in
 
     let precede' xs cs =
       if xs <> Earray.empty && Earray.length cs >= 2 then
         Solv.precede inst.solver xs cs in
 
-    let consts, funcs =
-      inst.func_arrays
+    (* Both [funcs] and [almost_consts] contain function symbols which have
+       [sort] as their result sort.
+
+       Additionally function symbols in [funcs] have at least one argument
+       of sort [sort] and function symbols in [almost_consts] have
+       no argument of sort [sort].
+
+       Function symbols without argument of sort [sort] are treated
+       the same way as constants by LNH for sort [sort] -
+       this explains the name [almost_consts].
+    *)
+    let funcs, almost_consts =
+      let has_sort_as_result s =
+        let sorts = Hashtbl.find inst.sorts.Sorts.symb_sorts s in
+        sorts.(Symb.arity s) = sort in
+      let has_sort_as_arg s =
+        let sorts = Hashtbl.find inst.sorts.Sorts.symb_sorts s in
+        let arity = Symb.arity s in
+        Earray.existsi (fun i sort' -> sort' = sort && i < arity) sorts in
+      inst.funcs
       |> BatHashtbl.keys
+      |> BatEnum.filter has_sort_as_result
       |> Earray.of_enum
-      |> Earray.partition (fun s -> Symb.arity s = 0) in
-    Earray.sort compare consts;
+      |> Earray.partition has_sort_as_arg in
+    Earray.sort compare almost_consts;
     Earray.sort compare funcs;
 
-    let nconsts = Earray.length consts in
-
-    (* CSP variables for processed cells. *)
+    (* CSP variables of processed cells. *)
     let vars = BatDynArray.create () in
 
-    (* Restrict domain sizes of constants. *)
-    Earray.iteri
-      (fun i c ->
-        let var = (Hashtbl.find inst.func_arrays c).(0) in
-        (* Index of var in array vars. *)
-        let idx = i in
-        lower_eq' var idx;
-        BatDynArray.add vars var)
-      consts;
+    (* Restrict domain sizes of [almost_consts]. *)
+    Earray.iter
+      (fun s ->
+        let s_vars =
+          Hashtbl.find inst.func_arrays s
+          |> Earray.enum
+          (* Ensures that CSP variables shared by two or more
+             cells are processed only once.
+          *)
+          |> BatEnum.uniq
+          |> Earray.of_enum in
+        Earray.iter
+          (fun var ->
+            lower_eq' var (BatDynArray.length vars);
+            BatDynArray.add vars var)
+          s_vars)
+      almost_consts;
 
-    (* Precedence constraint for constants. *)
-    if consts <> Earray.empty then begin
-      let max_el = min (nconsts - 1) (inst.n - 1) in
+    (* Precedence constraint for [almost_consts]. *)
+    if almost_consts <> Earray.empty then begin
+      let max_el = min (BatDynArray.length vars - 1) (dom_size - 1) in
       precede'
         (Earray.of_dyn_array vars)
         (BatEnum.range ~until:max_el 0 |> Earray.of_enum)
@@ -449,43 +538,105 @@ struct
 
     if funcs <> Earray.empty then begin
       let z =
-        if consts <> Earray.empty
+        if almost_consts <> Earray.empty
         then 0
         else 1 in
-      (* Nothing can be restricted when max_arg = inst.n - 1. *)
-      for max_arg = 0 to inst.n - 2 do
-        (* Restrict domain sizes of cells with maximal argument max_arg. *)
+      (* Nothing can be restricted when [max_arg >= dom_size - 2].
+
+         Cell indexed by [max_el - 1 = dom_size - 2] may have [max_el]
+         as its value since [max_el] is the lowest unused value.
+      *)
+      for max_arg = 0 to dom_size - 3 do
+        (* Restrict domain sizes of cells which have [max_arg]
+           as maximal argument(s) of sort [sort]. Arguments
+           of the other sorts can be arbitrary (even bigger than [max_arg]).
+        *)
         Earray.iter
-          (fun f ->
-            let arity = Symb.arity f in
-            let each =
-              if Symb.commutative inst.symbols f
-              then Assignment.each_comm_me
-              else Assignment.each_me in
+          (fun s ->
+            let arity = Symb.arity s in
+            let dom_sizes = BatMap.find s inst.dom_sizes in
+
+            (* Indices of arguments with and without sort [sort]. *)
+            let args_with_sort, args_wo_sort =
+              let sorts = Hashtbl.find inst.sorts.Sorts.symb_sorts s in
+              Earray.init arity (fun i -> i)
+              |> Earray.partition (fun i -> sorts.(i) = sort) in
+
+            let dom_sizes_args_with_sort =
+              Earray.map (fun _ -> dom_size) args_with_sort in
+            let dom_sizes_args_wo_sort =
+              Earray.map (fun i -> dom_sizes.(i)) args_wo_sort in
+
+            (* Ensures that CSP variables shared by two or more
+               cells are processed only once.
+
+               This sharing currently happens only due to commutativity
+               - if two cells share single CSP variable then
+               these cells have same [max_arg] so it's fine
+               to empty [used_vars] whenever symbol [s] or [max_arg] changes.
+            *)
+            let used_vars = ref BatSet.empty in
+
+            (* Assignment of arguments with and without sort [sort]. *)
+            let a_with_sort = Earray.map (fun _ -> 0) args_with_sort in
+            let a_wo_sort = Earray.map (fun _ -> 0) args_wo_sort in
+
+            (* Assignment of all arguments. *)
             let a = Earray.make arity 0 in
-            let adeq_sizes = Earray.make arity 0 in
-            each a 0 arity adeq_sizes (max_arg + 1)
-              (fun a ->
-                let rank =
-                  Earray.fold_left (fun rank x -> rank * inst.n + x) 0 a in
-                let var = (Hashtbl.find inst.func_arrays f).(rank) in
-                (* Index of var in array vars. *)
-                let idx = BatDynArray.length vars in
-                (* If there is some constant then domain of var
-                   is limited by idx.
-                   If there is no constant then domain of var
-                   is limited by idx + 1.
-                   The reason is that f(0) with idx = 0 may be limited
-                   by at least 1 (since 0 is used as the argument).
+
+            Assignment.each_me a_with_sort 0 (Earray.length a_with_sort)
+              dom_sizes_args_with_sort (max_arg + 1)
+              (fun _ ->
+                (* Copy assignment of arguments with sort [sort]
+                   from [a_with_sort] to [a].
                 *)
-                lower_eq' var (idx + z);
-                BatDynArray.add vars var))
+                Earray.iteri
+                  (fun i x -> a.(args_with_sort.(i)) <- x)
+                  a_with_sort;
+
+                Assignment.each a_wo_sort 0 (Earray.length a_wo_sort)
+                  dom_sizes_args_wo_sort inst.n
+                  (fun _ ->
+                    (* Copy assignment of arguments without sort [sort]
+                       from [a_wo_sort] to [a].
+                    *)
+                    Earray.iteri
+                      (fun i x -> a.(args_wo_sort.(i)) <- x)
+                      a_wo_sort;
+
+                    let rank =
+                      Earray.fold_lefti
+                        (fun rank i x -> rank * dom_sizes.(i) + x)
+                        0 a in
+                    (* CSP variable which corresponds to cell indexed
+                       by assignment [a].
+                    *)
+                    let var = (Hashtbl.find inst.func_arrays s).(rank) in
+
+                    if not (BatSet.mem var !used_vars) then begin
+                      used_vars := BatSet.add var !used_vars;
+                      let idx = BatDynArray.length vars in
+                      (* If [almost_consts] is nonempty then domain of [var]
+                         is limited by [idx].
+                         If [almost_consts] is empty then domain of [var]
+                         is limited by [idx + 1].
+                         The reason is that f(0) with [idx = 0] may be limited
+                         by at least 1 (since 0 is used as the argument).
+                      *)
+                      lower_eq' var (idx + z);
+                      BatDynArray.add vars var
+                    end)))
           funcs;
+
         (* Precedence constraint. *)
         let last_idx = BatDynArray.length vars - 1 in
-        let max_el = min (last_idx + z) (inst.n - 1) in
+        let max_el = min (last_idx + z) (dom_size - 1) in
         let n_to = max_el in
-        (* Every new cell can use max_arg + 1 without restrictions. *)
+        (* LNH: Every new cell (i.e. cell with [max_arg] as one
+           of its arguments of sort [sort]) can use [max_arg + 1]
+           without restrictions but [x > max_arg + 1] can be used only
+           if [x - 1] is used by some preceding cell.
+        *)
         let n_from = max_arg + 1 in
         precede'
           (Earray.of_dyn_array vars)
@@ -507,7 +658,10 @@ struct
           (function
           | Symb.Permutation -> Solv.all_different inst.solver vars
           | Symb.Latin_square ->
-              let n = inst.n in
+              (* [s] is binary symbol and both of its arguments have
+                 the same sort hence the same size.
+              *)
+              let n = (BatMap.find s inst.dom_sizes).(0) in
               let xs = Earray.sub vars 0 n in
               (* Rows: i-th row is f(i, ?). *)
               for row = 0 to n - 1 do
@@ -524,12 +678,22 @@ struct
           hints)
       funcs
 
-  let create ?(nthreads = 1) prob n =
+  let create ?(nthreads = 1) prob sorts n =
     let prob = Prob.read_only prob in
+
+    let dom_sizes =
+      BatHashtbl.fold
+        (fun symb sorts' m ->
+          let dom_sizes_for_symb = Earray.map (dsize ~n ~sorts) sorts' in
+          BatMap.add symb dom_sizes_for_symb m)
+        sorts.Sorts.symb_sorts
+        BatMap.empty in
     let inst = {
       solver = Solv.create nthreads;
       symbols = prob.Prob.symbols;
+      sorts;
       n;
+      dom_sizes;
       pred_arrays = Hashtbl.create 20;
       func_arrays = Hashtbl.create 20;
       preds = Hashtbl.create 20;
@@ -552,10 +716,12 @@ struct
       |> Solv.all_different inst.solver;
     (* Clauses. *)
     BatDynArray.iter
-      (fun cl -> each_clause inst cl.Clause2.cl_lits)
+      (fun cl -> each_clause inst cl.Clause2.cl_id cl.Clause2.cl_lits)
       prob.Prob.clauses;
-    (* LNH. *)
-    lnh inst;
+    (* LNH for each sort. *)
+    Earray.iteri
+      (fun sort _ -> lnh inst sort)
+      inst.sorts.Sorts.adeq_sizes;
     (* Hints. *)
     use_hints inst;
     inst
@@ -580,8 +746,10 @@ struct
 
     let add_symb_model t_value s vars =
       if not (Symb.auxiliary inst.symbols s) then
+        let param_sizes =
+          Earray.sub (BatMap.find s inst.dom_sizes) 0 (Symb.arity s) in
         let values = Earray.map t_value vars in
-        symbs := Symb.Map.add s { Model.values } !symbs in
+        symbs := Symb.Map.add s { Ms_model.param_sizes; values } !symbs in
 
     (* Predicates. *)
     Hashtbl.iter
@@ -594,8 +762,8 @@ struct
       inst.func_arrays;
 
     {
-      Model.max_size = inst.n;
-      Model.symbs = !symbs;
+      Ms_model.max_size = inst.n;
+      Ms_model.symbs = !symbs;
     }
 
   let get_solver inst = inst.solver

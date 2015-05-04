@@ -27,7 +27,9 @@ type hint =
   | Permutation
   (** For unary functions. *)
   | Latin_square
-  (** For binary functions. *)
+  (** For binary functions where both function arguments have
+     the same sort.
+  *)
 
 (** Creates a new symbol database containing only the predefined symbols. *)
 val create_db : unit -> _ db

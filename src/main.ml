@@ -560,7 +560,7 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
       { sorts with Sorts.adeq_sizes } in
 
   let p = tp.Tptp_prob.prob in
-  let inst = Inst.create p sorts in
+  let inst = Inst.create ~nthreads:cfg.nthreads p sorts in
   let model_cnt = ref 0 in
 
   for dsize = 1 to cfg.n_from - 1 do
@@ -665,103 +665,6 @@ let sat_solve (module Inst : Sat_inst.Inst_sig) tp sorts cfg =
           cfg
           (Printf.sprintf "%d non-isomorphic models found" n)
 
-let csp_solve (module Inst : Csp_inst.Inst_sig) tp cfg =
-  let print_instantiating dsize =
-    print_with_time cfg (Printf.sprintf "Instantiating %d" dsize) in
-
-  let p = tp.Tptp_prob.prob in
-  let model_cnt = ref 0 in
-
-  if cfg.all_models then begin
-    let dsize = cfg.n_from in
-    if dsize < (Symb.distinct_consts p.Prob.symbols |> Symb.Set.cardinal) then
-      let () = write_summary cfg S_gave_up in
-      Printf.fprintf stderr "\n"
-    else begin
-      print_instantiating dsize;
-      let inst = Inst.create ~nthreads:cfg.nthreads p dsize in
-      let tot_model_cnt = ref 0 in
-      let write_summary s =
-        if !tot_model_cnt = 0 then
-          write_summary cfg s in
-      let models = ref (BatSet.PSet.create Model.compare) in
-      let rec loop () =
-        if not (has_time cfg) then
-          let () = write_summary S_timeout in
-          print_with_time cfg "\nTime out"
-        else begin
-          match call_solver cfg inst Inst.solve Inst.solve_timed with
-            | Sh.Ltrue ->
-                write_summary S_satisfiable;
-                incr tot_model_cnt;
-                let model = Inst.construct_model inst in
-                let cano_model = Model.canonize model in
-                if not (BatSet.PSet.mem cano_model !models) then begin
-                  models := BatSet.PSet.add cano_model !models;
-                  with_output
-                    ~append:true
-                    cfg
-                    (write_model cfg.in_file tp model (Some !model_cnt));
-                  incr model_cnt;
-                end;
-                loop ()
-            | Sh.Lfalse ->
-                write_summary S_gave_up;
-                Printf.fprintf stderr "\n"
-            | Sh.Lundef ->
-                write_summary S_timeout;
-                print_with_time cfg "\nTime out"
-        end in
-      print_with_time cfg "Solving";
-      with_output cfg (fun _ -> ()); (* Truncate file. *)
-      loop ();
-      Printf.fprintf stderr "%d models found\n" !tot_model_cnt
-    end
-  end else begin
-    let rec loop dsize =
-      if dsize > cfg.n_to then
-        let () = write_summary cfg S_gave_up in
-        Printf.fprintf stderr "\n"
-      else if not (has_time cfg) then
-        let () = write_summary cfg S_timeout in
-        print_with_time cfg "\nTime out"
-      else if
-        dsize < (Symb.distinct_consts p.Prob.symbols |> Symb.Set.cardinal)
-      then
-        loop (dsize + 1)
-      else begin
-        print_instantiating dsize;
-        let inst =
-          Inst.create  ~nthreads:cfg.nthreads p dsize in
-        print_with_time cfg "Solving";
-        match call_solver cfg inst Inst.solve Inst.solve_timed with
-          | Sh.Ltrue ->
-              write_summary cfg S_satisfiable;
-              let model = Inst.construct_model inst in
-              with_output
-                ~append:true
-                cfg
-                (write_model cfg.in_file tp model None);
-              incr model_cnt;
-              Printf.fprintf stderr "\n"
-          | Sh.Lfalse ->
-              Inst.destroy inst;
-              loop (dsize + 1)
-          | Sh.Lundef ->
-              write_summary cfg S_timeout;
-              print_with_time cfg "\nTime out"
-      end in
-    loop cfg.n_from
-  end;
-
-  match !model_cnt with
-    | 0 -> print_with_time cfg "No model found"
-    | 1 -> print_with_time cfg "1 model found"
-    | n ->
-        print_with_time
-          cfg
-          (Printf.sprintf "%d non-isomorphic models found" n)
-
 let minisat_solver =
   let s_func tp sorts cfg =
     sat_solve (module Minisat_inst.Inst : Sat_inst.Inst_sig) tp sorts cfg in
@@ -798,9 +701,68 @@ let josat_solver =
     ];
   }
 
+(* Note: Instantiation is postponed until solving so the times
+   reported for instantiation and solving by [sat_solve] are incorrect.
+*)
+module Csp_inst_to_sat_inst (C : Csp_inst.Inst_sig) :
+  Sat_inst.Inst_sig = struct
+
+  type solver = C.solver
+
+  type t = {
+    prob : [`R] Prob.t;
+    sorts : Sorts.t;
+    nthreads : int option;
+    mutable n : int;
+    mutable csp_inst : C.t option;
+  }
+
+  let create ?nthreads prob sorts = {
+    prob = Prob.read_only prob;
+    sorts;
+    nthreads;
+    n = 0;
+    csp_inst = None;
+  }
+
+  let incr_max_size inst =
+    inst.n <- inst.n + 1;
+    inst.csp_inst <- None
+
+  let get_csp_inst inst =
+    let csp_inst =
+      begin match inst.csp_inst with
+        | None -> C.create ?nthreads:inst.nthreads inst.prob inst.sorts inst.n
+        | Some csp_inst -> csp_inst
+      end in
+    inst.csp_inst <- Some csp_inst;
+    csp_inst
+
+  let solve inst =
+    let csp_inst = get_csp_inst inst in
+    C.solve csp_inst
+
+  let solve_timed inst ms =
+    let csp_inst = get_csp_inst inst in
+    C.solve_timed csp_inst ms
+
+  let construct_model inst =
+    match inst.csp_inst with
+      | None -> failwith "Csp_inst_to_sat_inst.construct_model"
+      | Some csp_inst -> C.construct_model csp_inst
+
+  let block_model _ _ = ()
+
+  let get_solver _ = failwith "Csp_inst_to_sat_inst.get_solver"
+
+  let get_max_size inst = inst.n
+end
+
+module Gecode_inst = Csp_inst_to_sat_inst (Gecode_inst.Inst)
+
 let gecode_solver =
-  let s_func tp _ cfg =
-    csp_solve (module Gecode_inst.Inst : Csp_inst.Inst_sig) tp cfg in
+  let s_func tp sorts cfg =
+    sat_solve (module Gecode_inst : Sat_inst.Inst_sig) tp sorts cfg in
   {
     s_func;
     s_only_flat_clauses = false;

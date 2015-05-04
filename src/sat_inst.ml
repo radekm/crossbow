@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 module type Solver = sig
   include Sat_solver.S
@@ -19,7 +19,7 @@ module type Inst_sig = sig
 
   type t
 
-  val create : [> `R] Prob.t -> Sorts.t -> t
+  val create : ?nthreads:int -> [> `R] Prob.t -> Sorts.t -> t
 
   val incr_max_size : t -> unit
 
@@ -133,9 +133,7 @@ struct
     mutable can_construct_model : bool;
   }
 
-  let (|>) = BatPervasives.(|>)
-
-  let create prob sorts =
+  let create ?nthreads prob sorts =
     let symred = Symred.create prob sorts in
     let solver = Solv.create () in
     let symbols = Symb.read_only (prob.Prob.symbols) in

@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 (** Instantiation of clauses for CSP solvers. *)
 
@@ -11,7 +11,7 @@ module type Inst_sig = sig
      the problem [prob] for the domain size [n].
      [nthreads] is the number of threads to use when solving.
   *)
-  val create : ?nthreads:int -> [> `R] Prob.t -> int -> t
+  val create : ?nthreads:int -> [> `R] Prob.t -> Sorts.t -> int -> t
 
   val destroy : t -> unit
 
@@ -19,7 +19,7 @@ module type Inst_sig = sig
 
   val solve_timed : t -> int -> Sh.lbool * bool
 
-  val construct_model : t -> Model.t
+  val construct_model : t -> Ms_model.t
 
   val get_solver : t -> solver
 end

@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 (** CSP solver. *)
 
@@ -70,6 +70,13 @@ module type S = sig
 
   (** [precede s xs cs] posts constraint that successive values in [cs]
      precede each other in [xs].
+
+     For all [j >= 0] and [k >= 1] the constraint enforces [xs.(0) <> cs.(k)]
+     and when [xs.(j) = cs.(k) then there exists [i < j] such that
+     [xs.(i) = cs.(k-1)].
+
+     Note: This constraint allows CSP variables from [xs] to take values
+     which aren't in [cs] or value [cs.(0)].
   *)
   val precede : t -> (int var, [> `R]) Earray.t ->
     (int, [> `R]) Earray.t -> unit

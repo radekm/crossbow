@@ -1,4 +1,4 @@
-(* Copyright (c) 2013 Radek Micek *)
+(* Copyright (c) 2013, 2015 Radek Micek *)
 
 open OUnit
 
@@ -158,7 +158,7 @@ let print_log i =
     | Solv.Eeq_var_var (x, x', y) ->
         Printf.printf "eq_var_var: %d %d %d\n" x x' y
     | Solv.Eeq_var_const (x, c, y) ->
-        Printf.printf "eq_var_var: %d %d %d\n" x c y
+        Printf.printf "eq_var_const: %d %d %d\n" x c y
     | Solv.Elower_eq (x, c) ->
         Printf.printf "lower_eq: %d %d\n" x c
     | Solv.Eprecede (vars, consts) ->
@@ -177,11 +177,17 @@ module T = Term
 module L = Lit
 module C2 = Clause2
 
+let infer_single_sort prob =
+  prob
+  |> Sorts.of_problem
+  |> Sorts.unify_all
+
 let test_empty () =
   let prob = Prob.create () in
+  let sorts = infer_single_sort prob in
 
   for max_size = 1 to 20 do
-    assert_log (Inst.create prob max_size) []
+    assert_log (Inst.create prob sorts max_size) []
   done
 
 let test_flat_pred () =
@@ -193,15 +199,16 @@ let test_flat_pred () =
     C2.cl_lits = [ L.lit (Sh.Pos, p, [| T.var 1; T.var 0; T.var 1 |]) ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i1 = Inst.create prob 1 in
+  let i1 = Inst.create prob sorts 1 in
   assert_log i1 [
     Solv.Enew_bool_var 0;
     Solv.Enew_bool_var_array ([| 0 |], 0);
     Solv.Eclause ([| 0 |], [| |]);
   ];
 
-  let i2 = Inst.create prob 2 in
+  let i2 = Inst.create prob sorts 2 in
   assert_log i2 [
     Solv.Enew_bool_var 0; (* p(0, 0, 0) *)
     Solv.Enew_bool_var 1; (* p(0, 0, 1) *)
@@ -239,8 +246,9 @@ let test_flat_func () =
     ];
   } in
   List.iter (BatDynArray.add prob.Prob.clauses) [clause; clause2];
+  let sorts = infer_single_sort prob in
 
-  let i1 = Inst.create prob 1 in
+  let i1 = Inst.create prob sorts 1 in
   assert_log i1 [
     Solv.Enew_int_var (1, 0);
     Solv.Enew_int_var_array ([| 0 |], 0);
@@ -254,7 +262,7 @@ let test_flat_func () =
     Solv.Eclause ([| ~-2 |], [| |]);
   ];
 
-  let i2 = Inst.create prob 2 in
+  let i2 = Inst.create prob sorts 2 in
   assert_log i2 [
     Solv.Enew_int_var (2, 0); (* f(0, 0) *)
     Solv.Enew_int_var (2, 1); (* f(0, 1) *)
@@ -303,8 +311,9 @@ let test_flat_comm_func () =
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i1 = Inst.create prob 1 in
+  let i1 = Inst.create prob sorts 1 in
   assert_log i1 [
     Solv.Enew_int_var (1, 0);
     Solv.Enew_int_var_array ([| 0 |], 0);
@@ -313,7 +322,7 @@ let test_flat_comm_func () =
     Solv.Eclause ([| ~-1 |], [| |]);
   ];
 
-  let i2 = Inst.create prob 2 in
+  let i2 = Inst.create prob sorts 2 in
   assert_log i2 [
     Solv.Enew_int_var (2, 0); (* f(0, 0) *)
     Solv.Enew_int_var (2, 1); (* f(0, 1) *)
@@ -333,7 +342,7 @@ let test_flat_comm_func () =
     Solv.Eclause ([| ~-4 |], [| |]);
   ];
 
-  let i3 = Inst.create prob 3 in
+  let i3 = Inst.create prob sorts 3 in
   assert_log i3 [
     Solv.Enew_int_var (3, 0); (* f(0, 0) *)
     Solv.Enew_int_var (3, 1); (* f(0, 1) *)
@@ -391,8 +400,9 @@ let test_nested () =
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i1 = Inst.create prob 1 in
+  let i1 = Inst.create prob sorts 1 in
   assert_log i1 [
     Solv.Enew_bool_var 0; (* p(0, 0, 0) *)
     Solv.Enew_bool_var_array ([| 0 |], 0);
@@ -412,7 +422,7 @@ let test_nested () =
     Solv.Eclause ([| |], [| ~-1 |]);
   ];
 
-  let i2 = Inst.create prob 2 in
+  let i2 = Inst.create prob sorts 2 in
   assert_log i2 [
     Solv.Enew_bool_var 0; (* p(0, 0, 0) *)
     Solv.Enew_bool_var 1; (* p(0, 0, 1) *)
@@ -479,8 +489,9 @@ let test_nested_comm_func () =
     C2.cl_lits = [ L.lit (Sh.Pos, p, [| (g (f c (T.var 0))) |]) ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i1 = Inst.create prob 1 in
+  let i1 = Inst.create prob sorts 1 in
   assert_log i1 [
     Solv.Enew_bool_var 0; (* p(0) *)
     Solv.Enew_bool_var_array ([| 0 |], 0);
@@ -502,7 +513,7 @@ let test_nested_comm_func () =
     Solv.Eclause ([| ~-1 |], [| |]);
   ];
 
-  let i2 = Inst.create prob 2 in
+  let i2 = Inst.create prob sorts 2 in
   assert_log i2 [
     Solv.Enew_bool_var 0; (* p(0) *)
     Solv.Enew_bool_var 1; (* p(1) *)
@@ -543,7 +554,7 @@ let test_nested_comm_func () =
     Solv.Elower_eq (5, 0);
   ];
 
-  let i3 = Inst.create prob 3 in
+  let i3 = Inst.create prob sorts 3 in
   assert_log i3 [
     Solv.Enew_bool_var 0; (* p(0) *)
     Solv.Enew_bool_var 1; (* p(1) *)
@@ -618,8 +629,9 @@ let test_var_eqs_and_ineqs () =
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i3 = Inst.create prob 3 in
+  let i3 = Inst.create prob sorts 3 in
   assert_log i3 [
     Solv.Enew_int_var (3, 0); (* f(0, 0) *)
     Solv.Enew_int_var (3, 1); (* f(0, 1) *)
@@ -675,8 +687,9 @@ let test_shared_linear () =
     C2.cl_lits = [ L.mk_ineq (g c (T.var 0)) (f c (T.var 1)) ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i3 = Inst.create prob 3 in
+  let i3 = Inst.create prob sorts 3 in
   assert_log i3 [
     Solv.Enew_int_var (3, 0); (* g(0, 0) *)
     Solv.Enew_int_var (3, 1); (* g(0, 1) *)
@@ -791,8 +804,9 @@ let test_shared_bool_element () =
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i2 = Inst.create prob 2 in
+  let i2 = Inst.create prob sorts 2 in
   assert_log i2 [
     Solv.Enew_bool_var 0; (* p(0) *)
     Solv.Enew_bool_var 1; (* p(1) *)
@@ -819,8 +833,9 @@ let test_shared_int_element () =
     C2.cl_lits = [ L.mk_ineq (f c) (g (f c)) ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i2 = Inst.create prob 2 in
+  let i2 = Inst.create prob sorts 2 in
   assert_log i2 [
     Solv.Enew_int_var (2, 0); (* f(0) *)
     Solv.Enew_int_var (2, 1); (* f(1) *)
@@ -857,8 +872,9 @@ let test_shared_eq_var_var () =
     C2.cl_lits = [ L.mk_eq c d; L.mk_eq (f (T.var 0)) d ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i4 = Inst.create prob 4 in
+  let i4 = Inst.create prob sorts 4 in
   assert_log i4 [
     Solv.Enew_int_var (4, 0); (* c *)
     Solv.Enew_int_var_array ([| 0 |], 0);
@@ -906,8 +922,9 @@ let test_shared_eq_var_const () =
     C2.cl_lits = [ L.mk_ineq (T.var 0) c; L.mk_ineq c (T.var 1) ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i2 = Inst.create prob 2 in
+  let i2 = Inst.create prob sorts 2 in
   assert_log i2 [
     Solv.Enew_int_var (2, 0); (* c *)
     Solv.Enew_int_var_array ([| 0 |], 0);
@@ -952,8 +969,9 @@ let test_distinct_consts () =
     ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i2 = Inst.create prob 2 in
+  let i2 = Inst.create prob sorts 2 in
   assert_log i2 [
     Solv.Enew_int_var (2, 0); (* d1 *)
     Solv.Enew_int_var_array ([| 0 |], 0);
@@ -998,8 +1016,9 @@ let test_hints () =
     C2.cl_lits = [ L.mk_eq (T.func (g, [| c |])) (T.func (f, [| c; c |])) ];
   } in
   BatDynArray.add prob.Prob.clauses clause;
+  let sorts = infer_single_sort prob in
 
-  let i4 = Inst.create prob 4 in
+  let i4 = Inst.create prob sorts 4 in
   assert_log i4 [
     Solv.Enew_int_var (4, 0); (* g(0) *)
     Solv.Enew_int_var (4, 1); (* g(1) *)
@@ -1056,6 +1075,341 @@ let test_hints () =
     Solv.Eall_different [| 0; 1; 2; 3 |];
   ]
 
+let test_more_sorts () =
+  let prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  let p = Symb.add_pred db 2 in
+  let p a b = L.lit (Sh.Pos, p, [| a; b |]) in
+  let q = Symb.add_pred db 2 in
+  let q a b = L.lit (Sh.Neg, q, [| a; b |]) in
+  let f = Symb.add_func db 3 in
+  let f a b c = T.func (f, [| a; b; c |]) in
+  let c = Symb.add_func db 0 in
+  let c = T.func (c, [| |]) in
+  let d = Symb.add_func db 0 in
+  let d = T.func (d, [| |]) in
+  let x, y = T.var 0, T.var 1 in
+  let clause = {
+    C2.cl_id = Prob.fresh_id prob;
+    C2.cl_lits = [
+      L.mk_eq y (f c y d);
+      p x y;
+      q y x;
+      L.mk_eq c d;
+      L.mk_ineq c x;
+    ];
+  } in
+  BatDynArray.add prob.Prob.clauses clause;
+  (* Adequate size of sort with [c] and [d] is 2.
+     Sort with [f] has no adequate size.
+  *)
+  let sorts = Sorts.of_problem prob in
+
+  let i2 = Inst.create prob sorts 2 in
+  assert_log i2 [
+    Solv.Enew_int_var (2, 0); (* f(0, 0, 0) *)
+    Solv.Enew_int_var (2, 1); (* f(0, 0, 1) *)
+    Solv.Enew_int_var (2, 2); (* f(0, 1, 0) *)
+    Solv.Enew_int_var (2, 3); (* f(0, 1, 1) *)
+    Solv.Enew_int_var (2, 4); (* f(1, 0, 0) *)
+    Solv.Enew_int_var (2, 5); (* f(1, 0, 1) *)
+    Solv.Enew_int_var (2, 6); (* f(1, 1, 0) *)
+    Solv.Enew_int_var (2, 7); (* f(1, 1, 1) *)
+    Solv.Enew_int_var_array ([| 0; 1; 2; 3; 4; 5; 6; 7 |], 0);
+    Solv.Enew_int_var (2, 8); (* c *)
+    Solv.Enew_int_var_array ([| 8 |], 1);
+    Solv.Enew_int_var (2, 9); (* d *)
+    Solv.Enew_int_var_array ([| 9 |], 2);
+    Solv.Enew_bool_var 0; (* p(0, 0) *)
+    Solv.Enew_bool_var 1; (* p(0, 1) *)
+    Solv.Enew_bool_var 2; (* p(1, 0) *)
+    Solv.Enew_bool_var 3; (* p(1, 1) *)
+    Solv.Enew_bool_var_array ([| 0; 1; 2; 3 |], 0);
+    Solv.Enew_bool_var 4; (* q(0, 0) *)
+    Solv.Enew_bool_var 5; (* q(0, 1) *)
+    Solv.Enew_bool_var 6; (* q(1, 0) *)
+    Solv.Enew_bool_var 7; (* q(1, 1) *)
+    Solv.Enew_bool_var_array ([| 4; 5; 6; 7 |], 1);
+    (* clause (assignment x = 0, y = 0) *)
+    (* -1 for literal f(c, 0, d) = 0 *)
+    Solv.Enew_tmp_int_var (6, ~-1);
+    Solv.Elinear ([| 8; 9; ~-1 |], [| 4; 1; ~-1 |], 0);
+    Solv.Enew_tmp_int_var (2, ~-2);
+    Solv.Eint_element (0, ~-1, ~-2);
+    Solv.Enew_tmp_bool_var ~-1; (* f(c, 0, d) = 0 *)
+    Solv.Eeq_var_const (~-2, 0, ~-1);
+    (* -2 for literal c = d *)
+    Solv.Enew_tmp_bool_var ~-2; (* c = d *)
+    Solv.Eeq_var_var (8, 9, ~-2);
+    (* 0 for literal p(0, 0) *)
+    (* -3 for literal c <> 0 *)
+    Solv.Enew_tmp_bool_var ~-3; (* c <> 0 *)
+    Solv.Eeq_var_const (8, 0, ~-3);
+    (* 4 for literal ~q(0, 0) *)
+    Solv.Eclause ([| ~-1; ~-2; 0 |], [| ~-3; 4 |]);
+    (* clause (assignment x = 0, y = 1) *)
+    (* -4 for literal f(c, 1, d) = 1 *)
+    Solv.Enew_tmp_int_var (8, ~-3);
+    Solv.Elinear ([| 8; 9; ~-3 |], [| 4; 1; ~-1 |], ~-2);
+    Solv.Enew_tmp_int_var (2, ~-4);
+    Solv.Eint_element (0, ~-3, ~-4);
+    Solv.Enew_tmp_bool_var ~-4; (* f(c, 1, d) = 1 *)
+    Solv.Eeq_var_const (~-4, 1, ~-4);
+    (* -2 for literal c = d *)
+    (* 1 for literal p(0, 1) *)
+    (* -3 for literal c <> 0 *)
+    (* 6 for literal ~q(1, 0) *)
+    Solv.Eclause ([| ~-4; ~-2; 1 |], [| ~-3; 6 |]);
+    (* clause (assignment x = 1, y = 0) *)
+    (* -1 for literal f(c, 0, d) = 0 *)
+    (* -2 for literal c = d *)
+    (* 2 for literal p(1, 0) *)
+    (* -5 for literal c <> 1 *)
+    Solv.Enew_tmp_bool_var ~-5; (* c <> 1 *)
+    Solv.Eeq_var_const (8, 1, ~-5);
+    (* 5 for literal ~q(0, 1) *)
+    Solv.Eclause ([| ~-1; ~-2; 2 |], [| ~-5; 5 |]);
+    (* clause (assignment x = 1, y = 1) *)
+    (* -4 literal f(c, 1, d) = 1 *)
+    (* -2 for literal c = d *)
+    (* 3 for literal p(1, 1) *)
+    (* -5 for literal c <> 1 *)
+    (* 7 for literal ~q(1, 1) *)
+    Solv.Eclause ([| ~-4; ~-2; 3 |], [| ~-5; 7 |]);
+    (* LNH for sort 0 (sort with c, d) *)
+    Solv.Elower_eq (8, 0); (* c <= 0 *)
+    Solv.Eprecede ([| 8; 9 |], [| 0; 1 |]);
+    (* LNH for sort 1 (sort with f) *)
+  ];
+
+  let i3 = Inst.create prob sorts 3 in
+  assert_log i3 [
+    Solv.Enew_int_var (3, 0); (* f(0, 0, 0) *)
+    Solv.Enew_int_var (3, 1); (* f(0, 0, 1) *)
+    Solv.Enew_int_var (3, 2); (* f(0, 1, 0) *)
+    Solv.Enew_int_var (3, 3); (* f(0, 1, 1) *)
+    Solv.Enew_int_var (3, 4); (* f(0, 2, 0) *)
+    Solv.Enew_int_var (3, 5); (* f(0, 2, 1) *)
+    Solv.Enew_int_var (3, 6); (* f(1, 0, 0) *)
+    Solv.Enew_int_var (3, 7); (* f(1, 0, 1) *)
+    Solv.Enew_int_var (3, 8); (* f(1, 1, 0) *)
+    Solv.Enew_int_var (3, 9); (* f(1, 1, 1) *)
+    Solv.Enew_int_var (3, 10); (* f(1, 2, 0) *)
+    Solv.Enew_int_var (3, 11); (* f(1, 2, 1) *)
+    Solv.Enew_int_var_array (Earray.init 12 (fun i -> i), 0);
+    Solv.Enew_int_var (2, 12); (* c *)
+    Solv.Enew_int_var_array ([| 12 |], 1);
+    Solv.Enew_int_var (2, 13); (* d *)
+    Solv.Enew_int_var_array ([| 13 |], 2);
+    Solv.Enew_bool_var 0; (* p(0, 0) *)
+    Solv.Enew_bool_var 1; (* p(0, 1) *)
+    Solv.Enew_bool_var 2; (* p(0, 2) *)
+    Solv.Enew_bool_var 3; (* p(1, 0) *)
+    Solv.Enew_bool_var 4; (* p(1, 1) *)
+    Solv.Enew_bool_var 5; (* p(1, 2) *)
+    Solv.Enew_bool_var_array (Earray.init 6 (fun i -> i), 0);
+    Solv.Enew_bool_var 6; (* q(0, 0) *)
+    Solv.Enew_bool_var 7; (* q(0, 1) *)
+    Solv.Enew_bool_var 8; (* q(1, 0) *)
+    Solv.Enew_bool_var 9; (* q(1, 1) *)
+    Solv.Enew_bool_var 10; (* q(2, 0) *)
+    Solv.Enew_bool_var 11; (* q(2, 1) *)
+    Solv.Enew_bool_var_array (Earray.init 6 (fun i -> i + 6), 1);
+    (* clause (assignment x = 0, y = 0) *)
+    (* -1 for literal f(c, 0, d) = 0 *)
+    Solv.Enew_tmp_int_var (8, ~-1);
+    Solv.Elinear ([| 12; 13; ~-1 |], [| 6; 1; ~-1 |], 0);
+    Solv.Enew_tmp_int_var (3, ~-2);
+    Solv.Eint_element (0, ~-1, ~-2);
+    Solv.Enew_tmp_bool_var ~-1; (* f(c, 0, d) = 0 *)
+    Solv.Eeq_var_const (~-2, 0, ~-1);
+    (* -2 for literal c = d *)
+    Solv.Enew_tmp_bool_var ~-2; (* c = d *)
+    Solv.Eeq_var_var (12, 13, ~-2);
+    (* 0 for literal p(0, 0) *)
+    (* -3 for literal c <> 0 *)
+    Solv.Enew_tmp_bool_var ~-3; (* c <> 0 *)
+    Solv.Eeq_var_const (12, 0, ~-3);
+    (* 6 for literal ~q(0, 0) *)
+    Solv.Eclause ([| ~-1; ~-2; 0 |], [| ~-3; 6 |]);
+    (* clause (assignment x = 0, y = 1) *)
+    (* -4 for literal f(c, 1, d) = 1 *)
+    Solv.Enew_tmp_int_var (10, ~-3);
+    Solv.Elinear ([| 12; 13; ~-3 |], [| 6; 1; ~-1 |], ~-2);
+    Solv.Enew_tmp_int_var (3, ~-4);
+    Solv.Eint_element (0, ~-3, ~-4);
+    Solv.Enew_tmp_bool_var ~-4; (* f(c, 1, d) = 1 *)
+    Solv.Eeq_var_const (~-4, 1, ~-4);
+    (* -2 for literal c = d *)
+    (* 1 for literal p(0, 1) *)
+    (* -3 for literal c <> 0 *)
+    (* 8 for literal ~q(1, 0) *)
+    Solv.Eclause ([| ~-4; ~-2; 1 |], [| ~-3; 8 |]);
+    (* clause (assignment x = 0, y = 2) *)
+    (* -5 for literal f(c, 2, d) = 2 *)
+    Solv.Enew_tmp_int_var (12, ~-5);
+    Solv.Elinear ([| 12; 13; ~-5 |], [| 6; 1; ~-1 |], ~-4);
+    Solv.Enew_tmp_int_var (3, ~-6);
+    Solv.Eint_element (0, ~-5, ~-6);
+    Solv.Enew_tmp_bool_var ~-5; (* f(c, 2, d) = 2 *)
+    Solv.Eeq_var_const (~-6, 2, ~-5);
+    (* -2 for literal c = d *)
+    (* 2 for literal p(0, 2) *)
+    (* -3 for literal c <> 0 *)
+    (* 10 for literal ~q(2, 0) *)
+    Solv.Eclause ([| ~-5; ~-2; 2 |], [| ~-3; 10 |]);
+    (* clause (assignment x = 1, y = 0) *)
+    (* -1 for literal f(c, 0, d) = 0 *)
+    (* -2 for literal c = d *)
+    (* 3 for literal p(1, 0) *)
+    (* -6 for literal c <> 1 *)
+    Solv.Enew_tmp_bool_var ~-6; (* c <> 1 *)
+    Solv.Eeq_var_const (12, 1, ~-6);
+    (* 7 for literal ~q(0, 1) *)
+    Solv.Eclause ([| ~-1; ~-2; 3 |], [| ~-6; 7 |]);
+    (* clause (assignment x = 1, y = 1) *)
+    (* -4 for literal f(c, 1, d) = 1 *)
+    (* -2 for literal c = d *)
+    (* 4 for literal p(1, 1) *)
+    (* -6 for literal c <> 1 *)
+    (* 9 for literal ~q(1, 1) *)
+    Solv.Eclause ([| ~-4; ~-2; 4 |], [| ~-6; 9 |]);
+    (* clause (assignment x = 1, y = 2) *)
+    (* -5 for literal f(c, 2, d) = 2 *)
+    (* -2 for literal c = d *)
+    (* 5 for literal p(1, 2) *)
+    (* -6 for literal c <> 1 *)
+    (* 11 for literal ~q(2, 1) *)
+    Solv.Eclause ([| ~-5; ~-2; 5 |], [| ~-6; 11 |]);
+    (* LNH for sort 0 (sort with c, d) *)
+    Solv.Elower_eq (12, 0); (* c <= 0 *)
+    Solv.Eprecede ([| 12; 13 |], [| 0; 1 |]);
+    (* LNH for sort 1 (sort with f) *)
+    Solv.Elower_eq (0, 1); (* f(0, 0, 0) <= 1 *)
+    Solv.Eprecede ([| 0; 1; 6; 7 |], [| 1; 2 |]);
+  ]
+
+(* Function [f] where sorts of its arguments differ from sort of its result.
+   Such function behaves as constant when doing LNH.
+*)
+let test_more_sorts_almost_const () =
+  let prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  let f = Symb.add_func db 1 in
+  let f a = T.func (f, [| a |]) in
+  let c = Symb.add_func db 0 in
+  let c = T.func (c, [| |]) in
+  let x, y = T.var 0, T.var 1 in
+  let clause = {
+    C2.cl_id = Prob.fresh_id prob;
+    C2.cl_lits = [
+      L.mk_eq (f x) y;
+      L.mk_eq x c;
+    ];
+  } in
+  BatDynArray.add prob.Prob.clauses clause;
+  (* Adequate size of sort with [c] is 2.
+     Sort with [f] has no adequate size.
+  *)
+  let sorts = Sorts.of_problem prob in
+
+  let i3 = Inst.create prob sorts 3 in
+  assert_log i3 [
+    Solv.Enew_int_var (3, 0); (* f(0) *)
+    Solv.Enew_int_var (3, 1); (* f(1) *)
+    Solv.Enew_int_var_array ([| 0; 1 |], 0);
+    Solv.Enew_int_var (2, 2); (* c *)
+    Solv.Enew_int_var_array ([| 2 |], 1);
+    (* clause (assignment x = 0, y = 0) *)
+    (* -1 for literal f(0) = 0 *)
+    Solv.Enew_tmp_bool_var ~-1; (* f(0) = 0 *)
+    Solv.Eeq_var_const (0, 0, ~-1);
+    (* -2 for literal 0 = c *)
+    Solv.Enew_tmp_bool_var ~-2; (* 0 = c *)
+    Solv.Eeq_var_const (2, 0, ~-2);
+    Solv.Eclause ([| ~-1; ~-2 |], [| |]);
+    (* clause (assignment x = 0, y = 1) *)
+    (* -3 for literal f(0) = 1 *)
+    Solv.Enew_tmp_bool_var ~-3; (* f(0) = 1 *)
+    Solv.Eeq_var_const (0, 1, ~-3);
+    (* -2 for literal 0 = c *)
+    Solv.Eclause ([| ~-3; ~-2 |], [| |]);
+    (* clause (assignment x = 0, y = 2) *)
+    (* -4 for literal f(0) = 2 *)
+    Solv.Enew_tmp_bool_var ~-4; (* f(0) = 2 *)
+    Solv.Eeq_var_const (0, 2, ~-4);
+    (* -2 for literal 0 = c *)
+    Solv.Eclause ([| ~-4; ~-2 |], [| |]);
+    (* clause (assignment x = 1, y = 0) *)
+    (* -5 for literal f(1) = 0 *)
+    Solv.Enew_tmp_bool_var ~-5; (* f(1) = 0 *)
+    Solv.Eeq_var_const (1, 0, ~-5);
+    (* -6 for literal 1 = c *)
+    Solv.Enew_tmp_bool_var ~-6; (* 1 = c *)
+    Solv.Eeq_var_const (2, 1, ~-6);
+    Solv.Eclause ([| ~-5; ~-6 |], [| |]);
+    (* clause (assignment x = 1, y = 1) *)
+    (* -7 for literal f(1) = 1 *)
+    Solv.Enew_tmp_bool_var ~-7; (* f(1) = 1 *)
+    Solv.Eeq_var_const (1, 1, ~-7);
+    (* -6 for literal 1 = c *)
+    Solv.Eclause ([| ~-7; ~-6 |], [| |]);
+    (* clause (assignment x = 1, y = 2) *)
+    (* -8 for literal f(1) = 2 *)
+    Solv.Enew_tmp_bool_var ~-8; (* f(1) = 2 *)
+    Solv.Eeq_var_const (1, 2, ~-8);
+    (* -6 for literal 1 = c *)
+    Solv.Eclause ([| ~-8; ~-6 |], [| |]);
+    (* LNH for sort 0 (sort with c) *)
+    Solv.Elower_eq (2, 0); (* c <= 0 *)
+    (* LNH for sort 1 (sort with f) *)
+    Solv.Elower_eq (0, 0); (* f(0) <= 0 *)
+    Solv.Elower_eq (1, 1); (* f(1) <= 1 *)
+    Solv.Eprecede ([| 0; 1 |], [| 0; 1 |]);
+  ]
+
+let test_more_sorts_comm_func () =
+  let prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  let f = Symb.add_func db 2 in
+  S.set_commutative db f true;
+  let f a b = T.func (f, [| a; b |]) in
+  let c = Symb.add_func db 0 in
+  let c = T.func (c, [| |]) in
+  let x, y = T.var 0, T.var 1 in
+  let clause = {
+    C2.cl_id = Prob.fresh_id prob;
+    C2.cl_lits = [
+      L.mk_eq (f x y) c;
+      L.mk_eq x y;
+    ];
+  } in
+  BatDynArray.add prob.Prob.clauses clause;
+  (* No sort has adequate size. *)
+  let sorts = Sorts.of_problem prob in
+
+  let i2 = Inst.create prob sorts 2 in
+  assert_log i2 [
+    Solv.Enew_int_var (2, 0); (* f(0, 0) *)
+    Solv.Enew_int_var (2, 1); (* f(0, 1) = f(1, 0) *)
+    Solv.Enew_int_var (2, 2); (* f(1, 1) *)
+    Solv.Enew_int_var_array ([| 0; 1; 1; 2 |], 0);
+    Solv.Enew_int_var (2, 3); (* c *)
+    Solv.Enew_int_var_array ([| 3 |], 1);
+    (* clause (assignment x = 0, y = 1) *)
+    (* -1 for literal f(0, 1) = c *)
+    Solv.Enew_tmp_bool_var ~-1; (* f(0, 1) = c *)
+    Solv.Eeq_var_var (1, 3, ~-1);
+    Solv.Eclause ([| ~-1 |], [| |]);
+    (* clause (assignment x = 1, y = 0) *)
+    (* -1 for literal f(1, 0) = c *)
+    Solv.Eclause ([| ~-1 |], [| |]);
+    (* LNH for sort 0 (sort with arguments of f) *)
+    (* LNH for sort 1 (sort with c, f) *)
+    Solv.Elower_eq (0, 0); (* f(0, 0) <= 0 *)
+    Solv.Eprecede ([| 0; 1; 2; 3 |], [| 0; 1 |]);
+  ]
+
 let suite =
   "Csp_inst suite" >:::
     [
@@ -1073,4 +1427,7 @@ let suite =
       "shared eq_var_const" >:: test_shared_eq_var_const;
       "distinct consts" >:: test_distinct_consts;
       "hints" >:: test_hints;
+      "more sorts" >:: test_more_sorts;
+      "more sorts - almost const" >:: test_more_sorts_almost_const;
+      "more sorts - comm func" >:: test_more_sorts_comm_func;
     ]
