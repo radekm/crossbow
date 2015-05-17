@@ -671,7 +671,7 @@ struct
     BatMap.iter
       (fun s (adeq_sizes, commutative) ->
         let arity = Symb.arity s in
-        if not (Symb.auxiliary inst.symbols s) || arity = 0 then begin
+        if not (Symb.auxiliary inst.symbols s) then begin
           let dsize i =
             if
               adeq_sizes.(i) = 0 ||
