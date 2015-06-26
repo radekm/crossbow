@@ -79,6 +79,7 @@ section
         mkdir -p doc
         ocamlfind ocamldoc \
             -thread -d doc -html -stars -sort \
+            -ppx ../earray/earray_syntax$(EXE) \
             $(PREFIXED_OCAMLINCLUDES) \
             $(mapprefix -package, $(OCAMLPACKS)) \
             $(SOURCES)
