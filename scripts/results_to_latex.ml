@@ -113,6 +113,12 @@ module Res_all : sig
 
   val combine_results_for_all_groups : t -> Res_one.t
 
+  (** Combines results for small groups with less than 10 problems
+     into one bigger group. The name of this bigger group
+     is given by [grp_name].
+  *)
+  val combine_results_for_small_groups : grp_name:grp_name -> t -> t
+
   val iter_by_group : (grp_name * Res_one.t -> unit) -> t -> unit
 
 end = struct
@@ -127,6 +133,21 @@ end = struct
       res_by_grp
       |> BatList.map snd
       |> BatList.concat in
+    BatList.map
+      (fun (cfg_name, res_by_grp) -> cfg_name, combine res_by_grp)
+      res_all
+
+  let combine_results_for_small_groups ~grp_name (res_all : t) : t =
+    let combine (res_by_grp : res_by_grp) : res_by_grp =
+      let res_small_grps, res_big_grps =
+        BatList.partition
+          (fun (_grp_name, results) -> List.length results < 10)
+          res_by_grp in
+      let combined_results =
+        res_small_grps
+        |> BatList.map snd
+        |> BatList.concat in
+      res_big_grps @ [grp_name, combined_results] in
     BatList.map
       (fun (cfg_name, res_by_grp) -> cfg_name, combine res_by_grp)
       res_all
@@ -680,6 +701,7 @@ type lang_data = {
   label_out_of_time : string;
   label_out_of_memory : string;
   label_error : string;
+  label_other_groups : grp_name;
   label_num_problems : string;
   label_total : string;
   label_x : string;
@@ -692,6 +714,7 @@ let lang_en = {
   label_out_of_time = "t";
   label_out_of_memory = "m";
   label_error = "x";
+  label_other_groups = "Others";
   label_num_problems = "No. of problems";
   label_total = "Total";
   label_x = "Time (s)";
@@ -704,6 +727,7 @@ let lang_cs = {
   label_out_of_time = "č";
   label_out_of_memory = "p";
   label_error = "x";
+  label_other_groups = "Ostatní";
   label_num_problems = "Počet problémů";
   label_total = "Celkem";
   label_x = "Čas (s)";
@@ -727,11 +751,17 @@ let main
     (* Input. *)
     report config_names group_names problem_lists
     (* Optional settings. *)
-    output_file lang max_time =
+    output_file lang combine_small_groups max_time =
 
   let lang = get_lang_data lang in
   let res_all =
     Input.read_results report config_names group_names problem_lists in
+  let res_all =
+    if combine_small_groups then
+      Res_all.combine_results_for_small_groups
+        ~grp_name:lang.label_other_groups
+        res_all
+    else res_all in
   let output, close_output =
     match output_file with
       | None -> stdout, (fun _ -> ())
@@ -816,6 +846,12 @@ let lang =
   Arg.(value & opt (enum langs) En & info ["lang"]
          ~docv:"LANG" ~doc)
 
+let combine_small_groups =
+  let doc =
+    "Combine small groups with less than 10 problems " ^
+    "into one bigger group." in
+  Arg.(value & flag & info ["combine-small-groups"] ~doc)
+
 let max_time =
   let doc = "Max time in plots (in seconds)." in
   Arg.(value & opt int 300 &
@@ -824,7 +860,7 @@ let max_time =
 let main_t =
   Term.(pure main $ output_type $ report $
           config $ group $ problems $
-          output_file $ lang $ max_time)
+          output_file $ lang $ combine_small_groups $ max_time)
 
 let info =
   Term.info "results_to_latex"
