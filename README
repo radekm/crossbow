@@ -1,0 +1,51 @@
+Crossbow is a finite model finder for first-order logic.
+
+
+How to compile
+--------------
+
+You'll need OCaml 4.02.2, GNU Make and GCC (GCC version 4.8.1
+is known to work). Then you'll need following OCaml programs and libraries:
+
+  batteries.2.3.1
+  cmdliner.0.9.7
+  menhir.20141215  (for tptp.0.3.1)
+  ocamlfind.1.5.5
+  oclock.0.4.0
+  omake.0.9.8.6-0.rc1
+  ounit.2.0.0  (optional for tests)
+  pprint.20140424  (for tptp.0.3.1)
+  ppx_tools.0.99.2
+  sexplib.112.24.01
+  sqlite3.2.0.9
+  tptp.0.3.1
+  zarith.1.3
+
+When compiling sqlite3.2.0.9 and zarith.1.3 you'll need
+SQLite 3 and the GNU Multiple Precision Arithmetic Library
+installed with development files.
+In openSUSE 13.1 you can install them by installing packages
+
+  sqlite3-devel
+  gmp-devel
+
+Additionally to compile Crossbow you'll need zlib header file
+(used by MiniSat).
+In openSUSE 13.1 you can install it by installing package
+
+  zlib-devel
+
+When all dependencies are installed you can compile Crossbow by
+
+  make
+
+This builds program, scripts and API documentation. If ounit.2.0.0
+is installed, you can compile and run tests by
+
+  make check
+
+
+How to run
+----------
+
+Some scripts need cgroups -- see scripts/HOWTO
