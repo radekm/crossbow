@@ -1410,6 +1410,60 @@ let test_more_sorts_comm_func () =
     Solv.Eprecede ([| 0; 1; 2; 3 |], [| 0; 1 |]);
   ]
 
+let test_more_sorts_lnh_blocked_sort () =
+  let prob = Prob.create () in
+  let db = prob.Prob.symbols in
+  let f = Symb.add_func db 1 in
+  let f a = T.func (f, [| a |]) in
+  let g = Symb.add_func db 1 in
+  let g a = T.func (g, [| a |]) in
+  let c = Symb.add_func db 0 in
+  let c = T.func (c, [| |]) in
+  let d = Symb.add_func db 0 in
+  let d = T.func (d, [| |]) in
+  let clause = {
+    C2.cl_id = Prob.fresh_id prob;
+    C2.cl_lits = [
+      L.mk_eq (f c) d;
+      L.mk_eq (g d) c;
+    ];
+  } in
+  BatDynArray.add prob.Prob.clauses clause;
+  (* No sort has adequate size. *)
+  let sorts = Sorts.of_problem prob in
+
+  let i2 = Inst.create prob sorts 2 in
+  assert_log i2 [
+    Solv.Enew_int_var (2, 0); (* f(0) *)
+    Solv.Enew_int_var (2, 1); (* f(1) *)
+    Solv.Enew_int_var_array ([| 0; 1 |], 0);
+    Solv.Enew_int_var (2, 2); (* c *)
+    Solv.Enew_int_var_array ([| 2 |], 1);
+    Solv.Enew_int_var (2, 3); (* d *)
+    Solv.Enew_int_var_array ([| 3 |], 2);
+    Solv.Enew_int_var (2, 4); (* g(0) *)
+    Solv.Enew_int_var (2, 5); (* g(1) *)
+    Solv.Enew_int_var_array ([| 4; 5 |], 3);
+    (* clause *)
+    (* -1 for literal f(c) = d *)
+    Solv.Enew_tmp_int_var (2, ~-1);
+    Solv.Eint_element (0, 2, ~-1);
+    Solv.Enew_tmp_bool_var ~-1; (* f(c) = d *)
+    Solv.Eeq_var_var (~-1, 3, ~-1);
+    (* -2 for literal g(d) = c *)
+    Solv.Enew_tmp_int_var (2, ~-2);
+    Solv.Eint_element (3, 3, ~-2);
+    Solv.Enew_tmp_bool_var ~-2; (* g(d) = c *)
+    Solv.Eeq_var_var (~-2, 2, ~-2);
+    Solv.Eclause ([| ~-1; ~-2 |], [| |]);
+    (* LNH for sort 0 (result sort of g, c, argument sort of f) *)
+    Solv.Elower_eq (4, 0); (* g(0) <= 0 *)
+    Solv.Eprecede ([| 4; 5; 2 |], [| 0; 1 |]);
+    (* LNH for sort 1 (result sort of f, d, argument sort of g)
+       isn't applicable - sort 1 was blocked by sort 0
+    *)
+  ]
+
 let suite =
   "Csp_inst suite" >:::
     [
@@ -1430,4 +1484,6 @@ let suite =
       "more sorts" >:: test_more_sorts;
       "more sorts - almost const" >:: test_more_sorts_almost_const;
       "more sorts - comm func" >:: test_more_sorts_comm_func;
+      "more sorts - one sort blocked from LNH" >::
+        test_more_sorts_lnh_blocked_sort;
     ]

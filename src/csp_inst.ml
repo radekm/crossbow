@@ -465,7 +465,9 @@ struct
     then n
     else adeq_size
 
-  (* LNH for sort [sort]. *)
+  (* LNH for sort [sort]. Assumes that all values in the domain
+     of [sort] are unused (i.e. interchangeable).
+  *)
   let lnh inst sort =
     let dom_size = dsize ~n:inst.n ~sorts:inst.sorts sort in
 
@@ -678,6 +680,59 @@ struct
           hints)
       funcs
 
+  let order_sorts_for_lnh sorts =
+    (* Returns sorts of arguments of functions
+       with [sort] as their result sort.
+    *)
+    let arg_sorts sort =
+      let test_result_sort (s, sorts) =
+        match Symb.kind s with
+          | Symb.Func -> sorts.(Symb.arity s) = sort
+          | Symb.Pred -> false in
+      sorts.Sorts.symb_sorts
+      |> BatHashtbl.enum
+      |> BatEnum.filter test_result_sort
+      |> BatEnum.map (fun (_, sorts) -> Earray.enum sorts |> BatSet.of_enum)
+      |> BatEnum.fold BatSet.union BatSet.empty in
+    (* The array of pairs [(sort, blocked)].
+       Picking sort [sort] for LNH will block sorts [blocked] from LNH
+       since LNH assumes that all values in the domain are unused.
+    *)
+    let blocked_sorts =
+      Earray.mapi
+        (* [arg_sorts sort] except [sort] will be blocked from LNH
+           if [sort] is picked for LNH.
+        *)
+        (fun sort _ -> sort, BatSet.remove sort (arg_sorts sort))
+        sorts.Sorts.adeq_sizes in
+    (* Picks sort which blocks minimal number of other sorts. *)
+    let pick_sort blocked_sorts =
+      if Earray.is_empty blocked_sorts then
+        None
+      else begin
+        (* [sort] is picked for LNH.
+           [blocked] is a set of sorts blocked by picking [sort].
+        *)
+        let sort, blocked =
+          blocked_sorts
+          |> Earray.enum
+          (* Find sort which blocks minimal number of other sorts. *)
+          |> BatEnum.arg_min (fun (_, blocked) -> BatSet.cardinal blocked) in
+        (* Remove sorts which can't be picked for LNH. *)
+        let blocked_sorts =
+          let keep sort' = sort' <> sort && not (BatSet.mem sort' blocked) in
+          Earray.filter
+            (fun (sort', _) -> keep sort')
+            blocked_sorts in
+        (* [sort] can't be blocked anymore. *)
+        let blocked_sorts =
+          Earray.map
+            (fun (sort', blocked) -> sort', BatSet.remove sort blocked)
+            blocked_sorts in
+        Some (sort, blocked_sorts)
+      end in
+    BatEnum.unfold blocked_sorts pick_sort
+
   let create ?(nthreads = 1) prob sorts n =
     let prob = Prob.read_only prob in
 
@@ -718,10 +773,10 @@ struct
     BatDynArray.iter
       (fun cl -> each_clause inst cl.Clause2.cl_id cl.Clause2.cl_lits)
       prob.Prob.clauses;
-    (* LNH for each sort. *)
-    Earray.iteri
-      (fun sort _ -> lnh inst sort)
-      inst.sorts.Sorts.adeq_sizes;
+    (* LNH. *)
+    sorts
+    |> order_sorts_for_lnh
+    |> BatEnum.iter (fun sort -> lnh inst sort);
     (* Hints. *)
     use_hints inst;
     inst
