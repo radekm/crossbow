@@ -23,7 +23,15 @@ let run e_exe e_opts inputs =
       Unix.stdout
       Unix.stderr in
   begin match Unix.waitpid [] pid with
-    | _, Unix.WEXITED 0 -> ()
+    | _, Unix.WEXITED 0
+    (* E prover 1.8 may exit with code 8
+       when used with parameter [soft-cpu-limit].
+    *)
+    | _, Unix.WEXITED 8
+    (* E prover 1.8 may exit with code 1
+       when the input is satisfiable.
+    *)
+    | _, Unix.WEXITED 1 -> ()
     | _, Unix.WEXITED i ->
         failwith (Printf.sprintf "E exited with code %d" i)
     | _ -> failwith "E failed"
