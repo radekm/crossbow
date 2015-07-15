@@ -771,6 +771,7 @@ let gecode_solver =
       T_detect_hints_for_groups; T_detect_hints_for_quasigroups;
       T_detect_hints_for_involutive_funcs;
       T_rewrite_ground_terms; T_unflatten;
+      T_define_ground_terms; T_paradox_mod_splitting;
     ];
   }
 
