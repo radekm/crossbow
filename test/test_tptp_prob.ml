@@ -698,61 +698,53 @@ let test_model_to_tptp () =
         BatList.reduce
           (fun a b -> Ast.Binop (Ast.Or, a, b))
           [eq x d0; eq x d1; eq x d2; eq x d3] in
-      Ast.Formula (Ast.Quant (Ast.All, x, disjunction)) in
-    let func_f =
-      let conjunction =
-        BatList.reduce
-          (fun a b -> Ast.Binop (Ast.And, a, b))
-          [
-            f [d0; d0] d2; f [d0; d1] d3; f [d0; d2] d2; f [d0; d3] d0;
-            f [d1; d0] d1; f [d1; d1] d0; f [d1; d2] d0; f [d1; d3] d3;
-            f [d2; d0] d1; f [d2; d1] d2; f [d2; d2] d0; f [d2; d3] d0;
-            f [d3; d0] d3; f [d3; d1] d3; f [d3; d2] d2; f [d3; d3] d1;
-          ] in
-      Ast.Formula conjunction in
-    let pred_p =
-      let conjunction =
-        BatList.reduce
-          (fun a b -> Ast.Binop (Ast.And, a, b))
-          [
-            Ast.Not (Ast.Atom (Ast.Pred (p', [d0])));
-            Ast.Atom (Ast.Pred (p', [d1]));
-            Ast.Not (Ast.Atom (Ast.Pred (p', [d2])));
-            Ast.Not (Ast.Atom (Ast.Pred (p', [d3])));
-          ] in
-      Ast.Formula conjunction in
-    let pred_q = Ast.Formula (Ast.Atom (Ast.Pred (q', []))) in
-    [
-      Ast.Comment (Ast.to_comment_line " SZS output start FiniteModel");
-      Ast.Comment (Ast.to_comment_line " domain size: 4");
       Ast.Fof_anno
         {
           Ast.af_name = interp_name;
           Ast.af_role = Ast.R_fi_domain;
-          Ast.af_formula = dom;
+          Ast.af_formula = Ast.Formula (Ast.Quant (Ast.All, x, disjunction));
           Ast.af_annos = None;
-        };
+        } in
+    let wrap_func lit =
       Ast.Fof_anno
         {
           Ast.af_name = interp_name;
           Ast.af_role = Ast.R_fi_functors;
-          Ast.af_formula = func_f;
+          Ast.af_formula = Ast.Formula lit;
           Ast.af_annos = None;
-        };
+        } in
+    let func_f =
+      [
+        f [d0; d0] d2; f [d0; d1] d3; f [d0; d2] d2; f [d0; d3] d0;
+        f [d1; d0] d1; f [d1; d1] d0; f [d1; d2] d0; f [d1; d3] d3;
+        f [d2; d0] d1; f [d2; d1] d2; f [d2; d2] d0; f [d2; d3] d0;
+        f [d3; d0] d3; f [d3; d1] d3; f [d3; d2] d2; f [d3; d3] d1;
+      ]
+      |> BatList.map wrap_func in
+    let wrap_pred lit =
       Ast.Fof_anno
         {
           Ast.af_name = interp_name;
           Ast.af_role = Ast.R_fi_predicates;
-          Ast.af_formula = pred_p;
+          Ast.af_formula = Ast.Formula lit;
           Ast.af_annos = None;
-        };
-      Ast.Fof_anno
-        {
-          Ast.af_name = interp_name;
-          Ast.af_role = Ast.R_fi_predicates;
-          Ast.af_formula = pred_q;
-          Ast.af_annos = None;
-        };
+        } in
+    let pred_p =
+      [
+        Ast.Not (Ast.Atom (Ast.Pred (p', [d0])));
+        Ast.Atom (Ast.Pred (p', [d1]));
+        Ast.Not (Ast.Atom (Ast.Pred (p', [d2])));
+        Ast.Not (Ast.Atom (Ast.Pred (p', [d3])));
+      ]
+      |> BatList.map wrap_pred in
+    let pred_q = Ast.Atom (Ast.Pred (q', [])) |> wrap_pred in
+    [
+      Ast.Comment (Ast.to_comment_line " SZS output start FiniteModel");
+      Ast.Comment (Ast.to_comment_line " domain size: 4");
+      dom;
+    ] @ func_f @ pred_p @
+    [
+      pred_q;
       Ast.Comment (Ast.to_comment_line " SZS output end FiniteModel");
     ] in
 

@@ -548,50 +548,41 @@ let model_to_tptp
     (fun (tptp_symb, s) ->
       match tptp_symb with
         | Atomic_word (w, arity) ->
-            let role, atoms =
-              let param_sizes = Earray.make arity model.M.max_size in
-              let values = (Symb.Map.find s model.M.symbs).M.values in
-              let a = Earray.make arity ~-1 in
-              let i = ref 0 in
-              let atoms = BatDynArray.make (Earray.length values) in
-              if Symb.kind s == Symb.Pred then begin
-                Assignment.each a 0 arity param_sizes model.M.max_size
-                  (fun a ->
-                    let args =
-                      BatList.init arity (fun j -> dom_to_tptp.(a.(j))) in
-                    let atom = Ast.Atom (Ast.Pred (w, args)) in
-                    begin match values.(!i) with
-                      | 0 -> BatDynArray.add atoms (Ast.Not atom)
-                      | 1 -> BatDynArray.add atoms atom
-                      | _ -> failwith "invalid value of predicate"
-                    end;
-                    incr i);
-                role_pred, atoms
-              end else begin
-                Assignment.each a 0 arity param_sizes model.M.max_size
-                  (fun a ->
-                    let args =
-                      BatList.init arity (fun j -> dom_to_tptp.(a.(j))) in
-                    let cell = Ast.Func (w, args) in
-                    let v = dom_to_tptp.(values.(!i)) in
-                    let atom = Ast.Atom (Ast.Equals (cell, v)) in
-                    BatDynArray.add atoms atom;
-                    incr i);
-                role_func, atoms
-              end in
-            let conjunction =
-              let f = ref (BatDynArray.get atoms 0) in
-              for i = 1 to BatDynArray.length atoms - 1 do
-                f := Ast.Binop (Ast.And, !f, BatDynArray.get atoms i);
-              done;
-              !f in
-            f
-              (Ast.Fof_anno {
-                Ast.af_name = interp_name;
-                Ast.af_role = role;
-                Ast.af_formula = Ast.Formula conjunction;
-                Ast.af_annos = None;
-              })
+            let param_sizes = Earray.make arity model.M.max_size in
+            let values = (Symb.Map.find s model.M.symbs).M.values in
+            let a = Earray.make arity ~-1 in
+            let i = ref 0 in
+            let f role lit =
+              f
+                (Ast.Fof_anno {
+                  Ast.af_name = interp_name;
+                  Ast.af_role = role;
+                  Ast.af_formula = Ast.Formula lit;
+                  Ast.af_annos = None;
+                }) in
+            if Symb.kind s == Symb.Pred then begin
+              Assignment.each a 0 arity param_sizes model.M.max_size
+                (fun a ->
+                  let args =
+                    BatList.init arity (fun j -> dom_to_tptp.(a.(j))) in
+                  let atom = Ast.Atom (Ast.Pred (w, args)) in
+                  begin match values.(!i) with
+                    | 0 -> f role_pred (Ast.Not atom)
+                    | 1 -> f role_pred atom
+                    | _ -> failwith "invalid value of predicate"
+                  end;
+                  incr i)
+            end else begin
+              Assignment.each a 0 arity param_sizes model.M.max_size
+                (fun a ->
+                  let args =
+                    BatList.init arity (fun j -> dom_to_tptp.(a.(j))) in
+                  let cell = Ast.Func (w, args) in
+                  let v = dom_to_tptp.(values.(!i)) in
+                  let atom = Ast.Atom (Ast.Equals (cell, v)) in
+                  f role_func atom;
+                  incr i)
+            end
         (* Skip distinct constants - they are interpreted as themselves. *)
         | Number _ | String _ -> ())
     sorted_symbs;
