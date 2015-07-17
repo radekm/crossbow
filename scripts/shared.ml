@@ -327,6 +327,8 @@ let run_with_limits
               (* The process was killed but it isn't known why. *)
               else
                 failwith "run_with_limits: WSIGNALED Sys.sigkill"
+          | Unix.WSIGNALED i when i = Sys.sigabrt ->
+              Report.Result.Exit_code ~-1
           | Unix.WSIGNALED i ->
               failwith (Printf.sprintf "run_with_limits: WSIGNALED %d" i)
           | Unix.WSTOPPED i ->
