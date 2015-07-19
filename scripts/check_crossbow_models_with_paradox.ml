@@ -207,6 +207,11 @@ let check_model_with_paradox
     failwith "Invalid model";
   end;
 
+  (* Free the problem and the model from the memory
+     before running Paradox. Otherwise Paradox may run out of memory.
+  *)
+  Gc.compact ();
+
   (* Execute Paradox. *)
   let paradox_out = BatFile.with_temporary_out (fun _ file -> file) in
   let _, _, exit_status =
@@ -250,10 +255,12 @@ let check_model_with_paradox
     | Res.Out_of_time ->
         Printf.printf "Out of time: %s\n" paradox_in;
         flush stdout;
+        Sys.remove paradox_in;
         Sys.remove paradox_out;
     | Res.Out_of_memory ->
         Printf.printf "Out of memory: %s\n" paradox_in;
         flush stdout;
+        Sys.remove paradox_in;
         Sys.remove paradox_out
   end
 
